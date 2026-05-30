@@ -1,0 +1,2 @@
+[tasks.conficius]
+run = "go run ./cmd/cli/..."
