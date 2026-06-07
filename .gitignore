@@ -1,1 +1,22 @@
+# Logs
+logs
+*.log
+
+# Windows
+Thumbs.db
+
+# Editor directories and files
+.idea
 .DS_Store
+*.suo
+
+coverage/
+
+# Go workspace file
+go.work
+go.work.sum
+
+dist/
+bin/
+
+mise.local.toml

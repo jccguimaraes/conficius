@@ -1,0 +1,60 @@
+# Copyright 2026 João Guimarães
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+project_name: conficius
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: conficius
+    main: .
+    binary: conficius
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: conficius
+    ids:
+      - conficius
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  draft: false
+  prerelease: auto
+
+changelog:
+  disable: true
+
+homebrew_casks:
+  - name: conficius
+    binaries:
+      - conficius
+    repository:
+      owner: jccguimaraes
+      name: homebrew-conficius
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/jccguimaraes/conficius
+    description: An atempt to be a modern alternative to the fantastic GNU Stow project
+    license: Apache-2.0
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/conficius"]
+          end

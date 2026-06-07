@@ -1,2 +1,84 @@
-[tasks.conficius]
+[tools]
+actionlint = "1.7.12"
+ghalint = "1.5.6"
+git-cliff = "2.12.0"
+go = "1.26"
+golangci-lint = "v2.12.2"
+
+[env]
+COVERAGE_PATH="./coverage"
+COVERAGE_REPORT_PATH="{{env.COVERAGE_PATH}}/coverage.out"
+COVERAGE_HTML_PATH="{{env.COVERAGE_PATH}}/coverage.html"
+
+[tasks.setup]
+run = """
+git config --local core.hooksPath ./.commitlint/hooks
+chmod +x ./.commitlint/hooks/*
+"""
+
+[tasks.cli]
 run = "go run ./cmd/cli/..."
+
+[tasks.tui]
+run = "go run ./cmd/tui/..."
+
+[tasks.pkgsite]
+run = "go tool pkgsite"
+
+[tasks.lint]
+run = "golangci-lint run"
+
+[tasks.fmt]
+run = """
+go fmt ./...
+"""
+
+[tasks.build-cli]
+depends = ["test-ci"]
+run = """
+VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
+VERSION="${VERSION#v}"
+if [ -z "$VERSION" ]; then
+  VERSION="dev-$(git rev-parse --short HEAD)"
+fi
+rm -rf ./bin
+go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-cli ./cmd/cli/main.go
+"""
+
+[tasks.build-tui]
+depends = ["test-ci"]
+run = """
+VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
+VERSION="${VERSION#v}"
+if [ -z "$VERSION" ]; then
+  VERSION="dev-$(git rev-parse --short HEAD)"
+fi
+rm -rf ./bin
+go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-tui ./cmd/tui/main.go
+"""
+
+[tasks.changelog]
+run = "git cliff --offline --output CHANGELOG.md"
+
+[tasks.coverpath]
+run = "mkdir -p ./coverage"
+
+[tasks.test-ci]
+run = "go test ./... --cover"
+
+[tasks.test]
+depends = ["coverpath"]
+run = "go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
+
+[tasks.report]
+depends = ["test"]
+run = "go tool cover -html=${COVERAGE_REPORT_PATH} -o ${COVERAGE_HTML_PATH}"
+
+[tasks.license]
+run = "go tool addlicense -v -ignore '**/*.yaml' -ignore '**/*.yml' -ignore '**/*.md' -l apache -s=only -c 'João Guimarães' ."
+
+[tasks.license-check]
+run = "go tool addlicense -check -ignore '**/*.yaml' -ignore '**/*.yml' -ignore '**/*.md' ."
+
+[tasks.cinzel]
+run = "go tool cinzel github parse"
