@@ -30,26 +30,26 @@ type Tool interface {
 type Packages map[string][]Tool
 
 func Supported(pms []string) error {
-	set := make(map[string]struct{}, len(RegisteredPackageManagers))
+	list := make(map[string]struct{}, len(RegisteredPackageManagers))
 
 	for _, v := range RegisteredPackageManagers {
 		if v == PM_HOMEBREW {
-			set[PM_BREW] = struct{}{}
+			list[PM_BREW] = struct{}{}
 		} else {
-			set[v] = struct{}{}
+			list[v] = struct{}{}
 		}
 	}
 
 	var invalid []string
 
 	for _, v := range pms {
-		if _, ok := set[v]; !ok {
+		if _, ok := list[v]; !ok {
 			invalid = append(invalid, v)
 		}
 	}
 
 	if len(invalid) > 0 {
-		return fmt.Errorf("Unsupported packages %s", strings.Join(invalid, ", "))
+		return fmt.Errorf("unsupported packages %s", strings.Join(invalid, ", "))
 	}
 
 	return nil
@@ -247,6 +247,6 @@ func RunShellCommand(s config.Shell, args ...string) ([]byte, error) {
 
 		return content, nil
 	default:
-		return nil, fmt.Errorf("Shell '%s' not supported", name)
+		return nil, fmt.Errorf("shell '%s' not supported", name)
 	}
 }

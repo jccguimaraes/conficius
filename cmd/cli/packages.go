@@ -27,9 +27,9 @@ func (cli *Cli) packages() *urfave.Command {
 				Description: "List supported package managers.",
 				Usage:       "Show supported package managers.",
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					fmt.Println(strings.Join(packagemanager.RegisteredPackageManagers, ", "))
+					_, err := fmt.Fprintln(c.Writer, strings.Join(packagemanager.RegisteredPackageManagers, ", "))
 
-					return nil
+					return err
 				},
 			},
 			{
@@ -70,6 +70,57 @@ func (cli *Cli) packages() *urfave.Command {
 				},
 			},
 			{
+				Name:        "update",
+				Description: "Update installed tools with available updates across supported package managers.",
+				Usage:       "Update tools.",
+				Flags: []urfave.Flag{
+					&urfave.StringSliceFlag{
+						Name:  "pm",
+						Usage: "Pass multiple package managers (none if include all package managers)",
+						Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
+							return packagemanager.Supported(pms)
+						},
+					},
+				},
+				MutuallyExclusiveFlags: []urfave.MutuallyExclusiveFlags{
+					{
+						Required: true,
+						Flags: [][]urfave.Flag{
+							{
+								&urfave.StringSliceFlag{
+									Name:  "exclude",
+									Usage: "Pass multiple tools to exclude",
+									Action: func(ctx context.Context, cmd *urfave.Command, tools []string) error {
+										fmt.Println(tools)
+										return nil
+									},
+								},
+							},
+							{
+								&urfave.StringSliceFlag{
+									Name:  "include",
+									Usage: "Include only tools",
+									Action: func(ctx context.Context, cmd *urfave.Command, tools []string) error {
+										fmt.Println(tools)
+										return nil
+									},
+								},
+							},
+						},
+					},
+				},
+				Action: func(ctx context.Context, c *urfave.Command) error {
+					snapshot, err := config.Current()
+					if err != nil {
+						return err
+					}
+
+					fmt.Println(snapshot)
+
+					return nil
+				},
+			},
+			{
 				Name:        "vulnerabilities",
 				Description: "Check installed tools against vulnerability databases.",
 				Usage:       "Show known vulnerabilities.",
@@ -88,28 +139,27 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 
-					outdatedList, err := packagemanager.ReadOutdated(snapshot, c.StringSlice("pm"))
+					pms := c.StringSlice("pm")
+
+					if len(pms) == 0 {
+						pms = packagemanager.RegisteredPackageManagers
+					}
+
+					outdatedList, err := packagemanager.ReadOutdated(snapshot, pms)
 					if err != nil {
 						return err
 					}
 
-					for _, tools := range outdatedList {
-						for _, outdated := range tools {
-							infos, err := cve.ReadEUVDVersion(outdated.GetName(), outdated.GetCurrentVersion())
-							if err != nil {
-								return err
-							}
+					aggregatedList := make(cve.EUVDList)
 
-							for _, info := range infos.Direct {
-								fmt.Fprintf(c.Writer, "%s %s: %s\nAffected: %s\n%s\n\n",
-									outdated.GetName(),
-									outdated.GetCurrentVersion(),
-									info.CVEID,
-									strings.Join(info.AffectedVersions, ", "),
-									info.Link,
-								)
-							}
-						}
+					if err := aggregatedList.Aggregate(outdatedList, c.Writer); err != nil {
+						return err
+					}
+
+					fmt.Println("fetching CVEs")
+
+					if err := aggregatedList.ListCVEs(500); err != nil {
+						return err
 					}
 
 					return nil

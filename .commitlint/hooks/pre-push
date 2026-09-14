@@ -4,4 +4,21 @@
 . $(dirname "$0")/utils.sh
 
 heading "running commitlint:"
-go tool commitlint lint --message "$1"
+
+zero_sha="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "$zero_sha" ]; then
+        continue
+    fi
+
+    if [ "$remote_sha" = "$zero_sha" ]; then
+        range="$local_sha"
+    else
+        range="$remote_sha..$local_sha"
+    fi
+
+    for commit in $(git rev-list "$range"); do
+        git log -1 --format=%B "$commit" | go tool commitlint lint
+    done
+done

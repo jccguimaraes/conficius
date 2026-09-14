@@ -14,6 +14,7 @@ require github.com/urfave/cli/v3 v3.9.0
 require (
 	github.com/fatih/color v1.19.0
 	github.com/kungfusheep/glyph v0.7.0
+	github.com/pandatix/go-cvss v0.6.2
 )
 
 require (
@@ -34,7 +35,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/junegunn/fzf v0.73.1 // indirect
 	github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kungfusheep/riffkey v0.0.0-20260424163050-c13d19def76f // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
@@ -59,7 +59,6 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/markdown v0.0.0-20231214224604-88bb533a6020 // indirect

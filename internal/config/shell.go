@@ -32,7 +32,7 @@ func ReadShell() (Shell, error) {
 	}
 
 	if env == "" {
-		return Shell{}, errors.New("No shell could be determined, SHELL env is empty")
+		return Shell{}, errors.New("no shell could be determined, SHELL env is empty")
 	}
 
 	s := Shell{

@@ -1,19 +1,23 @@
 package main
 
 import (
-	. "github.com/kungfusheep/glyph"
+	"log"
+
+	"github.com/kungfusheep/glyph"
 )
 
 func main() {
-	app := NewInlineApp()
-	app.SetView(
-		VBox(
-			Text("conficius"),
-			On(
-				Key("<Enter>", app.Stop),
+	app := glyph.NewInlineApp()
+	if err := app.SetView(
+		glyph.VBox(
+			glyph.Text("conficius"),
+			glyph.On(
+				glyph.Key("<Enter>", app.Stop),
 			),
 		),
 	).
 		ClearOnExit(true).
-		Run()
+		Run(); err != nil {
+		log.Fatal(err)
+	}
 }
