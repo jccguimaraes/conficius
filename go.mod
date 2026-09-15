@@ -1,6 +1,6 @@
 module github.com/jccguimaraes/conficius
 
-go 1.26.3
+go 1.26.8
 
 tool (
 	github.com/conventionalcommit/commitlint
@@ -12,18 +12,15 @@ tool (
 require github.com/urfave/cli/v3 v3.9.0
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/fatih/color v1.19.0
-	github.com/kungfusheep/glyph v0.7.0
-	github.com/pandatix/go-cvss v0.6.2
 )
 
 require (
-	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.27.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
-	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/conventionalcommit/commitlint v0.12.0 // indirect
 	github.com/conventionalcommit/parser v0.8.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -33,15 +30,11 @@ require (
 	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/google/safehtml v0.1.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
-	github.com/junegunn/fzf v0.73.1 // indirect
-	github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 // indirect
-	github.com/kungfusheep/riffkey v0.0.0-20260424163050-c13d19def76f // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
-	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/openai/openai-go/v3 v3.29.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -59,6 +52,7 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/markdown v0.0.0-20231214224604-88bb533a6020 // indirect

@@ -1,9 +1,8 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
-
-	"github.com/jccguimaraes/conficius/internal/config"
 )
 
 type MiseOutdatedTools map[string]MiseOutdatedTool
@@ -63,6 +62,10 @@ const (
 	MiseFlagOnlyInactive string = "--inactive"
 )
 
+func (t MiseTool) GetPackageManager() string {
+	return PM_MISE
+}
+
 func (t MiseTool) GetName() string {
 	return t.name
 }
@@ -83,15 +86,8 @@ func (t MiseTool) GetExecutable() string {
 	return t.executable
 }
 
-func (p Mise) ListOutdated(snapshot *config.Snapshot, executable string, outdatedPackages Packages) error {
-	output, err := RunShellCommand(
-		snapshot.Shell,
-		executable,
-		MiseCommandOutdated,
-		MiseFlagJSON,
-		MiseFlagBump,
-		MiseFlagOnlyInactive,
-	)
+func (p Mise) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
+	output, err := runOutput(ctx, executable, MiseCommandOutdated, MiseFlagJSON, MiseFlagBump, MiseFlagOnlyInactive)
 	if err != nil {
 		return err
 	}

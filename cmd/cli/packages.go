@@ -2,169 +2,264 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	urfave "github.com/urfave/cli/v3"
 
 	"github.com/jccguimaraes/conficius/internal/audit"
 	"github.com/jccguimaraes/conficius/internal/config"
-	"github.com/jccguimaraes/conficius/internal/cve"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
+const packageOutputSchemaVersion = 1
+
+type packageOutputEnvelope struct {
+	SchemaVersion int `json:"schema_version"`
+	Data          any `json:"data"`
+}
+
+type outdatedOutput struct {
+	Managers []packagemanager.ManagerStatus `json:"managers"`
+	Packages []packagemanager.Package       `json:"packages"`
+}
+
+type updateOutput struct {
+	Managers []packagemanager.ManagerStatus `json:"managers"`
+	Updates  []packagemanager.UpdatePlan    `json:"updates"`
+}
+
+type vulnerabilityOutput struct {
+	Managers []packagemanager.ManagerStatus `json:"managers"`
+	Findings []vulnerability.Finding        `json:"findings"`
+}
+
 func (cli *Cli) packages() *urfave.Command {
+	pmFlag := func() urfave.Flag {
+		return &urfave.StringSliceFlag{
+			Name:  "pm",
+			Usage: "Limit package managers (mise, brew, npm)",
+			Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
+				return packagemanager.Supported(pms)
+			},
+		}
+	}
+	jsonFlag := func() urfave.Flag {
+		return &urfave.BoolFlag{Name: "json", Usage: "Write schema-versioned JSON"}
+	}
+
 	return &urfave.Command{
 		Name:        "packages",
-		Description: "Inspect installed package managers, outdated tools, and vulnerability exposure.",
-		Usage:       "Inspect package tool state.",
+		Description: "Inspect installed package managers and update installed tools.",
+		Usage:       "Inspect and update packages.",
 		Action: func(ctx context.Context, cmd *urfave.Command) error {
 			return nil
 		},
 		Commands: []*urfave.Command{
 			{
 				Name:        "pms",
-				Description: "List supported package managers.",
+				Description: "List supported package managers and availability.",
 				Usage:       "Show supported package managers.",
+				Flags:       []urfave.Flag{jsonFlag()},
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					_, err := fmt.Fprintln(c.Writer, strings.Join(packagemanager.RegisteredPackageManagers, ", "))
-
-					return err
+					statuses, err := packagemanager.Inspect(nil)
+					if err != nil {
+						return err
+					}
+					if c.Bool("json") {
+						return writePackageJSON(cli.Writer, statuses)
+					}
+					return printManagerStatuses(cli.Writer, statuses)
 				},
 			},
 			{
 				Name:        "outdated",
-				Description: "List installed tools with available updates across supported package managers.",
+				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
-				Flags: []urfave.Flag{
-					&urfave.StringSliceFlag{
-						Name:  "pm",
-						Usage: "Pass multiple package managers (none if include all package managers)",
-						Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
-							return packagemanager.Supported(pms)
-						},
-					},
-				},
+				Flags:       []urfave.Flag{pmFlag(), jsonFlag()},
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					snapshot, err := config.Current()
-					if err != nil {
-						return err
+					result, queryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					if c.Bool("json") {
+						if err := writePackageJSON(cli.Writer, outdatedOutput{
+							Managers: result.Managers,
+							Packages: packagemanager.Records(result.Packages),
+						}); err != nil {
+							return err
+						}
+					} else {
+						if err := printManagerWarnings(cli.Writer, result.Managers); err != nil {
+							return err
+						}
+						if err := audit.PrintOutdated(result.Packages, cli.Writer); err != nil {
+							return err
+						}
 					}
-
-					pms := c.StringSlice("pm")
-
-					if len(pms) == 0 {
-						pms = packagemanager.RegisteredPackageManagers
-					}
-
-					outdatedList, err := packagemanager.ReadOutdated(snapshot, pms)
-					if err != nil {
-						return err
-					}
-
-					if err := audit.PrintOutdated(outdatedList, c.Writer); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			},
-			{
-				Name:        "update",
-				Description: "Update installed tools with available updates across supported package managers.",
-				Usage:       "Update tools.",
-				Flags: []urfave.Flag{
-					&urfave.StringSliceFlag{
-						Name:  "pm",
-						Usage: "Pass multiple package managers (none if include all package managers)",
-						Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
-							return packagemanager.Supported(pms)
-						},
-					},
-				},
-				MutuallyExclusiveFlags: []urfave.MutuallyExclusiveFlags{
-					{
-						Required: true,
-						Flags: [][]urfave.Flag{
-							{
-								&urfave.StringSliceFlag{
-									Name:  "exclude",
-									Usage: "Pass multiple tools to exclude",
-									Action: func(ctx context.Context, cmd *urfave.Command, tools []string) error {
-										fmt.Println(tools)
-										return nil
-									},
-								},
-							},
-							{
-								&urfave.StringSliceFlag{
-									Name:  "include",
-									Usage: "Include only tools",
-									Action: func(ctx context.Context, cmd *urfave.Command, tools []string) error {
-										fmt.Println(tools)
-										return nil
-									},
-								},
-							},
-						},
-					},
-				},
-				Action: func(ctx context.Context, c *urfave.Command) error {
-					snapshot, err := config.Current()
-					if err != nil {
-						return err
-					}
-
-					fmt.Println(snapshot)
-
-					return nil
+					return queryErr
 				},
 			},
 			{
 				Name:        "vulnerabilities",
-				Description: "Check installed tools against vulnerability databases.",
-				Usage:       "Show known vulnerabilities.",
+				Description: "Check installed packages against OSV using exact package versions.",
+				Usage:       "Show known vulnerabilities and unsupported package mappings.",
+				Flags:       []urfave.Flag{pmFlag(), jsonFlag()},
+				Action: func(ctx context.Context, c *urfave.Command) error {
+					project, err := config.LoadDiscovered(c.String("config"))
+					if err != nil && !errors.Is(err, config.ErrNotFound) {
+						return err
+					}
+					var mappings []config.VulnerabilityMapping
+					if project != nil {
+						mappings = project.Vulnerabilities.Mappings
+					}
+					inventory, inventoryErr := packagemanager.QueryInstalled(ctx, c.StringSlice("pm"))
+					client := vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL"))
+					findings, scanErr := vulnerability.Scan(ctx, inventory.Packages, mappings, client)
+					if c.Bool("json") {
+						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Managers: inventory.Managers, Findings: findings})
+						return errors.Join(inventoryErr, scanErr, writeErr)
+					}
+					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
+						return err
+					}
+					if err := printVulnerabilityFindings(cli.Writer, findings); err != nil {
+						return err
+					}
+					return errors.Join(inventoryErr, scanErr)
+				},
+			},
+			{
+				Name:        "update",
+				Description: "Preview or apply updates for installed tools.",
+				Usage:       "Preview updates by default; use --apply to mutate.",
 				Flags: []urfave.Flag{
-					&urfave.StringSliceFlag{
-						Name:  "pm",
-						Usage: "Pass multiple package managers",
-						Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
-							return packagemanager.Supported(pms)
-						},
-					},
+					pmFlag(),
+					jsonFlag(),
+					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
+					&urfave.StringSliceFlag{Name: "include", Usage: "Include package (manager:name or globally unique name)"},
+					&urfave.StringSliceFlag{Name: "exclude", Usage: "Exclude package (manager:name or globally unique name)"},
 				},
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					snapshot, err := config.Current()
+					if c.Bool("apply") && c.Bool("json") {
+						return errors.New("--json cannot be used with --apply")
+					}
+
+					result, queryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					plans, err := packagemanager.PlanUpdates(result, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err != nil {
 						return err
 					}
-
-					pms := c.StringSlice("pm")
-
-					if len(pms) == 0 {
-						pms = packagemanager.RegisteredPackageManagers
+					if c.Bool("json") {
+						return errors.Join(queryErr, writePackageJSON(cli.Writer, updateOutput{Managers: result.Managers, Updates: plans}))
 					}
-
-					outdatedList, err := packagemanager.ReadOutdated(snapshot, pms)
-					if err != nil {
+					if err := printManagerWarnings(cli.Writer, result.Managers); err != nil {
 						return err
 					}
-
-					aggregatedList := make(cve.EUVDList)
-
-					if err := aggregatedList.Aggregate(outdatedList, c.Writer); err != nil {
+					if err := printUpdatePlans(cli.Writer, plans, !c.Bool("apply")); err != nil {
 						return err
 					}
-
-					fmt.Println("fetching CVEs")
-
-					if err := aggregatedList.ListCVEs(500); err != nil {
-						return err
+					if !c.Bool("apply") {
+						return queryErr
 					}
 
-					return nil
+					freshResult, freshQueryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					freshPlans, freshPlanErr := packagemanager.PlanUpdates(freshResult, c.StringSlice("include"), c.StringSlice("exclude"))
+					if err := errors.Join(freshQueryErr, freshPlanErr); err != nil {
+						return err
+					}
+					plans = freshPlans
+
+					stdin := c.Reader
+					if stdin == nil {
+						stdin = os.Stdin
+					}
+					applyErr := packagemanager.ApplyUpdates(ctx, plans, stdin, cli.Writer, cli.Writer)
+					return errors.Join(queryErr, applyErr)
 				},
 			},
 		},
 	}
+}
+
+func writePackageJSON(writer io.Writer, data any) error {
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(packageOutputEnvelope{SchemaVersion: packageOutputSchemaVersion, Data: data})
+}
+
+func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerStatus) error {
+	for _, status := range statuses {
+		if status.Status == packagemanager.StatusAvailable {
+			if _, err := fmt.Fprintf(writer, "%s: available (%s)\n", status.Name, strings.Join(status.Executables, ", ")); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerStatus) error {
+	for _, status := range statuses {
+		if status.Status == packagemanager.StatusAvailable {
+			continue
+		}
+		if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printVulnerabilityFindings(writer io.Writer, findings []vulnerability.Finding) error {
+	for _, finding := range findings {
+		if _, err := fmt.Fprintf(writer, "%s:%s@%s: %s", finding.Manager, finding.Package, finding.Version, finding.Status); err != nil {
+			return err
+		}
+		if finding.Reason != "" {
+			if _, err := fmt.Fprintf(writer, " (%s)", finding.Reason); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(writer); err != nil {
+			return err
+		}
+		for _, advisory := range finding.Vulnerabilities {
+			if _, err := fmt.Fprintf(writer, "  %s: %s\n", advisory.ID, advisory.Summary); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, preview bool) error {
+	if preview {
+		if _, err := fmt.Fprintln(writer, "Preview; rerun with --apply to update:"); err != nil {
+			return err
+		}
+	}
+	if len(plans) == 0 {
+		_, err := fmt.Fprintln(writer, "No updates selected.")
+		return err
+	}
+	for _, plan := range plans {
+		parts := append([]string{plan.Executable}, plan.Args...)
+		for i, part := range parts {
+			parts[i] = strconv.Quote(part)
+		}
+		if _, err := fmt.Fprintln(writer, strings.Join(parts, " ")); err != nil {
+			return err
+		}
+	}
+	return nil
 }

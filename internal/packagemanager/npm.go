@@ -1,9 +1,8 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
-
-	"github.com/jccguimaraes/conficius/internal/config"
 )
 
 type NPMOutdatedTools map[string]NPMOutdatedTool
@@ -45,10 +44,15 @@ const (
 
 	NPMCommandExec     string = "npm"
 	NPMCommandOutdated string = "outdated"
+	NPMCommandUpdate   string = "update"
 
 	NPMFlagJSON   string = "--json"
 	NPMFlagGlobal string = "--global"
 )
+
+func (t NPMTool) GetPackageManager() string {
+	return PM_NPM
+}
 
 func (t NPMTool) GetName() string {
 	return t.name
@@ -70,14 +74,8 @@ func (t NPMTool) GetExecutable() string {
 	return t.executable
 }
 
-func (p NPM) ListOutdated(snapshot *config.Snapshot, executable string, outdatedPackages Packages) error {
-	output, err := RunShellCommand(
-		snapshot.Shell,
-		executable,
-		NPMCommandOutdated,
-		NPMFlagGlobal,
-		NPMFlagJSON,
-	)
+func (p NPM) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
+	output, err := runOutput(ctx, executable, NPMCommandOutdated, NPMFlagGlobal, NPMFlagJSON)
 	if err != nil {
 		if len(output) == 0 {
 			return err

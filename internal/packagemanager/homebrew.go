@@ -1,9 +1,8 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
-
-	"github.com/jccguimaraes/conficius/internal/config"
 )
 
 type HomebrewTool struct {
@@ -15,9 +14,14 @@ type HomebrewTool struct {
 }
 
 func NewHomebrewTool(tool HomebrewOutdatedTool, executable string) HomebrewTool {
+	current := ""
+	if len(tool.InstalledVersions) > 0 {
+		current = tool.InstalledVersions[0]
+	}
+
 	return HomebrewTool{
 		name:       tool.Name,
-		current:    tool.InstalledVersions[0],
+		current:    current,
 		latest:     tool.CurrentVersion,
 		requested:  tool.PinnedVersion,
 		executable: executable,
@@ -50,6 +54,7 @@ const (
 	HomebrewCommandExec string = "brew"
 
 	HomebrewCommandOutdated string = "outdated"
+	HomebrewCommandUpgrade  string = "upgrade"
 
 	HomebrewFlagVersions  string = "--versions"
 	HomebrewFlagGreedy    string = "--greedy"
@@ -57,6 +62,10 @@ const (
 	HomebrewFlagJSON      string = "--json"
 	HomebrewFlagJSONv2    string = "--json=v2"
 )
+
+func (t HomebrewTool) GetPackageManager() string {
+	return PM_BREW
+}
 
 func (t HomebrewTool) GetName() string {
 	return t.name
@@ -78,14 +87,8 @@ func (t HomebrewTool) GetExecutable() string {
 	return t.executable
 }
 
-func (p Homebrew) ListOutdated(snapshot *config.Snapshot, executable string, outdatedPackages Packages) error {
-	output, err := RunShellCommand(
-		snapshot.Shell,
-		executable,
-		HomebrewCommandOutdated,
-		HomebrewFlagGreedy,
-		HomebrewFlagJSON,
-	)
+func (p Homebrew) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
+	output, err := runOutput(ctx, executable, HomebrewCommandOutdated, HomebrewFlagGreedy, HomebrewFlagJSONv2)
 	if err != nil {
 		return err
 	}
@@ -95,11 +98,10 @@ func (p Homebrew) ListOutdated(snapshot *config.Snapshot, executable string, out
 		return err
 	}
 
-	for _, tool := range tools.Formulae {
-		outdatedPackages[tool.Name] = append(outdatedPackages[tool.Name], NewHomebrewTool(tool, executable))
-	}
-
-	for _, tool := range tools.Casks {
+	for _, tool := range append(tools.Formulae, tools.Casks...) {
+		if len(tool.InstalledVersions) == 0 {
+			continue
+		}
 		outdatedPackages[tool.Name] = append(outdatedPackages[tool.Name], NewHomebrewTool(tool, executable))
 	}
 
