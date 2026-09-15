@@ -1,6 +1,6 @@
 # Conficius
 
-An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu.org/software/stow/) project.
+Conficius audits dotfile layouts, links configuration files, and inspects tools installed by supported package managers. It supports macOS and Linux.
 
 <p align="center">
   <img src="./docs/assets/conficius-gopher.png" alt="Conficius Gopher" width="300">
@@ -8,40 +8,64 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 > Inspired by the Go [gopher](https://go.dev/doc/gopher) mascot created by Renee French.
 
-> Supporting only `Linux` and `macOS` for now.
+## CLI
 
-## Why?
+`conficius init` creates `conficius.toml` and refuses to overwrite an existing file. `--config FILE` selects an explicit config; otherwise Conficius searches the current directory and its parents, then `$XDG_CONFIG_HOME/conficius/conficius.toml`.
 
-Conficius tries to go further and inforce best practices for configuration files depending on the OS, either by checking that `$HOME` environment variable is set and depending on the shell you're using, make sure environment variables are set in their right place so tool can point to the right config folder.
-
-As an example:
-
-For the `zsh` shell, it checks and suggests setting the environment variables  `$XDG_CONFIG_HOME` and `$ZDOTDIR` on `$HOME/.zprofile`.
+Audit current shell and config-directory state against either XDG or OS-native conventions:
 
 ```sh
-# $HOME/.zprofile
-XDG_CONFIG_HOME="${HOME}/Library/Application Support" # (on macOS)
-XDG_CONFIG_HOME="${HOME}/.config" # (on linux)
-ZDOTDIR="${XDG_CONFIG_HOME}/zsh"
+conficius dotfiles audit --xdg
+conficius dotfiles audit --os-native
 ```
 
-This will tell zsh where the `.zshrc` file is located, instead of the historical `~/.zshrc`.
+The audit reads the current OS, architecture, home directory, shell, and XDG environment variables. It reports mismatches and recommendations without changing files.
 
-## Contribution
+Dotfile linking is configured explicitly. Linking previews changes by default; applying changes requires an explicit flag. Existing regular files are never overwritten. Forced replacement is limited to symlinks whose destination remains inside the current config repository. All links are validated before mutation, and failed batches are rolled back.
 
-First things first run `mise run setup`
+Package commands inspect supported package managers:
 
-- Sets the local git configuration `core.hooksPath`.
+```sh
+conficius packages pms
+conficius packages outdated
+conficius packages outdated --pm mise --pm npm
+conficius packages vulnerabilities --pm npm
+conficius packages update
+conficius packages update --apply --include npm:typescript
+```
 
-## Principal
+Package-manager inspection reports unavailable and failed managers without hiding other results. Updates preview by default; `--apply` runs them. Include/exclude filters select tools, and Conficius re-checks available updates immediately before execution.
 
-- Detects Operation System (OS)
-- Detects Arch (needed?)
-- Detects shell
-- Detects terminal (needed?)
+Vulnerability checks query OSV with exact installed versions. Global npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. Unmapped packages report `unknown`, never `clean`. Vulnerability findings do not change exit status; inventory or OSV request failures do.
 
-- Detects XDG env var
-- Validates it matches OS standard
-  - Linux: ~/.config
-  - macOS: ~/Library/Application Support
-  - Windows: %AppData%
+## Configuration
+
+Configuration uses TOML schema version `1`. Link sources are relative to the configuration file. Targets use plain environment-variable references; Conficius expands them when loading config.
+
+```toml
+version = 1
+
+[[tools.zsh.links]]
+source = "zsh/.zshrc"
+target = "$ZDOTDIR/.zshrc"
+platforms = ["darwin", "linux"]
+
+# Optional: map mise/Homebrew package identity to an OSV ecosystem.
+[[vulnerabilities.mappings]]
+manager = "mise"
+package = "node"
+ecosystem = "npm"
+name = "node"
+```
+
+Current release ships CLI only. TUI-assisted workflows are planned for next iteration.
+
+## Development
+
+Run `mise run setup` once to configure repository hooks, then use:
+
+```sh
+mise run cli
+mise run test-ci
+mise run build-cli
+```

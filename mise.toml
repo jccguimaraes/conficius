@@ -2,8 +2,9 @@
 actionlint = "1.7.12"
 ghalint = "1.5.6"
 git-cliff = "2.12.0"
-go = "1.26"
+go = "1.26.8"
 golangci-lint = "v2.12.2"
+goreleaser = "2.18.1"
 
 [env]
 COVERAGE_PATH="./coverage"
@@ -18,9 +19,6 @@ chmod +x ./.commitlint/hooks/*
 
 [tasks.cli]
 run = "go run ./cmd/cli/..."
-
-[tasks.tui]
-run = "go run ./cmd/tui/..."
 
 [tasks.pkgsite]
 run = "go tool pkgsite"
@@ -42,19 +40,7 @@ if [ -z "$VERSION" ]; then
   VERSION="dev-$(git rev-parse --short HEAD)"
 fi
 rm -rf ./bin
-go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-cli ./cmd/cli/main.go
-"""
-
-[tasks.build-tui]
-depends = ["test-ci"]
-run = """
-VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
-VERSION="${VERSION#v}"
-if [ -z "$VERSION" ]; then
-  VERSION="dev-$(git rev-parse --short HEAD)"
-fi
-rm -rf ./bin
-go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-tui ./cmd/tui/main.go
+go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius ./cmd/cli
 """
 
 [tasks.changelog]
@@ -64,7 +50,11 @@ run = "git cliff --offline --output CHANGELOG.md"
 run = "mkdir -p ./coverage"
 
 [tasks.test-ci]
-run = "go test ./... --cover"
+run = "go test -race ./... --cover"
+
+[tasks.smoke]
+depends = ["build-cli"]
+run = "./bin/conficius --help >/dev/null && ./bin/conficius packages pms --json >/dev/null"
 
 [tasks.test]
 depends = ["coverpath"]

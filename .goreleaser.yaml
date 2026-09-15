@@ -5,18 +5,13 @@ version: 2
 
 project_name: conficius
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: conficius
-    main: .
+    main: ./cmd/cli
     binary: conficius
     goos:
       - darwin
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
@@ -50,7 +45,7 @@ homebrew_casks:
       name: homebrew-conficius
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/jccguimaraes/conficius
-    description: An atempt to be a modern alternative to the fantastic GNU Stow project
+    description: Audit and link dotfiles, then inspect package-manager updates
     license: Apache-2.0
     hooks:
       post:
