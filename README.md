@@ -109,4 +109,4 @@ mise exec -- goreleaser check
 mise exec -- goreleaser build --snapshot --clean
 ```
 
-CI runs race-enabled tests, vet, lint, builds, smoke tests, and GoReleaser validation on Linux and macOS. CLI releases use `cli-vX.Y.Z` tags and a manual workflow. Tag pushes verify release state without publishing. Publishing requires the same tag ref and the exact `publish` confirmation input. Homebrew publication remains disabled until a tap repository exists.
+CI runs race-enabled tests, vet, lint, builds, smoke tests, and GoReleaser validation on Linux and macOS. CLI releases use `cli-vX.Y.Z`; TUI releases use UTC calendar tags shaped `tui-vYYYY.MM.revision`. Tag pushes verify release state without publishing. Publishing requires the matching tag ref and exact `publish` confirmation input. Homebrew publication remains disabled until a tap repository exists.

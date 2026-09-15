@@ -1,0 +1,38 @@
+# Copyright 2026 João Guimarães
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+project_name: conficius-tui
+
+builds:
+  - id: conficius-tui
+    main: ./cmd/tui
+    binary: conficius-tui
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Env.CONFICIUS_VERSION}}
+
+archives:
+  - id: conficius-tui
+    ids:
+      - conficius-tui
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Env.CONFICIUS_VERSION }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "Conficius TUI {{.Env.CONFICIUS_VERSION}}"
+
+changelog:
+  disable: true
