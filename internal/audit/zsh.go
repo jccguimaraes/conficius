@@ -9,18 +9,26 @@ import (
 )
 
 func Zsh(zsh shell.Zsh, expected layout.Expected) []Finding {
-	findings := []Finding{}
-
 	expectedZDOTDIR := filepath.Join(expected.ConfigRoot, shell.SHELL_ZSH)
-
-	if expectedZDOTDIR != zsh.ZDOTDIR {
-		findings = append(findings, Finding{
-			Severity:       SeverityWarning,
-			Code:           "z_dot_dir_unset",
-			Message:        "ZDOTDIR is not set.",
-			Recommendation: fmt.Sprintf("Set ZDOTDIR to '%s'", expected.ConfigRoot),
-		})
+	if expectedZDOTDIR == zsh.ZDOTDIR {
+		return []Finding{{
+			Severity:       SeverityOK,
+			Code:           "zdotdir_match",
+			Message:        "ZDOTDIR matches the selected layout.",
+			Recommendation: fmt.Sprintf("Keep ZDOTDIR set to '%s'", expectedZDOTDIR),
+		}}
 	}
 
-	return findings
+	message := "ZDOTDIR does not match the selected layout."
+	code := "zdotdir_mismatch"
+	if zsh.ZDOTDIR == "" {
+		message = "ZDOTDIR is not set."
+		code = "zdotdir_unset"
+	}
+	return []Finding{{
+		Severity:       SeverityWarning,
+		Code:           code,
+		Message:        message,
+		Recommendation: fmt.Sprintf("Set ZDOTDIR to '%s'", expectedZDOTDIR),
+	}}
 }

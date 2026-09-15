@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -13,22 +14,37 @@ type Severity string
 
 const (
 	SeverityOK      Severity = "ok"
-	SeverityInfo    Severity = "info"
 	SeverityWarning Severity = "warning"
 	SeverityError   Severity = "error"
 )
 
 type Finding struct {
-	Severity       Severity
-	Code           string
-	Message        string
-	Recommendation string
+	Severity       Severity `json:"severity"`
+	Code           string   `json:"code"`
+	Message        string   `json:"message"`
+	Recommendation string   `json:"recommendation"`
 }
 
 type Report struct {
-	Snapshot *config.Snapshot
-	Expected layout.Expected
-	Findings []Finding
+	Snapshot *config.Snapshot `json:"snapshot"`
+	Expected layout.Expected  `json:"expected"`
+	Findings []Finding        `json:"findings"`
+}
+
+func PrintJSON(report Report, writer io.Writer) error {
+	return json.NewEncoder(writer).Encode(struct {
+		SchemaVersion int    `json:"schema_version"`
+		Data          Report `json:"data"`
+	}{SchemaVersion: 1, Data: report})
+}
+
+func HasProblems(report Report) bool {
+	for _, finding := range report.Findings {
+		if finding.Severity == SeverityWarning || finding.Severity == SeverityError {
+			return true
+		}
+	}
+	return false
 }
 
 func PrintReport(report Report, writer io.Writer) error {
