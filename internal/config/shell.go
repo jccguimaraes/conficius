@@ -19,7 +19,6 @@ type Shell struct {
 const (
 	ShellSourceShell   = "SHELL"
 	ShellSourceComSpec = "ComSpec"
-	ShellSourceUnknown = "unknown"
 )
 
 func ReadShell() (Shell, error) {
@@ -52,20 +51,8 @@ func normalizeShellName(path string) string {
 	name = strings.ToLower(name)
 	name = strings.TrimSuffix(name, ".exe")
 
-	switch name {
-	case shell.SHELL_ZSH:
+	if name == shell.SHELL_ZSH {
 		return shell.SHELL_ZSH
-	// case "bash":
-	// 	return "bash"
-	// case "sh":
-	// 	return "sh"
-	// case "fish":
-	// 	return "fish"
-	// case "pwsh", "powershell":
-	// 	return "pwsh"
-	// case "cmd":
-	// 	return "cmd"
-	default:
-		return name
 	}
+	return name
 }

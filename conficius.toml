@@ -1,5 +1,5 @@
-[tool.zsh]
-  [override.config_path] = "${XDG_CONFIG_HOME}/.zshrc"
-
-[tool.oh-my-posh]
-  [override.config_path] = "${XDG_CONFIG_HOME}/ohmyposh"
+# Project-local Conficius configuration.
+# Add [[tools.<name>.links]] entries for managed dotfiles.
+# Add [[vulnerabilities.mappings]] entries for mise/Homebrew OSV identity.
+# See README.md.
+version = 1
