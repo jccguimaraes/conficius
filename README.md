@@ -18,7 +18,7 @@ No tagged release exists yet. To build current source, install Go 1.26.8 and run
 mise run build-cli
 ```
 
-The executable is written to `./bin/conficius`.
+The executable is written to `./bin/conficius`. Build the read-only TUI preview with `mise run build-tui`; its executable is `./bin/conficius-tui`.
 
 ## CLI
 
@@ -92,7 +92,7 @@ ecosystem = "npm"
 name = "node"
 ```
 
-Current source provides CLI workflows only. TUI-assisted workflows are planned for a later iteration.
+Current source also includes a read-only TUI preview for profile and scope drill-down, outdated packages, drift, and vulnerability findings. Run `./bin/conficius-tui`; use arrows or `j`/`k`, Enter, Escape, `r` to refresh, and `q` to quit. Updates remain CLI-only.
 
 ## Development
 
@@ -103,6 +103,7 @@ mise run cli
 mise run test-ci
 mise run lint
 mise run build-cli
+mise run build-tui
 mise run smoke
 mise exec -- goreleaser check
 mise exec -- goreleaser build --snapshot --clean

@@ -170,14 +170,16 @@ func refresh(data *model, app *glyph.App) {
 	ctx, cancel := context.WithCancel(context.Background())
 	data.cancel = cancel
 	data.status = "Loading..."
+	scopeSelection := selectedScopes(data)
+	profile := data.profile.Profile
+	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
 	app.RequestRender()
 	go func() {
-		scopeSelection := selectedScopes(data)
 		scopes := make([]packagemanager.Scope, len(scopeSelection))
 		for i, scope := range scopeSelection {
 			scopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
-		options := packagemanager.QueryOptionsFromProfile(data.profile.Profile)
+		options := packagemanager.QueryOptionsFromProfile(profile)
 		result, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
 		inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
 		packages := packagemanager.Records(result.Packages)
@@ -185,13 +187,13 @@ func refresh(data *model, app *glyph.App) {
 		for i, pkg := range inventory.Packages {
 			installed[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
 		}
-		selected, drift := config.EvaluatePackages(data.profile.Profile, installed)
+		selected, drift := config.EvaluatePackages(profile, installed)
 		packages = filterOutdated(packages, selected)
 		scanPackages := inventory.Packages
-		if data.profile.Profile.SecurityScope == "selected" {
+		if profile.SecurityScope == "selected" {
 			scanPackages = filterInstalled(inventory.Packages, selected)
 		}
-		findings, scanErr := vulnerability.Scan(ctx, scanPackages, data.mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
+		findings, scanErr := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
 		if ctx.Err() != nil {
 			return
 		}
