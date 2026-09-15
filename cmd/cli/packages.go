@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -189,19 +190,29 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "update",
 				Description: "Preview or apply updates for installed tools.",
 				Usage:       "Preview updates by default; use --apply to mutate.",
-				Flags: []urfave.Flag{
+				Flags: append([]urfave.Flag{
 					pmFlag(),
 					jsonFlag(),
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
+					&urfave.BoolFlag{Name: "allow-dirty", Usage: "Allow manifest changes in a dirty Git repository."},
+					&urfave.BoolFlag{Name: "allow-unversioned", Usage: "Allow manifest changes outside a Git repository."},
 					&urfave.StringSliceFlag{Name: "include", Usage: "Include package (manager:name or globally unique name)"},
 					&urfave.StringSliceFlag{Name: "exclude", Usage: "Exclude package (manager:name or globally unique name)"},
-				},
+				}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					if c.Bool("apply") && c.Bool("json") {
 						return errors.New("--json cannot be used with --apply")
 					}
 
-					result, queryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					if c.Bool("apply") && !c.IsSet("global") && !c.IsSet("project") && !c.IsSet("profile") && !c.IsSet("profile-project") {
+						return errors.New("--apply requires --global, --project PATH, or --profile NAME")
+					}
+					scopes, resolved, err := resolvePackageScopes(c)
+					if err != nil {
+						return err
+					}
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					result.Packages = filterProfilePackages(result.Packages, resolved.Profile)
 					plans, err := packagemanager.PlanUpdates(result, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err != nil {
 						return err
@@ -219,23 +230,94 @@ func (cli *Cli) packages() *urfave.Command {
 						return queryErr
 					}
 
-					freshResult, freshQueryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					if err := validateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
+						return err
+					}
+					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					freshResult.Packages = filterProfilePackages(freshResult.Packages, resolved.Profile)
 					freshPlans, freshPlanErr := packagemanager.PlanUpdates(freshResult, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err := errors.Join(freshQueryErr, freshPlanErr); err != nil {
 						return err
 					}
 					plans = freshPlans
 
+					log := newUpdateLog(plans)
+					logPath, err := writeUpdateLog(log)
+					if err != nil {
+						return err
+					}
 					stdin := c.Reader
 					if stdin == nil {
 						stdin = os.Stdin
 					}
 					applyErr := packagemanager.ApplyUpdates(ctx, plans, stdin, cli.Writer, cli.Writer)
-					return errors.Join(queryErr, applyErr)
+					log.Status = "completed"
+					if applyErr != nil {
+						log.Status = "failed"
+						log.Error = applyErr.Error()
+					}
+					logErr := finishUpdateLog(logPath, log)
+					return errors.Join(queryErr, applyErr, logErr)
 				},
 			},
 		},
 	}
+}
+
+func filterProfilePackages(packages packagemanager.Packages, profile config.Profile) packagemanager.Packages {
+	records := packagemanager.Records(packages)
+	installed := make([]config.InstalledVersion, len(records))
+	for i, record := range records {
+		installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current}
+	}
+	selected, _ := config.EvaluatePackages(profile, installed)
+	allowed := make(map[string]struct{}, len(selected))
+	for _, pkg := range selected {
+		allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name] = struct{}{}
+	}
+	return packagemanager.Filter(packages, func(pkg packagemanager.Package) bool {
+		_, exists := allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name]
+		return exists
+	})
+}
+
+func validateProjectMutations(plans []packagemanager.UpdatePlan, profile config.Profile, allowDirty, allowUnversioned bool) error {
+	checked := map[string]struct{}{}
+	for _, plan := range plans {
+		if plan.Scope != "project" || plan.Directory == "" {
+			continue
+		}
+		if _, exists := checked[plan.Directory]; exists {
+			continue
+		}
+		checked[plan.Directory] = struct{}{}
+		manifestChangesAllowed := false
+		for _, project := range profile.Projects {
+			if (project.ResolvedPath == plan.Directory || project.Path == plan.Directory) && project.AllowManifestChanges {
+				manifestChangesAllowed = true
+				break
+			}
+		}
+		if !manifestChangesAllowed {
+			return fmt.Errorf("project %q does not allow manifest changes", plan.Directory)
+		}
+		command := exec.Command("git", "-C", plan.Directory, "rev-parse", "--show-toplevel")
+		root, err := command.Output()
+		if err != nil {
+			if allowUnversioned {
+				continue
+			}
+			return fmt.Errorf("project %q is not in a Git repository; use --allow-unversioned", plan.Directory)
+		}
+		status, err := exec.Command("git", "-C", strings.TrimSpace(string(root)), "status", "--porcelain").Output()
+		if err != nil {
+			return fmt.Errorf("inspect Git status for %q: %w", plan.Directory, err)
+		}
+		if len(status) > 0 && !allowDirty {
+			return fmt.Errorf("project %q has uncommitted changes; use --allow-dirty", plan.Directory)
+		}
+	}
+	return nil
 }
 
 func printPackageDrift(writer io.Writer, states []config.PackageState) error {

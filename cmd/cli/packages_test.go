@@ -191,6 +191,36 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	}
 }
 
+func TestPackagesUpdateApplyRequiresExplicitScope(t *testing.T) {
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--apply"})
+	if err == nil || !strings.Contains(err.Error(), "requires --global") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPackagesUpdateProjectPlanUsesProjectDirectory(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"1.1.0"}}'
+`)
+	t.Setenv("PATH", dir)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--pm", "npm", "--project", project, "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"directory": "`+resolved+`"`) || strings.Contains(output.String(), `"--global"`) {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestPackagesUpdateDefaultsToJSONPreviewWithoutMutation(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "mutated")

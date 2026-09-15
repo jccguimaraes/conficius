@@ -78,6 +78,8 @@ type Package struct {
 type UpdatePlan struct {
 	Manager    string    `json:"manager"`
 	Executable string    `json:"executable"`
+	Directory  string    `json:"directory,omitempty"`
+	Scope      string    `json:"scope"`
 	Args       []string  `json:"args"`
 	Packages   []Package `json:"packages"`
 }
@@ -279,14 +281,14 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		selected = append(selected, record)
 	}
 
-	type planKey struct{ manager, executable string }
+	type planKey struct{ manager, executable, scope, directory string }
 	plansByKey := make(map[planKey]*UpdatePlan)
 	var keys []planKey
 	for _, record := range selected {
-		key := planKey{record.Manager, record.Executable}
+		key := planKey{record.Manager, record.Executable, record.Scope, record.Path}
 		plan := plansByKey[key]
 		if plan == nil {
-			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable}
+			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path}
 			plansByKey[key] = plan
 			keys = append(keys, key)
 		}
@@ -376,7 +378,10 @@ func updateArgs(manager string, packages []Package) []string {
 		}
 		return args
 	case PM_NPM:
-		args := []string{NPMCommandUpdate, NPMFlagGlobal}
+		args := []string{NPMCommandUpdate}
+		if len(packages) > 0 && packages[0].Scope != "project" {
+			args = append(args, NPMFlagGlobal)
+		}
 		for _, pkg := range packages {
 			args = append(args, pkg.Name)
 		}
@@ -390,6 +395,7 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 	var updateErrors []error
 	for _, plan := range plans {
 		cmd := commandContext(ctx, plan.Executable, plan.Args...)
+		cmd.Dir = plan.Directory
 		cmd.Stdin = stdin
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr

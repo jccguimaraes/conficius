@@ -31,11 +31,13 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 	want := []UpdatePlan{
 		{
 			Manager: PM_MISE, Executable: "/bin/mise",
+			Scope:    "",
 			Args:     []string{"upgrade", "--bump", "--inactive", "node"},
 			Packages: []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: "22", Executable: "/bin/mise"}},
 		},
 		{
 			Manager: PM_BREW, Executable: "/bin/brew",
+			Scope:    "",
 			Args:     []string{"upgrade", "wget"},
 			Packages: []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Executable: "/bin/brew"}},
 		},
