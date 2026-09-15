@@ -10,8 +10,19 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+### ⛰️  Features
+
+- *(config)* Add project config and init - ([859613d](https://github.com/jccguimaraes/conficius/commit/859613d3801aa5105529d64348edbe4508e68ae7))
+- *(dotfiles)* Add audit and transactional linking - ([d0ec419](https://github.com/jccguimaraes/conficius/commit/d0ec4196ee8ad4eafc758ab097723757e68f3f39))
+- *(packages)* Add updates and OSV scanning - ([5bade09](https://github.com/jccguimaraes/conficius/commit/5bade09d388653623423ac954e1cb7bee4116234))
+
 ### ⚙️ Miscellaneous Tasks
 
+- Add guarded release workflow - ([124a9ce](https://github.com/jccguimaraes/conficius/commit/124a9cec4a8f04400928ed87847e17464169fc45))
+- Add Linux and macOS checks - ([a3659a0](https://github.com/jccguimaraes/conficius/commit/a3659a0a5fb0bde3df9aebc71704b7b00ca0ad58))
+- Align build and release workflow - ([0f84ba1](https://github.com/jccguimaraes/conficius/commit/0f84ba133ab448975ac3d2ba5048cf24293b95d4))
+- Lots of work - ([4ea2901](https://github.com/jccguimaraes/conficius/commit/4ea2901c50d91205cba32327b9d3dcc8762f9dae))
+- Cli implementation - ([09e141b](https://github.com/jccguimaraes/conficius/commit/09e141b397d481c9841522182e8f364227768b9e))
 - Initial project - ([4d4f4fc](https://github.com/jccguimaraes/conficius/commit/4d4f4fcf7a7c8f50304c2ea4e1eb99a28bb1310c))
 
 
