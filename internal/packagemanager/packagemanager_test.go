@@ -8,7 +8,23 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/jccguimaraes/conficius/internal/config"
 )
+
+func TestQueryOptionsFromProfile(t *testing.T) {
+	disabled := false
+	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{
+		"npm":  {Enabled: &disabled, Executable: "/tools/npm", ExpectedGlobalPrefix: "/prefix"},
+		"brew": {IncludeGreedy: true},
+	}})
+	if !options.Disabled["npm"] || options.Executables["npm"] != "/tools/npm" {
+		t.Fatalf("options = %#v", options)
+	}
+	if options.Managers["npm"].ExpectedGlobalPrefix != "/prefix" || !options.Managers["brew"].IncludeGreedy {
+		t.Fatalf("manager options = %#v", options.Managers)
+	}
+}
 
 func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 	result := QueryResult{Packages: Packages{

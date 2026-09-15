@@ -177,8 +177,9 @@ func refresh(data *model, app *glyph.App) {
 		for i, scope := range scopeSelection {
 			scopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
-		result, outdatedErr := packagemanager.QueryOutdatedScopes(ctx, nil, scopes)
-		inventory, inventoryErr := packagemanager.QueryInstalledScopes(ctx, nil, scopes)
+		options := packagemanager.QueryOptionsFromProfile(data.profile.Profile)
+		result, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
+		inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
 		packages := packagemanager.Records(result.Packages)
 		installed := make([]config.InstalledVersion, len(inventory.Packages))
 		for i, pkg := range inventory.Packages {

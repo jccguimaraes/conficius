@@ -101,7 +101,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
-					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					records := packagemanager.Records(result.Packages)
 					installed := make([]config.InstalledVersion, len(records))
 					for i, record := range records {
@@ -152,7 +152,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if project != nil {
 						mappings = project.Vulnerabilities.Mappings
 					}
-					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					if resolved.Profile.SecurityScope == "selected" {
 						versions := make([]config.InstalledVersion, len(inventory.Packages))
 						for i, pkg := range inventory.Packages {
@@ -211,7 +211,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
-					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					result.Packages = filterProfilePackages(result.Packages, resolved.Profile)
 					plans, err := packagemanager.PlanUpdates(result, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err != nil {
@@ -233,7 +233,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if err := validateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
 						return err
 					}
-					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
+					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					freshResult.Packages = filterProfilePackages(freshResult.Packages, resolved.Profile)
 					freshPlans, freshPlanErr := packagemanager.PlanUpdates(freshResult, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err := errors.Join(freshQueryErr, freshPlanErr); err != nil {
@@ -343,28 +343,6 @@ func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.Resol
 	}
 	scopes, err := config.ResolveScopes(project, resolved, command.Bool("global"), command.StringSlice("project"), command.StringSlice("profile-project"))
 	return scopes, resolved, err
-}
-
-func managerQueryOptions(profile config.Profile) packagemanager.QueryOptions {
-	options := packagemanager.QueryOptions{
-		Managers:    make(map[string]packagemanager.ManagerOptions, len(profile.Managers)),
-		Executables: make(map[string]string),
-		Disabled:    make(map[string]bool),
-	}
-	for manager, settings := range profile.Managers {
-		if settings.Enabled != nil && !*settings.Enabled {
-			options.Disabled[manager] = true
-		}
-		if settings.Executable != "" {
-			options.Executables[manager] = settings.Executable
-		}
-		options.Managers[manager] = packagemanager.ManagerOptions{
-			IncludeBumpCandidates: settings.IncludeBumpCandidates,
-			IncludeGreedy:         settings.IncludeGreedy,
-			ExpectedGlobalPrefix:  settings.ExpectedGlobalPrefix,
-		}
-	}
-	return options
 }
 
 func managerScopes(scopes []config.Scope) []packagemanager.Scope {

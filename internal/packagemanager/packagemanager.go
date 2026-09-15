@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/jccguimaraes/conficius/internal/config"
 )
 
 var RegisteredPackageManagers = []string{
@@ -59,6 +61,28 @@ type QueryOptions struct {
 	Managers    map[string]ManagerOptions
 	Executables map[string]string
 	Disabled    map[string]bool
+}
+
+func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
+	options := QueryOptions{
+		Managers:    make(map[string]ManagerOptions, len(profile.Managers)),
+		Executables: make(map[string]string),
+		Disabled:    make(map[string]bool),
+	}
+	for manager, settings := range profile.Managers {
+		if settings.Enabled != nil && !*settings.Enabled {
+			options.Disabled[manager] = true
+		}
+		if settings.Executable != "" {
+			options.Executables[manager] = settings.Executable
+		}
+		options.Managers[manager] = ManagerOptions{
+			IncludeBumpCandidates: settings.IncludeBumpCandidates,
+			IncludeGreedy:         settings.IncludeGreedy,
+			ExpectedGlobalPrefix:  settings.ExpectedGlobalPrefix,
+		}
+	}
+	return options
 }
 
 type QueryResult struct {
