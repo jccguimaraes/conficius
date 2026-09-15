@@ -1,6 +1,9 @@
-name: Release
+name: Release CLI
 
 on:
+  push:
+    tags:
+      - "cli-v*"
   workflow_dispatch:
     inputs:
       confirm:
@@ -14,7 +17,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify release
+    name: Verify CLI release
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -25,6 +28,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Validate release tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^cli-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+            echo "invalid CLI release tag: $TAG" >&2
+            exit 1
+          fi
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          version=${TAG#cli-v}
+          grep -Fqx "## [$version]" CHANGELOG.md
+          echo "CONFICIUS_VERSION=$version" >> "$GITHUB_ENV"
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -40,8 +56,8 @@ jobs:
           args: build --snapshot --clean
 
   publish:
-    name: Publish release
-    if: github.ref_type == 'tag' && inputs.confirm == 'publish'
+    name: Publish CLI release
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && startsWith(github.ref_name, 'cli-v') && inputs.confirm == 'publish'
     needs: verify
     permissions:
       contents: write
@@ -53,6 +69,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Set release version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: echo "CONFICIUS_VERSION=${TAG#cli-v}" >> "$GITHUB_ENV"
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
