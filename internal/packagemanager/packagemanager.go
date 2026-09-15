@@ -36,6 +36,11 @@ type Tool interface {
 
 type Packages map[string][]Tool
 
+type scopedTool struct {
+	Tool
+	scope Scope
+}
+
 type ManagerStatus struct {
 	Name        string   `json:"name"`
 	Status      string   `json:"status"`
@@ -55,6 +60,8 @@ type Package struct {
 	Latest     string `json:"latest"`
 	Requested  string `json:"requested,omitempty"`
 	Executable string `json:"executable"`
+	Scope      string `json:"scope,omitempty"`
+	Path       string `json:"path,omitempty"`
 }
 
 type UpdatePlan struct {
@@ -117,6 +124,10 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 }
 
 func QueryOutdated(ctx context.Context, pms []string) (QueryResult, error) {
+	return QueryOutdatedScopes(ctx, pms, []Scope{{Kind: "global"}})
+}
+
+func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (QueryResult, error) {
 	statuses, err := Inspect(pms)
 	if err != nil {
 		return QueryResult{}, err
@@ -132,10 +143,22 @@ func QueryOutdated(ctx context.Context, pms []string) (QueryResult, error) {
 		}
 
 		for _, executable := range status.Executables {
-			if err := listOutdated(ctx, status.Name, executable, result.Packages); err != nil {
-				status.Status = StatusError
-				status.Error = err.Error()
-				queryErrors = append(queryErrors, fmt.Errorf("%s (%s): %w", status.Name, executable, err))
+			for _, scope := range scopes {
+				if status.Name == PM_BREW && scope.Kind == "project" {
+					continue
+				}
+				scopedPackages := make(Packages)
+				if err := listOutdatedScope(ctx, status.Name, executable, scope, scopedPackages); err != nil {
+					status.Status = StatusError
+					status.Error = err.Error()
+					queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", status.Name, executable, scope.Kind, err))
+					continue
+				}
+				for name, tools := range scopedPackages {
+					for _, tool := range tools {
+						result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: scope})
+					}
+				}
 			}
 		}
 	}
@@ -143,17 +166,24 @@ func QueryOutdated(ctx context.Context, pms []string) (QueryResult, error) {
 	return result, errors.Join(queryErrors...)
 }
 
-func listOutdated(ctx context.Context, pm, executable string, packages Packages) error {
+func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, packages Packages) error {
 	switch pm {
 	case PM_MISE:
-		return (Mise{}).ListOutdated(ctx, executable, packages)
+		return (Mise{}).listOutdated(ctx, scope.Path, executable, packages)
 	case PM_BREW:
-		return (Homebrew{}).ListOutdated(ctx, executable, packages)
+		return (Homebrew{}).listOutdated(ctx, scope.Path, executable, packages)
 	case PM_NPM:
-		return (NPM{}).ListOutdated(ctx, executable, packages)
+		return (NPM{}).listOutdated(ctx, scope, executable, packages)
 	default:
 		return fmt.Errorf("unsupported package manager %q", pm)
 	}
+}
+
+func toolScope(tool Tool) Scope {
+	if scoped, ok := tool.(scopedTool); ok {
+		return scoped.scope
+	}
+	return Scope{}
 }
 
 func Records(packages Packages) []Package {
@@ -167,6 +197,8 @@ func Records(packages Packages) []Package {
 				Latest:     tool.GetLatestVersion(),
 				Requested:  tool.GetRequestedVersion(),
 				Executable: tool.GetExecutable(),
+				Scope:      toolScope(tool).Kind,
+				Path:       toolScope(tool).Path,
 			})
 		}
 	}
@@ -330,7 +362,12 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 }
 
 func runOutput(ctx context.Context, executable string, args ...string) ([]byte, error) {
+	return runOutputDir(ctx, "", executable, args...)
+}
+
+func runOutputDir(ctx context.Context, dir, executable string, args ...string) ([]byte, error) {
 	cmd := commandContext(ctx, executable, args...)
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err == nil {
 		return output, nil

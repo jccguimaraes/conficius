@@ -35,6 +35,24 @@ printf '{"formulae":[{"name":"wget","installed":[{"version":"1.2"}]}],"casks":[{
 	}
 }
 
+func TestQueryInstalledScopesRunsProjectNPMInProjectDirectory(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"dependencies":{"project-package":{"version":"2.0.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Scope: "project", Path: project}}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledContinuesPastUnavailableManager(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"dependencies\":{}}'\n")

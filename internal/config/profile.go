@@ -81,7 +81,7 @@ func (project *Project) ResolveProfile(cliName string, verbose bool) (ResolvedPr
 
 	profile, exists := project.Profiles[name]
 	if !exists {
-		if name != "default" || project.Version != 2 {
+		if name != "default" {
 			return ResolvedProfile{}, fmt.Errorf("profile %q not found", name)
 		}
 		profile = defaultProfile()

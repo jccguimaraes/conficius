@@ -42,7 +42,23 @@ func PrintOutdated(outdatedList packagemanager.Packages, writer io.Writer) error
 		if _, err := cp.Fprintf(writer, " PM: "); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(writer, "%s (%s)\n", outdated.Manager, outdated.Executable); err != nil {
+		if _, err := fmt.Fprintf(writer, "%s (%s)", outdated.Manager, outdated.Executable); err != nil {
+			return err
+		}
+		if outdated.Scope != "" {
+			if _, err := cp.Fprintf(writer, " Scope: "); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprint(writer, outdated.Scope); err != nil {
+				return err
+			}
+			if outdated.Path != "" {
+				if _, err := fmt.Fprintf(writer, " (%s)", outdated.Path); err != nil {
+					return err
+				}
+			}
+		}
+		if _, err := fmt.Fprintln(writer); err != nil {
 			return err
 		}
 	}

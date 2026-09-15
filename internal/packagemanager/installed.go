@@ -10,9 +10,17 @@ import (
 )
 
 type InstalledPackage struct {
-	Manager string `json:"manager"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Manager   string `json:"manager"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Scope     string `json:"scope,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+}
+
+type Scope struct {
+	Kind string
+	Path string
 }
 
 type InstalledResult struct {
@@ -21,6 +29,14 @@ type InstalledResult struct {
 }
 
 func QueryInstalled(ctx context.Context, pms []string) (InstalledResult, error) {
+	result, err := QueryInstalledScopes(ctx, pms, []Scope{{Kind: "global"}})
+	for i := range result.Packages {
+		result.Packages[i].Scope = ""
+	}
+	return result, err
+}
+
+func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (InstalledResult, error) {
 	statuses, err := Inspect(pms)
 	if err != nil {
 		return InstalledResult{}, err
@@ -33,35 +49,51 @@ func QueryInstalled(ctx context.Context, pms []string) (InstalledResult, error) 
 			continue
 		}
 		for _, executable := range status.Executables {
-			packages, err := listInstalled(ctx, status.Name, executable)
-			if err != nil {
-				status.Status = StatusError
-				status.Error = err.Error()
-				inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s): %w", status.Name, executable, err))
-				continue
+			for _, scope := range scopes {
+				if status.Name == PM_BREW && scope.Kind == "project" {
+					continue
+				}
+				packages, err := listInstalledScope(ctx, status.Name, executable, scope)
+				if err != nil {
+					status.Status = StatusError
+					status.Error = err.Error()
+					inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", status.Name, executable, scope.Kind, err))
+					continue
+				}
+				result.Packages = append(result.Packages, packages...)
 			}
-			result.Packages = append(result.Packages, packages...)
 		}
 	}
 	result.Packages = dedupeInstalled(result.Packages)
 	return result, errors.Join(inventoryErrors...)
 }
 
-func listInstalled(ctx context.Context, manager, executable string) ([]InstalledPackage, error) {
+func listInstalledScope(ctx context.Context, manager, executable string, scope Scope) ([]InstalledPackage, error) {
+	var packages []InstalledPackage
+	var err error
 	switch manager {
 	case PM_NPM:
-		return installedNPM(ctx, executable)
+		packages, err = installedNPM(ctx, executable, scope)
 	case PM_MISE:
-		return installedMise(ctx, executable)
+		packages, err = installedMise(ctx, executable, scope.Path)
 	case PM_BREW:
-		return installedHomebrew(ctx, executable)
+		packages, err = installedHomebrew(ctx, executable)
 	default:
 		return nil, exec.ErrNotFound
 	}
+	for i := range packages {
+		packages[i].Scope = scope.Kind
+		packages[i].Path = scope.Path
+	}
+	return packages, err
 }
 
-func installedNPM(ctx context.Context, executable string) ([]InstalledPackage, error) {
-	output, err := runOutput(ctx, executable, "ls", NPMFlagGlobal, "--depth=0", NPMFlagJSON)
+func installedNPM(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	args := []string{"ls", "--depth=0", NPMFlagJSON}
+	if scope.Kind == "global" {
+		args = []string{"ls", NPMFlagGlobal, "--depth=0", NPMFlagJSON}
+	}
+	output, err := runOutputDir(ctx, scope.Path, executable, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +114,8 @@ func installedNPM(ctx context.Context, executable string) ([]InstalledPackage, e
 	return packages, nil
 }
 
-func installedMise(ctx context.Context, executable string) ([]InstalledPackage, error) {
-	output, err := runOutput(ctx, executable, "ls", "--installed", "--json")
+func installedMise(ctx context.Context, executable, dir string) ([]InstalledPackage, error) {
+	output, err := runOutputDir(ctx, dir, executable, "ls", "--installed", "--json")
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +175,12 @@ func installedHomebrew(ctx context.Context, executable string) ([]InstalledPacka
 
 func dedupeInstalled(packages []InstalledPackage) []InstalledPackage {
 	sort.Slice(packages, func(i, j int) bool {
+		if packages[i].Scope != packages[j].Scope {
+			return packages[i].Scope < packages[j].Scope
+		}
+		if packages[i].Path != packages[j].Path {
+			return packages[i].Path < packages[j].Path
+		}
 		if packages[i].Manager != packages[j].Manager {
 			return managerIndex(packages[i].Manager) < managerIndex(packages[j].Manager)
 		}

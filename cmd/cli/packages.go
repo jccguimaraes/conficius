@@ -19,7 +19,7 @@ import (
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
-const packageOutputSchemaVersion = 1
+const packageOutputSchemaVersion = 2
 
 type packageOutputEnvelope struct {
 	SchemaVersion int `json:"schema_version"`
@@ -27,6 +27,7 @@ type packageOutputEnvelope struct {
 }
 
 type outdatedOutput struct {
+	Scopes   []config.Scope                 `json:"scopes"`
 	Managers []packagemanager.ManagerStatus `json:"managers"`
 	Packages []packagemanager.Package       `json:"packages"`
 }
@@ -53,6 +54,14 @@ func (cli *Cli) packages() *urfave.Command {
 	}
 	jsonFlag := func() urfave.Flag {
 		return &urfave.BoolFlag{Name: "json", Usage: "Write schema-versioned JSON"}
+	}
+	scopeFlags := func() []urfave.Flag {
+		return []urfave.Flag{
+			&urfave.BoolFlag{Name: "global", Usage: "Inspect global package installations only."},
+			&urfave.StringSliceFlag{Name: "project", Usage: "Inspect project `PATH`; may be repeated."},
+			&urfave.StringFlag{Name: "profile", Usage: "Select profile `NAME`.", Sources: urfave.EnvVars(config.ProfileEnvironment)},
+			&urfave.StringSliceFlag{Name: "profile-project", Usage: "Inspect named project from selected profile; may be repeated."},
+		}
 	}
 
 	return &urfave.Command{
@@ -83,11 +92,16 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "outdated",
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
-				Flags:       []urfave.Flag{pmFlag(), jsonFlag()},
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					result, queryErr := packagemanager.QueryOutdated(ctx, c.StringSlice("pm"))
+					scopes, err := resolvePackageScopes(c)
+					if err != nil {
+						return err
+					}
+					result, queryErr := packagemanager.QueryOutdatedScopes(ctx, c.StringSlice("pm"), managerScopes(scopes))
 					if c.Bool("json") {
 						if err := writePackageJSON(cli.Writer, outdatedOutput{
+							Scopes:   scopes,
 							Managers: result.Managers,
 							Packages: packagemanager.Records(result.Packages),
 						}); err != nil {
@@ -185,6 +199,29 @@ func (cli *Cli) packages() *urfave.Command {
 			},
 		},
 	}
+}
+
+func resolvePackageScopes(command *urfave.Command) ([]config.Scope, error) {
+	project, err := config.LoadDiscovered(command.String("config"))
+	if err != nil && !errors.Is(err, config.ErrNotFound) {
+		return nil, err
+	}
+	if project == nil {
+		project = &config.Project{Version: config.CurrentVersion}
+	}
+	resolved, err := project.ResolveProfile(command.String("profile"), false)
+	if err != nil {
+		return nil, err
+	}
+	return config.ResolveScopes(project, resolved, command.Bool("global"), command.StringSlice("project"), command.StringSlice("profile-project"))
+}
+
+func managerScopes(scopes []config.Scope) []packagemanager.Scope {
+	result := make([]packagemanager.Scope, len(scopes))
+	for i, scope := range scopes {
+		result[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
+	}
+	return result
 }
 
 func writePackageJSON(writer io.Writer, data any) error {

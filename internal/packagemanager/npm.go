@@ -75,7 +75,15 @@ func (t NPMTool) GetExecutable() string {
 }
 
 func (p NPM) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
-	output, err := runOutput(ctx, executable, NPMCommandOutdated, NPMFlagGlobal, NPMFlagJSON)
+	return p.listOutdated(ctx, Scope{Kind: "global"}, executable, outdatedPackages)
+}
+
+func (p NPM) listOutdated(ctx context.Context, scope Scope, executable string, outdatedPackages Packages) error {
+	args := []string{NPMCommandOutdated, NPMFlagJSON}
+	if scope.Kind == "global" {
+		args = []string{NPMCommandOutdated, NPMFlagGlobal, NPMFlagJSON}
+	}
+	output, err := runOutputDir(ctx, scope.Path, executable, args...)
 	if err != nil {
 		if len(output) == 0 {
 			return err

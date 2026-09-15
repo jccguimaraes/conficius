@@ -13,6 +13,35 @@ import (
 	"testing"
 )
 
+func writeFakeManager(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0"}}'
+`)
+	t.Setenv("PATH", dir)
+
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Execute([]string{appName, "packages", "outdated", "--pm", "npm", "--project", project, "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	resolvedProject, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"schema_version": 2`) || !strings.Contains(output.String(), `"scope": "project"`) || !strings.Contains(output.String(), resolvedProject) {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestPackagesCommandsExcludeVulnerabilities(t *testing.T) {
 	commands := New(io.Discard, "test").Command.Command("packages").VisibleCommands()
 	var names []string
@@ -43,7 +72,7 @@ func TestPackagesPMSJSONReportsUnavailableAndExitZero(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
 		t.Fatalf("output is not JSON: %v\n%s", err, output.String())
 	}
-	if envelope.SchemaVersion != 1 || len(envelope.Data) != 3 {
+	if envelope.SchemaVersion != 2 || len(envelope.Data) != 3 {
 		t.Fatalf("envelope = %#v", envelope)
 	}
 	for _, status := range envelope.Data {
@@ -124,7 +153,7 @@ touch "$MUTATION_MARKER"
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatalf("mutation marker exists: %v", err)
 	}
-	if !strings.Contains(output.String(), `"schema_version": 1`) || !strings.Contains(output.String(), `"args": [`) || !strings.Contains(output.String(), `"left-pad"`) {
+	if !strings.Contains(output.String(), `"schema_version": 2`) || !strings.Contains(output.String(), `"args": [`) || !strings.Contains(output.String(), `"left-pad"`) {
 		t.Fatalf("output = %q", output.String())
 	}
 }
