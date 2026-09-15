@@ -42,6 +42,40 @@ printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0"}}'
 	}
 }
 
+func TestPackagesOutdatedAppliesProfileAllowlistAndReportsMissingDrift(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"typescript":{"current":"5.8.0","wanted":"5.9.2","latest":"5.9.2"},"prettier":{"current":"3.0.0","wanted":"3.1.0","latest":"3.1.0"}}'
+`)
+	t.Setenv("PATH", dir)
+	configPath := filepath.Join(t.TempDir(), "conficius.toml")
+	contents := `version = 2
+[profiles.work]
+mode = "allowlist"
+[[profiles.work.packages]]
+manager = "npm"
+name = "typescript"
+policy = "include"
+desired_version = "5.9.2"
+[[profiles.work.packages]]
+manager = "npm"
+name = "eslint"
+policy = "include"
+desired_version = "9.0.0"
+`
+	if err := os.WriteFile(configPath, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Execute([]string{appName, "--config", configPath, "packages", "outdated", "--pm", "npm", "--profile", "work", "--global", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), `"name": "prettier"`) || !strings.Contains(output.String(), `"name": "typescript"`) || !strings.Contains(output.String(), `"status": "missing"`) {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestPackagesCommandsExcludeVulnerabilities(t *testing.T) {
 	commands := New(io.Discard, "test").Command.Command("packages").VisibleCommands()
 	var names []string

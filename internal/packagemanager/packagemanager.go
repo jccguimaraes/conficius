@@ -186,6 +186,20 @@ func toolScope(tool Tool) Scope {
 	return Scope{}
 }
 
+func Filter(packages Packages, keep func(Package) bool) Packages {
+	filtered := make(Packages)
+	for name, tools := range packages {
+		for _, tool := range tools {
+			scope := toolScope(tool)
+			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
+			if keep(record) {
+				filtered[name] = append(filtered[name], tool)
+			}
+		}
+	}
+	return filtered
+}
+
 func Records(packages Packages) []Package {
 	records := make([]Package, 0)
 	for _, tools := range packages {

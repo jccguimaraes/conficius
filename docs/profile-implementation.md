@@ -5,7 +5,7 @@
 - [x] Add profile selection and `config resolve`, including verbose source provenance.
 - [x] Add explicit global and canonical project scopes, registered projects, current-project detection, and npm workspaces.
 - [ ] Add bounded concurrent read-only checks with deterministic output and five-minute subprocess timeouts.
-- [ ] Add exact desired-version drift to scoped inventory and outdated checks. JSON package output now uses schema version 2.
+- [x] Add exact desired-version drift and allowlist/denylist filtering to scoped outdated checks. JSON package output uses schema version 2.
 - [ ] Add multi-project OSV checks with request deduplication and configurable security scope.
 - [ ] Add typed mise bump, Homebrew greedy, and npm global-prefix policies.
 - [ ] Add guarded scoped updates, dirty and unversioned project checks, revalidation, and redacted XDG mutation logs.

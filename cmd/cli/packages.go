@@ -30,6 +30,7 @@ type outdatedOutput struct {
 	Scopes   []config.Scope                 `json:"scopes"`
 	Managers []packagemanager.ManagerStatus `json:"managers"`
 	Packages []packagemanager.Package       `json:"packages"`
+	Drift    []config.PackageState          `json:"drift"`
 }
 
 type updateOutput struct {
@@ -94,17 +95,27 @@ func (cli *Cli) packages() *urfave.Command {
 				Usage:       "Show outdated tools.",
 				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					scopes, err := resolvePackageScopes(c)
+					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
 						return err
 					}
 					result, queryErr := packagemanager.QueryOutdatedScopes(ctx, c.StringSlice("pm"), managerScopes(scopes))
+					records := packagemanager.Records(result.Packages)
+					installed := make([]config.InstalledVersion, len(records))
+					for i, record := range records {
+						installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current}
+					}
+					selected, drift := config.EvaluatePackages(resolved.Profile, installed)
+					selectedKeys := make(map[string]struct{}, len(selected))
+					for _, pkg := range selected {
+						selectedKeys[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name] = struct{}{}
+					}
+					result.Packages = packagemanager.Filter(result.Packages, func(pkg packagemanager.Package) bool {
+						_, exists := selectedKeys[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name]
+						return exists
+					})
 					if c.Bool("json") {
-						if err := writePackageJSON(cli.Writer, outdatedOutput{
-							Scopes:   scopes,
-							Managers: result.Managers,
-							Packages: packagemanager.Records(result.Packages),
-						}); err != nil {
+						if err := writePackageJSON(cli.Writer, outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Drift: drift}); err != nil {
 							return err
 						}
 					} else {
@@ -112,6 +123,9 @@ func (cli *Cli) packages() *urfave.Command {
 							return err
 						}
 						if err := audit.PrintOutdated(result.Packages, cli.Writer); err != nil {
+							return err
+						}
+						if err := printPackageDrift(cli.Writer, drift); err != nil {
 							return err
 						}
 					}
@@ -201,19 +215,29 @@ func (cli *Cli) packages() *urfave.Command {
 	}
 }
 
-func resolvePackageScopes(command *urfave.Command) ([]config.Scope, error) {
+func printPackageDrift(writer io.Writer, states []config.PackageState) error {
+	for _, state := range states {
+		if _, err := fmt.Fprintf(writer, "Drift: %s:%s scope=%s installed=%s desired=%s status=%s\n", state.Manager, state.Name, state.Scope, state.Installed, state.DesiredVersion, state.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.ResolvedProfile, error) {
 	project, err := config.LoadDiscovered(command.String("config"))
 	if err != nil && !errors.Is(err, config.ErrNotFound) {
-		return nil, err
+		return nil, config.ResolvedProfile{}, err
 	}
 	if project == nil {
 		project = &config.Project{Version: config.CurrentVersion}
 	}
 	resolved, err := project.ResolveProfile(command.String("profile"), false)
 	if err != nil {
-		return nil, err
+		return nil, config.ResolvedProfile{}, err
 	}
-	return config.ResolveScopes(project, resolved, command.Bool("global"), command.StringSlice("project"), command.StringSlice("profile-project"))
+	scopes, err := config.ResolveScopes(project, resolved, command.Bool("global"), command.StringSlice("project"), command.StringSlice("profile-project"))
+	return scopes, resolved, err
 }
 
 func managerScopes(scopes []config.Scope) []packagemanager.Scope {
