@@ -87,11 +87,15 @@ func (t MiseTool) GetExecutable() string {
 }
 
 func (p Mise) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
-	return p.listOutdated(ctx, "", executable, outdatedPackages)
+	return p.listOutdated(ctx, "", executable, ManagerOptions{IncludeBumpCandidates: true}, outdatedPackages)
 }
 
-func (p Mise) listOutdated(ctx context.Context, dir, executable string, outdatedPackages Packages) error {
-	output, err := runOutputDir(ctx, dir, executable, MiseCommandOutdated, MiseFlagJSON, MiseFlagBump, MiseFlagOnlyInactive)
+func (p Mise) listOutdated(ctx context.Context, dir, executable string, options ManagerOptions, outdatedPackages Packages) error {
+	args := []string{MiseCommandOutdated, MiseFlagJSON, MiseFlagOnlyInactive}
+	if options.IncludeBumpCandidates {
+		args = append(args, MiseFlagBump)
+	}
+	output, err := runOutputDir(ctx, dir, executable, args...)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,10 @@ package packagemanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 type NPMOutdatedTools map[string]NPMOutdatedTool
@@ -76,6 +80,31 @@ func (t NPMTool) GetExecutable() string {
 
 func (p NPM) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
 	return p.listOutdated(ctx, Scope{Kind: "global"}, executable, outdatedPackages)
+}
+
+func npmPrefixWarnings(ctx context.Context, executable, expected string) []string {
+	output, err := runOutput(ctx, executable, "config", "get", "prefix")
+	if err != nil {
+		return []string{fmt.Sprintf("read npm global prefix: %v", err)}
+	}
+	actual := filepath.Clean(strings.TrimSpace(string(output)))
+	expected = filepath.Clean(expected)
+	var warnings []string
+	if actual != expected {
+		warnings = append(warnings, fmt.Sprintf("npm global prefix is %q; expected %q", actual, expected))
+	}
+	bin := filepath.Join(expected, "bin")
+	found := false
+	for _, entry := range filepath.SplitList(os.Getenv("PATH")) {
+		if cleaned, err := filepath.Abs(entry); err == nil && cleaned == bin {
+			found = true
+			break
+		}
+	}
+	if !found {
+		warnings = append(warnings, fmt.Sprintf("npm global binary directory %q is not on PATH", bin))
+	}
+	return warnings
 }
 
 func (p NPM) listOutdated(ctx context.Context, scope Scope, executable string, outdatedPackages Packages) error {

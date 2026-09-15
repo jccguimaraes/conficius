@@ -88,11 +88,15 @@ func (t HomebrewTool) GetExecutable() string {
 }
 
 func (p Homebrew) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
-	return p.listOutdated(ctx, "", executable, outdatedPackages)
+	return p.listOutdated(ctx, "", executable, ManagerOptions{IncludeGreedy: true}, outdatedPackages)
 }
 
-func (p Homebrew) listOutdated(ctx context.Context, dir, executable string, outdatedPackages Packages) error {
-	output, err := runOutputDir(ctx, dir, executable, HomebrewCommandOutdated, HomebrewFlagGreedy, HomebrewFlagJSONv2)
+func (p Homebrew) listOutdated(ctx context.Context, dir, executable string, options ManagerOptions, outdatedPackages Packages) error {
+	args := []string{HomebrewCommandOutdated, HomebrewFlagJSONv2}
+	if options.IncludeGreedy {
+		args = append(args, HomebrewFlagGreedy)
+	}
+	output, err := runOutputDir(ctx, dir, executable, args...)
 	if err != nil {
 		return err
 	}

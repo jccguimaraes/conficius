@@ -66,6 +66,39 @@ func TestNewHomebrewToolHandlesMissingInstalledVersion(t *testing.T) {
 	}
 }
 
+func TestNPMPrefixWarningsReportMismatchAndMissingPath(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '/node/version/prefix\\n'\n")
+	t.Setenv("PATH", dir)
+	warnings := npmPrefixWarnings(context.Background(), filepath.Join(dir, "npm"), filepath.Join(dir, "stable"))
+	if len(warnings) != 2 || !strings.Contains(warnings[0], "expected") || !strings.Contains(warnings[1], "not on PATH") {
+		t.Fatalf("warnings = %#v", warnings)
+	}
+}
+
+func TestTypedManagerOptionsControlOutdatedFlags(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, "mise"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$ARGS_LOG\"\nprintf '{}'\n")
+	writeExecutable(t, filepath.Join(dir, "brew"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$ARGS_LOG\"\nprintf '{\"formulae\":[],\"casks\":[]}'\n")
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_LOG", log)
+	_, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_MISE, PM_BREW}, []Scope{{Kind: "global"}}, QueryOptions{Managers: map[string]ManagerOptions{
+		PM_MISE: {IncludeBumpCandidates: true},
+		PM_BREW: {IncludeGreedy: true},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(contents); !strings.Contains(got, "--bump") || !strings.Contains(got, "--greedy") {
+		t.Fatalf("args = %q", got)
+	}
+}
+
 func TestQueryOutdatedContinuesPastUnavailableManager(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh

@@ -7,7 +7,7 @@
 - [ ] Add bounded concurrent read-only checks with deterministic output and five-minute subprocess timeouts.
 - [x] Add exact desired-version drift and allowlist/denylist filtering to scoped outdated checks. JSON package output uses schema version 2.
 - [x] Add multi-project OSV checks with request deduplication and configurable security scope.
-- [ ] Add typed mise bump, Homebrew greedy, and npm global-prefix policies.
+- [x] Add typed mise bump, Homebrew greedy, and npm global-prefix policies.
 - [ ] Add guarded scoped updates, dirty and unversioned project checks, revalidation, and redacted XDG mutation logs.
 - [ ] Add separate `cmd/tui` after profile, drift, and vulnerability operations stabilize.
 - [ ] Add native Windows mise/npm adapters before profiles are described as cross-platform.

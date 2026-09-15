@@ -100,7 +100,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
-					result, queryErr := packagemanager.QueryOutdatedScopes(ctx, c.StringSlice("pm"), managerScopes(scopes))
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
 					records := packagemanager.Records(result.Packages)
 					installed := make([]config.InstalledVersion, len(records))
 					for i, record := range records {
@@ -263,6 +263,18 @@ func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.Resol
 	return scopes, resolved, err
 }
 
+func managerQueryOptions(profile config.Profile) packagemanager.QueryOptions {
+	options := packagemanager.QueryOptions{Managers: make(map[string]packagemanager.ManagerOptions, len(profile.Managers))}
+	for manager, settings := range profile.Managers {
+		options.Managers[manager] = packagemanager.ManagerOptions{
+			IncludeBumpCandidates: settings.IncludeBumpCandidates,
+			IncludeGreedy:         settings.IncludeGreedy,
+			ExpectedGlobalPrefix:  settings.ExpectedGlobalPrefix,
+		}
+	}
+	return options
+}
+
 func managerScopes(scopes []config.Scope) []packagemanager.Scope {
 	result := make([]packagemanager.Scope, len(scopes))
 	for i, scope := range scopes {
@@ -294,11 +306,15 @@ func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerSta
 
 func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerStatus) error {
 	for _, status := range statuses {
-		if status.Status == packagemanager.StatusAvailable {
-			continue
+		if status.Status != packagemanager.StatusAvailable {
+			if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
+				return err
+			}
 		}
-		if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
-			return err
+		for _, warning := range status.Warnings {
+			if _, err := fmt.Fprintf(writer, "warning: %s: %s\n", status.Name, warning); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

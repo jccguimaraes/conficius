@@ -45,7 +45,18 @@ type ManagerStatus struct {
 	Name        string   `json:"name"`
 	Status      string   `json:"status"`
 	Executables []string `json:"executables,omitempty"`
+	Warnings    []string `json:"warnings,omitempty"`
 	Error       string   `json:"error,omitempty"`
+}
+
+type ManagerOptions struct {
+	IncludeBumpCandidates bool
+	IncludeGreedy         bool
+	ExpectedGlobalPrefix  string
+}
+
+type QueryOptions struct {
+	Managers map[string]ManagerOptions
 }
 
 type QueryResult struct {
@@ -128,6 +139,10 @@ func QueryOutdated(ctx context.Context, pms []string) (QueryResult, error) {
 }
 
 func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (QueryResult, error) {
+	return QueryOutdatedScopesWithOptions(ctx, pms, scopes, QueryOptions{})
+}
+
+func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
 	statuses, err := Inspect(pms)
 	if err != nil {
 		return QueryResult{}, err
@@ -143,12 +158,15 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 		}
 
 		for _, executable := range status.Executables {
+			if status.Name == PM_NPM && options.Managers[PM_NPM].ExpectedGlobalPrefix != "" {
+				status.Warnings = append(status.Warnings, npmPrefixWarnings(ctx, executable, options.Managers[PM_NPM].ExpectedGlobalPrefix)...)
+			}
 			for _, scope := range scopes {
 				if status.Name == PM_BREW && scope.Kind == "project" {
 					continue
 				}
 				scopedPackages := make(Packages)
-				if err := listOutdatedScope(ctx, status.Name, executable, scope, scopedPackages); err != nil {
+				if err := listOutdatedScope(ctx, status.Name, executable, scope, options.Managers[status.Name], scopedPackages); err != nil {
 					status.Status = StatusError
 					status.Error = err.Error()
 					queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", status.Name, executable, scope.Kind, err))
@@ -166,12 +184,12 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 	return result, errors.Join(queryErrors...)
 }
 
-func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, packages Packages) error {
+func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, options ManagerOptions, packages Packages) error {
 	switch pm {
 	case PM_MISE:
-		return (Mise{}).listOutdated(ctx, scope.Path, executable, packages)
+		return (Mise{}).listOutdated(ctx, scope.Path, executable, options, packages)
 	case PM_BREW:
-		return (Homebrew{}).listOutdated(ctx, scope.Path, executable, packages)
+		return (Homebrew{}).listOutdated(ctx, scope.Path, executable, options, packages)
 	case PM_NPM:
 		return (NPM{}).listOutdated(ctx, scope, executable, packages)
 	default:
