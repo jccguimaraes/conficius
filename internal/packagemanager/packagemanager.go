@@ -149,14 +149,12 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	}
 
 	result := QueryResult{Managers: statuses, Packages: make(Packages)}
-	var queryErrors []error
-
+	var operations []readOperation[Packages]
 	for i := range result.Managers {
 		status := &result.Managers[i]
 		if status.Status != StatusAvailable {
 			continue
 		}
-
 		for _, executable := range status.Executables {
 			if status.Name == PM_NPM && options.Managers[PM_NPM].ExpectedGlobalPrefix != "" {
 				status.Warnings = append(status.Warnings, npmPrefixWarnings(ctx, executable, options.Managers[PM_NPM].ExpectedGlobalPrefix)...)
@@ -165,18 +163,27 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 				if status.Name == PM_BREW && scope.Kind == "project" {
 					continue
 				}
-				scopedPackages := make(Packages)
-				if err := listOutdatedScope(ctx, status.Name, executable, scope, options.Managers[status.Name], scopedPackages); err != nil {
-					status.Status = StatusError
-					status.Error = err.Error()
-					queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", status.Name, executable, scope.Kind, err))
-					continue
-				}
-				for name, tools := range scopedPackages {
-					for _, tool := range tools {
-						result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: scope})
-					}
-				}
+				manager, executable, scope := status.Name, executable, scope
+				operations = append(operations, readOperation[Packages]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) (Packages, error) {
+					packages := make(Packages)
+					err := listOutdatedScope(ctx, manager, executable, scope, options.Managers[manager], packages)
+					return packages, err
+				}})
+			}
+		}
+	}
+	var queryErrors []error
+	for _, operationResult := range runReadOperations(ctx, operations) {
+		if operationResult.err != nil {
+			status := &result.Managers[operationResult.operation.managerIndex]
+			status.Status = StatusError
+			status.Error = operationResult.err.Error()
+			queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
+			continue
+		}
+		for name, tools := range operationResult.value {
+			for _, tool := range tools {
+				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope})
 			}
 		}
 	}

@@ -42,9 +42,8 @@ func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (In
 		return InstalledResult{}, err
 	}
 	result := InstalledResult{Managers: statuses}
-	var inventoryErrors []error
-	for i := range result.Managers {
-		status := &result.Managers[i]
+	var operations []readOperation[[]InstalledPackage]
+	for i, status := range result.Managers {
 		if status.Status != StatusAvailable {
 			continue
 		}
@@ -53,16 +52,23 @@ func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (In
 				if status.Name == PM_BREW && scope.Kind == "project" {
 					continue
 				}
-				packages, err := listInstalledScope(ctx, status.Name, executable, scope)
-				if err != nil {
-					status.Status = StatusError
-					status.Error = err.Error()
-					inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", status.Name, executable, scope.Kind, err))
-					continue
-				}
-				result.Packages = append(result.Packages, packages...)
+				manager, executable, scope := status.Name, executable, scope
+				operations = append(operations, readOperation[[]InstalledPackage]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) ([]InstalledPackage, error) {
+					return listInstalledScope(ctx, manager, executable, scope)
+				}})
 			}
 		}
+	}
+	var inventoryErrors []error
+	for _, operationResult := range runReadOperations(ctx, operations) {
+		if operationResult.err != nil {
+			status := &result.Managers[operationResult.operation.managerIndex]
+			status.Status = StatusError
+			status.Error = operationResult.err.Error()
+			inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
+			continue
+		}
+		result.Packages = append(result.Packages, operationResult.value...)
 	}
 	result.Packages = dedupeInstalled(result.Packages)
 	return result, errors.Join(inventoryErrors...)

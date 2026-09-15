@@ -4,7 +4,7 @@
 - [x] Add dry-run `config migrate`; `--apply` writes atomically beside a collision-safe timestamped backup.
 - [x] Add profile selection and `config resolve`, including verbose source provenance.
 - [x] Add explicit global and canonical project scopes, registered projects, current-project detection, and npm workspaces.
-- [ ] Add bounded concurrent read-only checks with deterministic output and five-minute subprocess timeouts.
+- [ ] Add five-minute subprocess timeouts. Read-only checks now use fixed bounded concurrency with deterministic merging.
 - [x] Add exact desired-version drift and allowlist/denylist filtering to scoped outdated checks. JSON package output uses schema version 2.
 - [x] Add multi-project OSV checks with request deduplication and configurable security scope.
 - [x] Add typed mise bump, Homebrew greedy, and npm global-prefix policies.
