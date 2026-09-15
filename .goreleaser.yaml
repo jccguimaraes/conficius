@@ -36,20 +36,3 @@ release:
 changelog:
   disable: true
 
-homebrew_casks:
-  - name: conficius
-    binaries:
-      - conficius
-    repository:
-      owner: jccguimaraes
-      name: homebrew-conficius
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/jccguimaraes/conficius
-    description: Audit and link dotfiles, then inspect package-manager updates
-    license: Apache-2.0
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/conficius"]
-          end
