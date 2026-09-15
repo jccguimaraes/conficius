@@ -151,6 +151,10 @@ func Load(path string) (*Project, error) {
 		sort.Strings(keys)
 		return nil, fmt.Errorf("unknown config fields: %s", strings.Join(keys, ", "))
 	}
+	for name, profile := range project.Profiles {
+		profile.ModeSet = metadata.IsDefined("profiles", name, "mode")
+		project.Profiles[name] = profile
+	}
 	if project.Version != 1 && project.Version != CurrentVersion {
 		return nil, fmt.Errorf("config version must be 1 or %d, got %d", CurrentVersion, project.Version)
 	}
@@ -172,7 +176,62 @@ func LoadDiscovered(explicit string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Load(path)
+	project, err := Load(path)
+	if err != nil || explicit != "" {
+		return project, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("get home directory: %w", err)
+	}
+	globalPath := filepath.Join(xdgConfigHome(home), "conficius", FileName)
+	globalPath, err = absolutePath(globalPath)
+	if err != nil || globalPath == path || !isFile(globalPath) {
+		return project, err
+	}
+	global, err := Load(globalPath)
+	if err != nil {
+		return nil, err
+	}
+	project.Profiles = mergeProfiles(global.Profiles, project.Profiles)
+	return project, nil
+}
+
+func mergeProfiles(global, local map[string]Profile) map[string]Profile {
+	merged := make(map[string]Profile, len(global)+len(local))
+	for name, profile := range global {
+		merged[name] = profile
+	}
+	for name, override := range local {
+		base, exists := merged[name]
+		if !exists {
+			merged[name] = override
+			continue
+		}
+		if override.ModeSet {
+			base.Mode = override.Mode
+		}
+		if override.SecurityScope != "" {
+			base.SecurityScope = override.SecurityScope
+		}
+		if len(override.ManagerOrder) > 0 {
+			base.ManagerOrder = override.ManagerOrder
+		}
+		if base.Managers == nil {
+			base.Managers = map[string]ManagerSettings{}
+		}
+		for manager, settings := range override.Managers {
+			base.Managers[manager] = settings
+		}
+		if len(override.Packages) > 0 {
+			base.Packages = override.Packages
+		}
+		if len(override.Projects) > 0 {
+			base.Projects = override.Projects
+		}
+		merged[name] = base
+	}
+	return merged
 }
 
 func (project *Project) normalize() error {

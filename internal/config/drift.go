@@ -1,11 +1,8 @@
 package config
 
-import "strings"
-
 const (
 	DriftSatisfied   = "satisfied"
 	DriftBehind      = "behind"
-	DriftAhead       = "ahead"
 	DriftMissing     = "missing"
 	DriftUnsupported = "unsupported"
 )
@@ -68,9 +65,6 @@ func packageState(pkg InstalledVersion, desired string) PackageState {
 		status = DriftUnsupported
 	} else if pkg.Version != desired {
 		status = DriftBehind
-		if strings.Compare(pkg.Version, desired) > 0 {
-			status = DriftAhead
-		}
 	}
 	return PackageState{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Installed: pkg.Version, DesiredVersion: desired, Status: status}
 }

@@ -42,6 +42,38 @@ func TestDiscoverPrecedence(t *testing.T) {
 	}
 }
 
+func TestLoadDiscoveredMergesGlobalAndProjectProfiles(t *testing.T) {
+	home := t.TempDir()
+	xdg := filepath.Join(home, "xdg")
+	projectRoot := filepath.Join(home, "project")
+	mustMkdirAll(t, filepath.Join(xdg, "conficius"))
+	mustMkdirAll(t, projectRoot)
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	mustWrite(t, filepath.Join(xdg, "conficius", FileName), `version = 2
+[profiles.work]
+mode = "allowlist"
+[[profiles.work.packages]]
+manager = "npm"
+name = "global"
+policy = "include"
+`)
+	mustWrite(t, filepath.Join(projectRoot, FileName), `version = 2
+profile = "work"
+[profiles.work.managers.npm]
+expected_global_prefix = "${HOME}/.npm-global"
+`)
+	withDirectory(t, projectRoot)
+	project, err := LoadDiscovered("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := project.Profiles["work"]
+	if profile.Mode != "allowlist" || len(profile.Packages) != 1 || profile.Managers["npm"].ExpectedGlobalPrefix == "" {
+		t.Fatalf("profile = %#v", profile)
+	}
+}
+
 func TestDiscoverExplicitDoesNotRequireExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing.toml")
 	got, err := discover(path, t.TempDir(), t.TempDir())

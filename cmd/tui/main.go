@@ -18,6 +18,7 @@ var version = "dev"
 type model struct {
 	profile  config.ResolvedProfile
 	scopes   []config.Scope
+	active   *config.Scope
 	packages []packagemanager.Package
 	status   string
 	cancel   context.CancelFunc
@@ -86,7 +87,11 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 			return glyph.Text(label)
 		}).
 		BindNav("j", "k").
-		OnSelect(func(_ *config.Scope) { app.Go("results") })
+		OnSelect(func(scope *config.Scope) {
+			data.active = scope
+			refresh(data, app)
+			app.Go("results")
+		})
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Conficius "+version)(
 		glyph.Text("Profile: "+data.profile.Name).Bold(),
 		glyph.Text("Scopes").Underline(),
@@ -118,8 +123,9 @@ func refresh(data *model, app *glyph.App) {
 	data.status = "Loading..."
 	app.RequestRender()
 	go func() {
-		scopes := make([]packagemanager.Scope, len(data.scopes))
-		for i, scope := range data.scopes {
+		selected := selectedScopes(data)
+		scopes := make([]packagemanager.Scope, len(selected))
+		for i, scope := range selected {
 			scopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
 		result, err := packagemanager.QueryOutdatedScopes(ctx, nil, scopes)
@@ -134,4 +140,11 @@ func refresh(data *model, app *glyph.App) {
 			}
 		})
 	}()
+}
+
+func selectedScopes(data *model) []config.Scope {
+	if data.active != nil {
+		return []config.Scope{*data.active}
+	}
+	return data.scopes
 }

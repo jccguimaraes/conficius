@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,26 @@ import (
 
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
+
+func TestRotateUpdateLogsKeepsLatestThirty(t *testing.T) {
+	directory := t.TempDir()
+	for i := range 31 {
+		path := filepath.Join(directory, fmt.Sprintf("%02d.json", i))
+		if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := rotateUpdateLogs(directory, 30); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 30 || entries[0].Name() != "01.json" {
+		t.Fatalf("entries = %#v", entries)
+	}
+}
 
 func TestWriteUpdateLogRedactsHome(t *testing.T) {
 	home := t.TempDir()

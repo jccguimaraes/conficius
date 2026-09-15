@@ -37,7 +37,11 @@ func QueryInstalled(ctx context.Context, pms []string) (InstalledResult, error) 
 }
 
 func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (InstalledResult, error) {
-	statuses, err := Inspect(pms)
+	return QueryInstalledScopesWithOptions(ctx, pms, scopes, QueryOptions{})
+}
+
+func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (InstalledResult, error) {
+	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return InstalledResult{}, err
 	}

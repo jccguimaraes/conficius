@@ -31,7 +31,7 @@ func TestEvaluatePackagesAppliesDenylist(t *testing.T) {
 	}
 }
 
-func TestEvaluatePackagesReportsAheadAndUnsupported(t *testing.T) {
+func TestEvaluatePackagesReportsMismatchAndUnsupported(t *testing.T) {
 	profile := Profile{Mode: "allowlist", Packages: []PackageRule{
 		{Manager: "npm", Name: "tool", Policy: "include", DesiredVersion: "1"},
 		{Manager: "brew", Name: "wget", Policy: "include", DesiredVersion: "2"},
@@ -40,7 +40,7 @@ func TestEvaluatePackagesReportsAheadAndUnsupported(t *testing.T) {
 		{Manager: "npm", Name: "tool", Scope: "global", Version: "2"},
 		{Manager: "brew", Name: "wget", Scope: "global", Version: "1"},
 	})
-	if states[0].Status != DriftAhead || states[1].Status != DriftUnsupported {
+	if states[0].Status != DriftBehind || states[1].Status != DriftUnsupported {
 		t.Fatalf("states = %#v", states)
 	}
 }

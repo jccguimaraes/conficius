@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -54,6 +55,9 @@ func writeUpdateLog(log updateLog) (string, error) {
 	if err := os.WriteFile(path, append(contents, '\n'), 0o600); err != nil {
 		return "", fmt.Errorf("write update log: %w", err)
 	}
+	if err := rotateUpdateLogs(directory, 30); err != nil {
+		return "", err
+	}
 	return path, nil
 }
 
@@ -64,6 +68,26 @@ func finishUpdateLog(path string, log updateLog) error {
 	}
 	if written != path {
 		return fmt.Errorf("update log path changed from %q to %q", path, written)
+	}
+	return nil
+}
+
+func rotateUpdateLogs(directory string, keep int) error {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return fmt.Errorf("read update logs: %w", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names[:max(0, len(names)-keep)] {
+		if err := os.Remove(filepath.Join(directory, name)); err != nil {
+			return fmt.Errorf("rotate update log %q: %w", name, err)
+		}
 	}
 	return nil
 }

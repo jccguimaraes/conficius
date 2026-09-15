@@ -56,7 +56,9 @@ type ManagerOptions struct {
 }
 
 type QueryOptions struct {
-	Managers map[string]ManagerOptions
+	Managers    map[string]ManagerOptions
+	Executables map[string]string
+	Disabled    map[string]bool
 }
 
 type QueryResult struct {
@@ -145,7 +147,7 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
-	statuses, err := Inspect(pms)
+	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return QueryResult{}, err
 	}
@@ -191,6 +193,33 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	}
 
 	return result, errors.Join(queryErrors...)
+}
+
+func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, error) {
+	if len(pms) == 0 {
+		pms = RegisteredPackageManagers
+	}
+	if err := Supported(pms); err != nil {
+		return nil, err
+	}
+	var enabled []string
+	for _, manager := range pms {
+		if !options.Disabled[manager] {
+			enabled = append(enabled, manager)
+		}
+	}
+	statuses, err := Inspect(enabled)
+	if err != nil {
+		return nil, err
+	}
+	for i := range statuses {
+		if executable := options.Executables[statuses[i].Name]; executable != "" {
+			statuses[i].Status = StatusAvailable
+			statuses[i].Executables = []string{executable}
+			statuses[i].Error = ""
+		}
+	}
+	return statuses, nil
 }
 
 func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, options ManagerOptions, packages Packages) error {

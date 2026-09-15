@@ -15,6 +15,7 @@ var profileNamePattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 type Profile struct {
 	Mode          string                     `toml:"mode" json:"mode"`
+	ModeSet       bool                       `toml:"-" json:"-"`
 	SecurityScope string                     `toml:"security_scope" json:"security_scope"`
 	ManagerOrder  []string                   `toml:"manager_order" json:"manager_order"`
 	Managers      map[string]ManagerSettings `toml:"managers" json:"managers"`
@@ -25,10 +26,8 @@ type Profile struct {
 type ManagerSettings struct {
 	Enabled               *bool  `toml:"enabled" json:"enabled,omitempty"`
 	Executable            string `toml:"executable" json:"executable,omitempty"`
-	IncludePrerelease     bool   `toml:"include_prerelease" json:"include_prerelease"`
 	IncludeBumpCandidates bool   `toml:"include_bump_candidates" json:"include_bump_candidates"`
 	IncludeGreedy         bool   `toml:"include_greedy" json:"include_greedy"`
-	IncludeCasks          *bool  `toml:"include_casks" json:"include_casks,omitempty"`
 	ExpectedGlobalPrefix  string `toml:"expected_global_prefix" json:"expected_global_prefix,omitempty"`
 }
 

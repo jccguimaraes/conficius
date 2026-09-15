@@ -152,7 +152,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if project != nil {
 						mappings = project.Vulnerabilities.Mappings
 					}
-					inventory, inventoryErr := packagemanager.QueryInstalledScopes(ctx, c.StringSlice("pm"), managerScopes(scopes))
+					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), managerQueryOptions(resolved.Profile))
 					if resolved.Profile.SecurityScope == "selected" {
 						versions := make([]config.InstalledVersion, len(inventory.Packages))
 						for i, pkg := range inventory.Packages {
@@ -346,8 +346,18 @@ func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.Resol
 }
 
 func managerQueryOptions(profile config.Profile) packagemanager.QueryOptions {
-	options := packagemanager.QueryOptions{Managers: make(map[string]packagemanager.ManagerOptions, len(profile.Managers))}
+	options := packagemanager.QueryOptions{
+		Managers:    make(map[string]packagemanager.ManagerOptions, len(profile.Managers)),
+		Executables: make(map[string]string),
+		Disabled:    make(map[string]bool),
+	}
 	for manager, settings := range profile.Managers {
+		if settings.Enabled != nil && !*settings.Enabled {
+			options.Disabled[manager] = true
+		}
+		if settings.Executable != "" {
+			options.Executables[manager] = settings.Executable
+		}
 		options.Managers[manager] = packagemanager.ManagerOptions{
 			IncludeBumpCandidates: settings.IncludeBumpCandidates,
 			IncludeGreedy:         settings.IncludeGreedy,
