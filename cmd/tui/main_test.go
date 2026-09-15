@@ -7,6 +7,12 @@ import (
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
 
+func TestGenerationRejectsStaleRefresh(t *testing.T) {
+	if isCurrentGeneration(2, 1) || !isCurrentGeneration(2, 2) {
+		t.Fatal("generation comparison failed")
+	}
+}
+
 func TestFilterOutdatedUsesResolvedProfileSelection(t *testing.T) {
 	packages := []packagemanager.Package{
 		{Manager: "npm", Name: "keep", Scope: "global"},

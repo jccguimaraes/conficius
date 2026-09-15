@@ -18,15 +18,16 @@ import (
 var version = "dev"
 
 type model struct {
-	profile  config.ResolvedProfile
-	scopes   []config.Scope
-	active   *config.Scope
-	packages []packagemanager.Package
-	drift    []config.PackageState
-	findings []vulnerability.Finding
-	mappings []config.VulnerabilityMapping
-	status   string
-	cancel   context.CancelFunc
+	profile    config.ResolvedProfile
+	scopes     []config.Scope
+	active     *config.Scope
+	packages   []packagemanager.Package
+	drift      []config.PackageState
+	findings   []vulnerability.Finding
+	mappings   []config.VulnerabilityMapping
+	status     string
+	cancel     context.CancelFunc
+	generation uint64
 }
 
 func main() {
@@ -169,6 +170,8 @@ func refresh(data *model, app *glyph.App) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	data.cancel = cancel
+	data.generation++
+	generation := data.generation
 	data.status = "Loading..."
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
@@ -199,6 +202,9 @@ func refresh(data *model, app *glyph.App) {
 		}
 		err := errors.Join(outdatedErr, inventoryErr, scanErr)
 		app.Apply(func() {
+			if !isCurrentGeneration(data.generation, generation) {
+				return
+			}
 			data.packages = packages
 			data.drift = drift
 			data.findings = findings
@@ -242,6 +248,10 @@ func selectedKeys(packages []config.InstalledVersion) map[string]struct{} {
 
 func packageKey(scope, path, manager, name string) string {
 	return scope + "\x00" + path + "\x00" + manager + "\x00" + name
+}
+
+func isCurrentGeneration(current, completed uint64) bool {
+	return current == completed
 }
 
 func selectedScopes(data *model) []config.Scope {
