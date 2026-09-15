@@ -64,10 +64,20 @@ Vulnerability checks query OSV with exact installed versions. Global npm package
 
 ## Configuration
 
-Configuration uses TOML schema version `1`. Link sources are relative to the configuration file. Targets use plain environment-variable references; Conficius expands them when loading config.
+Configuration uses TOML schema version `2`; version `1` remains readable. `conficius config migrate` previews a version 2 file, and `conficius config migrate --apply` writes it after creating a timestamped backup. Link sources are relative to the configuration file. Targets use plain environment-variable references; Conficius expands them when loading config.
 
 ```toml
-version = 1
+version = 2
+
+[profiles.default]
+mode = "denylist"
+manager_order = ["mise", "brew", "npm"]
+
+# Keep global npm packages outside version-managed Node directories:
+# npm config set prefix "$HOME/.npm-global"
+# Add "$HOME/.npm-global/bin" to PATH.
+[profiles.default.managers.npm]
+expected_global_prefix = "${HOME}/.npm-global"
 
 [[tools.zsh.links]]
 source = "zsh/.zshrc"

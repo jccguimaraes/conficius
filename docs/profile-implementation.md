@@ -1,8 +1,8 @@
 # Package profile implementation
 
-- [ ] Add strict config schema version 2 while retaining version 1 reads until next major CLI release.
-- [ ] Add dry-run `config migrate`; `--apply` writes atomically beside a collision-safe timestamped backup.
-- [ ] Add profile selection and `config resolve`, including verbose source provenance.
+- [x] Add strict config schema version 2 while retaining version 1 reads until next major CLI release.
+- [x] Add dry-run `config migrate`; `--apply` writes atomically beside a collision-safe timestamped backup.
+- [x] Add profile selection and `config resolve`, including verbose source provenance.
 - [ ] Add explicit global and canonical project scopes, registered projects, current-project detection, and npm workspaces.
 - [ ] Add bounded concurrent read-only checks with deterministic output and five-minute subprocess timeouts.
 - [ ] Add scoped inventory, outdated checks, exact desired-version drift, and JSON schema version 2.

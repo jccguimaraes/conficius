@@ -42,6 +42,40 @@ func TestInitCommandExplicitRootConfigPath(t *testing.T) {
 	}
 }
 
+func TestConfigResolveJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("version = 2\n[profiles.work]\nmode = 'allowlist'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Execute([]string{appName, "--config", path, "config", "resolve", "--profile", "work", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"name": "work"`) || !strings.Contains(output.String(), `"schema_version": 1`) {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestConfigMigratePreview(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("version = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Execute([]string{appName, "--config", path, "config", "migrate"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "version = 2") {
+		t.Fatalf("output = %q", output.String())
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil || string(contents) != "version = 1\n" {
+		t.Fatalf("config changed: %q, %v", contents, err)
+	}
+}
+
 func TestInitCommandRefusesExistingConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "existing.toml")
 	if err := os.WriteFile(path, []byte("keep me"), 0o644); err != nil {

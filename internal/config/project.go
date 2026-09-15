@@ -13,13 +13,24 @@ import (
 
 const (
 	FileName       = "conficius.toml"
-	CurrentVersion = 1
+	CurrentVersion = 2
 )
 
 var ErrNotFound = errors.New("conficius config not found")
 
 const Example = `# Conficius project configuration.
-version = 1
+version = 2
+
+# Profiles select package managers, projects, packages, and exact desired versions.
+# Keep global npm packages outside version-managed Node directories:
+# npm config set prefix "$HOME/.npm-global"
+# Add "$HOME/.npm-global/bin" to PATH.
+[profiles.default]
+mode = "denylist"
+manager_order = ["mise", "brew", "npm"]
+
+[profiles.default.managers.npm]
+expected_global_prefix = "${HOME}/.npm-global"
 
 # Tool names are free-form. Source paths are relative to this file's directory.
 # Targets support $VAR and ${VAR}; standard HOME and XDG variables have defaults.
@@ -39,6 +50,8 @@ name = "example.org/module"
 
 type Project struct {
 	Version         int                 `toml:"version"`
+	Profile         string              `toml:"profile"`
+	Profiles        map[string]Profile  `toml:"profiles"`
 	Tools           map[string]Tool     `toml:"tools"`
 	Vulnerabilities VulnerabilityConfig `toml:"vulnerabilities"`
 	Path            string              `toml:"-"`
@@ -138,8 +151,11 @@ func Load(path string) (*Project, error) {
 		sort.Strings(keys)
 		return nil, fmt.Errorf("unknown config fields: %s", strings.Join(keys, ", "))
 	}
-	if project.Version != CurrentVersion {
-		return nil, fmt.Errorf("config version must be %d, got %d", CurrentVersion, project.Version)
+	if project.Version != 1 && project.Version != CurrentVersion {
+		return nil, fmt.Errorf("config version must be 1 or %d, got %d", CurrentVersion, project.Version)
+	}
+	if project.Version == 1 && (project.Profile != "" || len(project.Profiles) > 0) {
+		return nil, errors.New("profiles require config version 2")
 	}
 
 	project.Path = path
@@ -179,6 +195,20 @@ func (project *Project) normalize() error {
 
 	if err := project.normalizeVulnerabilityMappings(); err != nil {
 		return err
+	}
+	if project.Version == 2 {
+		if project.Profile != "" && !profileNamePattern.MatchString(project.Profile) {
+			return fmt.Errorf("invalid selected profile %q", project.Profile)
+		}
+		for name, profile := range project.Profiles {
+			if !profileNamePattern.MatchString(name) {
+				return fmt.Errorf("invalid profile name %q", name)
+			}
+			if err := normalizeProfile(&profile, project.Root); err != nil {
+				return fmt.Errorf("profile %q: %w", name, err)
+			}
+			project.Profiles[name] = profile
+		}
 	}
 
 	for toolName, tool := range project.Tools {

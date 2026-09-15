@@ -94,7 +94,7 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 [tools.zsh]
 links = [{ source = "zshrc", target = "$HOME/.zshrc" }]
 `,
-		"future version": `version = 2`,
+		"future version": `version = 3`,
 		"unknown root field": `version = 1
 extra = true
 `,
@@ -185,6 +185,114 @@ links = [{ source = "link", target = "$HOME/.zshrc" }]
 `)
 	if _, err := Load(path); err == nil {
 		t.Fatal("Load succeeded; want symlink escape error")
+	}
+}
+
+func TestLoadVersionTwoProfiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	path := filepath.Join(root, FileName)
+	mustWrite(t, path, `version = 2
+profile = "work"
+
+[profiles.work]
+mode = "allowlist"
+manager_order = ["mise", "npm"]
+
+[profiles.work.managers.npm]
+expected_global_prefix = "${HOME}/.npm-global"
+
+[[profiles.work.packages]]
+manager = "npm"
+name = "typescript"
+policy = "include"
+desired_version = "5.9.2"
+
+[[profiles.work.projects]]
+name = "web"
+path = "./web"
+mode = "allowlist"
+`)
+	project, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := project.ResolveProfile("", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Name != "work" || resolved.Profile.Mode != "allowlist" {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if got := resolved.Profile.Managers["npm"].ExpectedGlobalPrefix; got != filepath.Join(home, ".npm-global") {
+		t.Fatalf("npm prefix = %q", got)
+	}
+	if got := resolved.Profile.Projects[0].Path; got != filepath.Join(root, "web") {
+		t.Fatalf("project path = %q", got)
+	}
+}
+
+func TestResolveProfileSelectionPrecedence(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root := t.TempDir()
+	path := filepath.Join(root, FileName)
+	mustWrite(t, path, `version = 2
+profile = "project"
+[profiles.project]
+[profiles.environment]
+[profiles.command]
+`)
+	project, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(ProfileEnvironment, "environment")
+	resolved, err := project.ResolveProfile("command", false)
+	if err != nil || resolved.Name != "command" {
+		t.Fatalf("command profile = %#v, %v", resolved, err)
+	}
+	resolved, err = project.ResolveProfile("", false)
+	if err != nil || resolved.Name != "environment" {
+		t.Fatalf("environment profile = %#v, %v", resolved, err)
+	}
+	t.Setenv(ProfileEnvironment, "")
+	resolved, err = project.ResolveProfile("", false)
+	if err != nil || resolved.Name != "project" {
+		t.Fatalf("project profile = %#v, %v", resolved, err)
+	}
+}
+
+func TestVersionOneRejectsNamedProfileSelection(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), FileName)
+	mustWrite(t, path, "version = 1\n")
+	project, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(ProfileEnvironment, "work")
+	if _, err := project.ResolveProfile("", false); err == nil || !strings.Contains(err.Error(), "config version 2") {
+		t.Fatalf("ResolveProfile error = %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidProfiles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	tests := map[string]string{
+		"unknown field":     "version = 2\n[profiles.default]\nexlcude = true\n",
+		"invalid name":      "version = 2\n[profiles.Upper]\n",
+		"duplicate package": "version = 2\n[profiles.default]\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='include'\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='include'\n",
+		"excluded version":  "version = 2\n[profiles.default]\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='exclude'\ndesired_version='1'\n",
+	}
+	for name, contents := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), FileName)
+			mustWrite(t, path, contents)
+			if _, err := Load(path); err == nil {
+				t.Fatal("Load succeeded; want error")
+			}
+		})
 	}
 }
 
