@@ -14,6 +14,7 @@ require github.com/urfave/cli/v3 v3.9.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/fatih/color v1.19.0
+	github.com/kungfusheep/glyph v0.8.0
 )
 
 require (
@@ -21,6 +22,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.27.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/conventionalcommit/commitlint v0.12.0 // indirect
 	github.com/conventionalcommit/parser v0.8.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -30,11 +32,15 @@ require (
 	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/google/safehtml v0.1.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
+	github.com/junegunn/fzf v0.67.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/kungfusheep/riffkey v0.0.0-20260826171334-5e317f83ca32 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/openai/openai-go/v3 v3.29.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

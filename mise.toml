@@ -43,6 +43,14 @@ rm -rf ./bin
 go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius ./cmd/cli
 """
 
+[tasks.build-tui]
+depends = ["test-ci"]
+run = """
+VERSION="${VERSION:-dev-$(git rev-parse --short HEAD)}"
+mkdir -p ./bin
+go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-tui ./cmd/tui
+"""
+
 [tasks.changelog]
 run = "git cliff --offline --output CHANGELOG.md"
 

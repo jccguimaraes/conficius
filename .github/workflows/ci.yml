@@ -38,7 +38,9 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Build
-        run: go build -o ./bin/conficius ./cmd/cli
+        run: |
+          go build -o ./bin/conficius ./cmd/cli
+          go build -o ./bin/conficius-tui ./cmd/tui
       - name: Smoke test
         run: |
           ./bin/conficius --help >/dev/null

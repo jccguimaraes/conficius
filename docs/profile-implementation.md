@@ -9,7 +9,7 @@
 - [x] Add multi-project OSV checks with request deduplication and configurable security scope.
 - [x] Add typed mise bump, Homebrew greedy, and npm global-prefix policies.
 - [x] Add guarded scoped updates, dirty and unversioned project checks, revalidation, and redacted XDG mutation logs.
-- [ ] Add separate `cmd/tui` after profile, drift, and vulnerability operations stabilize.
+- [x] Add separate preview-only `cmd/tui` after profile, drift, and vulnerability operations stabilize.
 - [ ] Add native Windows mise/npm adapters before profiles are described as cross-platform.
 
 Each slice needs deterministic integration tests using fake manager executables. Live manager checks remain optional smoke tests, not CI gates.
