@@ -39,6 +39,7 @@ type updateOutput struct {
 }
 
 type vulnerabilityOutput struct {
+	Scopes   []config.Scope                 `json:"scopes"`
 	Managers []packagemanager.ManagerStatus `json:"managers"`
 	Findings []vulnerability.Finding        `json:"findings"`
 }
@@ -136,21 +137,43 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "vulnerabilities",
 				Description: "Check installed packages against OSV using exact package versions.",
 				Usage:       "Show known vulnerabilities and unsupported package mappings.",
-				Flags:       []urfave.Flag{pmFlag(), jsonFlag()},
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					project, err := config.LoadDiscovered(c.String("config"))
-					if err != nil && !errors.Is(err, config.ErrNotFound) {
+					scopes, resolved, err := resolvePackageScopes(c)
+					if err != nil {
 						return err
+					}
+					project, loadErr := config.LoadDiscovered(c.String("config"))
+					if loadErr != nil && !errors.Is(loadErr, config.ErrNotFound) {
+						return loadErr
 					}
 					var mappings []config.VulnerabilityMapping
 					if project != nil {
 						mappings = project.Vulnerabilities.Mappings
 					}
-					inventory, inventoryErr := packagemanager.QueryInstalled(ctx, c.StringSlice("pm"))
+					inventory, inventoryErr := packagemanager.QueryInstalledScopes(ctx, c.StringSlice("pm"), managerScopes(scopes))
+					if resolved.Profile.SecurityScope == "selected" {
+						versions := make([]config.InstalledVersion, len(inventory.Packages))
+						for i, pkg := range inventory.Packages {
+							versions[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
+						}
+						selected, _ := config.EvaluatePackages(resolved.Profile, versions)
+						allowed := make(map[string]struct{}, len(selected))
+						for _, pkg := range selected {
+							allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name+"\x00"+pkg.Version] = struct{}{}
+						}
+						filtered := inventory.Packages[:0]
+						for _, pkg := range inventory.Packages {
+							if _, exists := allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name+"\x00"+pkg.Version]; exists {
+								filtered = append(filtered, pkg)
+							}
+						}
+						inventory.Packages = filtered
+					}
 					client := vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL"))
 					findings, scanErr := vulnerability.Scan(ctx, inventory.Packages, mappings, client)
 					if c.Bool("json") {
-						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Managers: inventory.Managers, Findings: findings})
+						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Scopes: scopes, Managers: inventory.Managers, Findings: findings})
 						return errors.Join(inventoryErr, scanErr, writeErr)
 					}
 					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
@@ -285,6 +308,16 @@ func printVulnerabilityFindings(writer io.Writer, findings []vulnerability.Findi
 	for _, finding := range findings {
 		if _, err := fmt.Fprintf(writer, "%s:%s@%s: %s", finding.Manager, finding.Package, finding.Version, finding.Status); err != nil {
 			return err
+		}
+		if finding.Scope != "" {
+			if _, err := fmt.Fprintf(writer, " scope=%s", finding.Scope); err != nil {
+				return err
+			}
+			if finding.Path != "" {
+				if _, err := fmt.Fprintf(writer, " path=%s", finding.Path); err != nil {
+					return err
+				}
+			}
 		}
 		if finding.Reason != "" {
 			if _, err := fmt.Fprintf(writer, " (%s)", finding.Reason); err != nil {

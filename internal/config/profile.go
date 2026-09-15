@@ -14,11 +14,12 @@ const ProfileEnvironment = "CONFICIUS_PROFILE"
 var profileNamePattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 type Profile struct {
-	Mode         string                     `toml:"mode" json:"mode"`
-	ManagerOrder []string                   `toml:"manager_order" json:"manager_order"`
-	Managers     map[string]ManagerSettings `toml:"managers" json:"managers"`
-	Packages     []PackageRule              `toml:"packages" json:"packages"`
-	Projects     []ProfileProject           `toml:"projects" json:"projects"`
+	Mode          string                     `toml:"mode" json:"mode"`
+	SecurityScope string                     `toml:"security_scope" json:"security_scope"`
+	ManagerOrder  []string                   `toml:"manager_order" json:"manager_order"`
+	Managers      map[string]ManagerSettings `toml:"managers" json:"managers"`
+	Packages      []PackageRule              `toml:"packages" json:"packages"`
+	Projects      []ProfileProject           `toml:"projects" json:"projects"`
 }
 
 type ManagerSettings struct {
@@ -113,6 +114,12 @@ func normalizeProfile(profile *Profile, root string) error {
 	}
 	if profile.Mode != "allowlist" && profile.Mode != "denylist" {
 		return fmt.Errorf("mode must be allowlist or denylist, got %q", profile.Mode)
+	}
+	if profile.SecurityScope == "" {
+		profile.SecurityScope = "all"
+	}
+	if profile.SecurityScope != "all" && profile.SecurityScope != "selected" {
+		return fmt.Errorf("security_scope must be all or selected, got %q", profile.SecurityScope)
 	}
 	if len(profile.ManagerOrder) == 0 {
 		profile.ManagerOrder = []string{"mise", "brew", "npm"}

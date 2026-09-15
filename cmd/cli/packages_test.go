@@ -166,6 +166,31 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	}
 }
 
+func TestPackagesVulnerabilitiesDeduplicatesAcrossScopes(t *testing.T) {
+	dir := t.TempDir()
+	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		_, _ = fmt.Fprint(w, `{"vulns":[]}`)
+	}))
+	defer server.Close()
+	t.Setenv("CONFICIUS_OSV_URL", server.URL)
+	project := t.TempDir()
+
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "vulnerabilities", "--pm", "npm", "--project", project, "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 1 || !strings.Contains(output.String(), `"scope": "project"`) {
+		t.Fatalf("requests = %d, output = %q", requests, output.String())
+	}
+}
+
 func TestPackagesUpdateDefaultsToJSONPreviewWithoutMutation(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "mutated")
