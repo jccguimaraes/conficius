@@ -1,8 +1,16 @@
 package packagemanager
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-const readConcurrency = 4
+const (
+	readConcurrency = 4
+	readTimeout     = 5 * time.Minute
+)
+
+var operationTimeout = readTimeout
 
 type readOperation[T any] struct {
 	managerIndex int
@@ -32,7 +40,9 @@ func runReadOperations[T any](ctx context.Context, operations []readOperation[T]
 				done <- i
 				return
 			}
-			value, err := operation.run(ctx)
+			operationContext, cancel := context.WithTimeout(ctx, operationTimeout)
+			value, err := operation.run(operationContext)
+			cancel()
 			results[i] = readResult[T]{operation: operation, value: value, err: err}
 			done <- i
 		}()

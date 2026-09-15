@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+func TestRunReadOperationsTimesOut(t *testing.T) {
+	previous := operationTimeout
+	operationTimeout = 10 * time.Millisecond
+	t.Cleanup(func() { operationTimeout = previous })
+	results := runReadOperations(context.Background(), []readOperation[int]{{run: func(ctx context.Context) (int, error) {
+		<-ctx.Done()
+		return 0, ctx.Err()
+	}}})
+	if len(results) != 1 || results[0].err != context.DeadlineExceeded {
+		t.Fatalf("results = %#v", results)
+	}
+}
+
 func TestRunReadOperationsUsesBoundedConcurrencyAndKeepsOrder(t *testing.T) {
 	var active atomic.Int32
 	var maximum atomic.Int32
