@@ -13,10 +13,20 @@ import (
 )
 
 func TestResultViewRendersPackageIdentity(t *testing.T) {
-	data := &model{packages: []packagemanager.Package{{Manager: "npm", Name: "typescript", Current: "5.0", Latest: "5.1", Scope: "global"}}}
+	packages := []packagemanager.Package{{Manager: "npm", Name: "typescript", Current: "5.0", Latest: "5.1", Scope: "global"}}
+	data := &model{packages: packages, rows: outdatedRows(packages, nil)}
 	component, _ := resultView(data)
+	assertRenderedContains(t, component, "Manager")
 	assertRenderedContains(t, component, "[ ]")
 	assertRenderedContains(t, component, "typescript")
+}
+
+func TestResultViewRendersMarkedPackage(t *testing.T) {
+	pkg := packagemanager.Package{Manager: "npm", Name: "typescript", Scope: "global"}
+	selected := map[string]bool{packageKey("global", "", "npm", "typescript"): true}
+	data := &model{packages: []packagemanager.Package{pkg}, rows: outdatedRows([]packagemanager.Package{pkg}, selected), selected: selected}
+	component, _ := resultView(data)
+	assertRenderedContains(t, component, "[x]")
 }
 
 func TestScopeViewRendersScopeIdentity(t *testing.T) {

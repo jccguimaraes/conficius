@@ -9,12 +9,12 @@ import (
 
 func TestToggleSelectedMarksCurrentPackage(t *testing.T) {
 	data := &model{selected: map[string]bool{}}
-	pkg := &packagemanager.Package{Manager: "mise", Name: "node", Scope: "global"}
-	toggleSelected(data, pkg)
-	if !data.selected[packageKey("global", "", "mise", "node")] {
+	row := &outdatedRow{Package: packagemanager.Package{Manager: "mise", Name: "node", Scope: "global"}, Mark: "[ ]"}
+	toggleSelected(data, row)
+	if !data.selected[packageKey("global", "", "mise", "node")] || row.Mark != "[x]" {
 		t.Fatal("package not selected")
 	}
-	toggleSelected(data, pkg)
+	toggleSelected(data, row)
 	if len(data.selected) != 0 {
 		t.Fatal("package not unselected")
 	}

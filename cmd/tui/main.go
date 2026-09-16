@@ -19,6 +19,11 @@ import (
 
 var version = "dev"
 
+type outdatedRow struct {
+	Package packagemanager.Package
+	Mark    string
+}
+
 type vulnerabilityRow struct {
 	Source    string
 	Manager   string
@@ -34,6 +39,7 @@ type model struct {
 	scopes     []config.Scope
 	active     *config.Scope
 	packages   []packagemanager.Package
+	rows       []outdatedRow
 	query      packagemanager.QueryResult
 	selected   map[string]bool
 	plans      []packagemanager.UpdatePlan
@@ -94,8 +100,8 @@ func run() error {
 		Handle("<up>", packageList.Up).
 		Handle("j", packageList.Down).
 		Handle("k", packageList.Up).
-		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()) }).
-		Handle("a", func() { toggleAll(data) }).
+		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()); app.RequestRender() }).
+		Handle("a", func() { toggleAll(data); app.RequestRender() }).
 		Handle("u", func() { prepareUpgrade(data, app, false) }).
 		Handle("U", func() { prepareUpgrade(data, app, true) })
 	app.View("drift", driftView(data)).
@@ -143,19 +149,27 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 	), list
 }
 
-func resultView(data *model) (glyph.Component, *glyph.ListC[packagemanager.Package]) {
-	list := glyph.List(&data.packages).
-		Render(func(pkg *packagemanager.Package) glyph.Component {
-			mark := "[ ]"
-			if data.selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] {
-				mark = "[x]"
-			}
-			return glyph.Textf(&mark, " ", &pkg.Manager, "  ", &pkg.Name, "  ", &pkg.Current, " → ", &pkg.Latest, "  ", &pkg.Scope)
+func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
+	list := glyph.List(&data.rows).
+		Render(func(row *outdatedRow) glyph.Component {
+			return glyph.HBox.Gap(2)(
+				glyph.Text(&row.Mark).Width(3),
+				glyph.Text(&row.Package.Manager).Width(8),
+				glyph.Text(&row.Package.Name).Width(26),
+				glyph.Text(&row.Package.Current).Width(16),
+				glyph.Text(&row.Package.Latest).Width(16).FG(glyph.Green),
+				glyph.Text(&row.Package.Scope).Width(10),
+			)
 		}).
 		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
 		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold}).
 		MaxVisible(1000)
+	header := glyph.HBox.Gap(2)(
+		glyph.Text("Mark").Width(3).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
+		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(),
+	)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
+		header,
 		loadingContent(&data.loading, list),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k move  Space mark  a mark all  u upgrade marked  U upgrade all  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
@@ -254,6 +268,7 @@ func refresh(data *model, app *glyph.App) {
 					delete(data.selected, key)
 				}
 			}
+			data.rows = outdatedRows(packages, data.selected)
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
 			data.findings = append(data.findings, euvdRows(euvdFindings)...)

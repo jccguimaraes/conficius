@@ -11,25 +11,45 @@ import (
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
 
-func toggleSelected(data *model, pkg *packagemanager.Package) {
-	if pkg == nil {
+func toggleSelected(data *model, row *outdatedRow) {
+	if row == nil {
 		return
 	}
+	pkg := &row.Package
 	key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
 	if data.selected[key] {
 		delete(data.selected, key)
+		row.Mark = "[ ]"
 	} else {
 		data.selected[key] = true
+		row.Mark = "[x]"
 	}
+}
+
+func outdatedRows(packages []packagemanager.Package, selected map[string]bool) []outdatedRow {
+	rows := make([]outdatedRow, len(packages))
+	for i, pkg := range packages {
+		mark := "[ ]"
+		if selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] {
+			mark = "[x]"
+		}
+		rows[i] = outdatedRow{Package: pkg, Mark: mark}
+	}
+	return rows
 }
 
 func toggleAll(data *model) {
 	if len(data.packages) > 0 && len(data.selected) == len(data.packages) {
 		clear(data.selected)
+		for i := range data.rows {
+			data.rows[i].Mark = "[ ]"
+		}
 		return
 	}
-	for _, pkg := range data.packages {
+	for i := range data.rows {
+		pkg := &data.rows[i].Package
 		data.selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = true
+		data.rows[i].Mark = "[x]"
 	}
 }
 
