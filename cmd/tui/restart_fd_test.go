@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TestRestartTargetsPOSIXStdinDescriptor(t *testing.T) {
+	if syscall.Stdin != 0 {
+		t.Fatalf("stdin descriptor = %d", syscall.Stdin)
+	}
+}
+
 func TestRestoreStdinHandlesSourceEqualToTarget(t *testing.T) {
 	file, err := os.OpenFile("/dev/null", os.O_RDONLY, 0)
 	if err != nil {

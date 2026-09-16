@@ -84,7 +84,7 @@ func execFreshTUI(tty *os.File, data *model) error {
 	if err != nil {
 		return fmt.Errorf("resolve TUI executable: %w", err)
 	}
-	if err := restoreStdin(int(tty.Fd()), int(os.Stdin.Fd())); err != nil {
+	if err := restoreStdin(int(tty.Fd()), syscall.Stdin); err != nil {
 		return err
 	}
 	return syscall.Exec(executable, append([]string{executable}, os.Args[1:]...), os.Environ())
