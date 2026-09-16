@@ -14,12 +14,14 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
 var version = "dev"
 
 type vulnerabilityRow struct {
+	Source    string
 	Manager   string
 	Package   string
 	Current   string
@@ -152,8 +154,8 @@ func driftView(data *model) glyph.Component {
 
 func vulnerabilityView(data *model) glyph.Component {
 	table := glyph.AutoTable(&data.findings).
-		Columns("Manager", "Package", "Current", "Status", "Advisory", "UpgradeTo").
-		Headers("Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
+		Columns("Source", "Manager", "Package", "Current", "Status", "Advisory", "UpgradeTo").
+		Headers("Source", "Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
 		Column("Status", statusStyle()).
 		Column("UpgradeTo", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
@@ -215,7 +217,8 @@ func refresh(data *model, app *glyph.App) {
 			data.loading = false
 			data.packages = packages
 			data.drift = drift
-			data.findings = append(vulnerabilityRows(findings), euvdRows(euvdFindings)...)
+			data.findings = vulnerabilityRows(findings)
+			data.findings = append(data.findings, euvdRows(euvdFindings)...)
 			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
 			if err != nil {
 				data.status = err.Error()
@@ -254,7 +257,7 @@ func statusStyle() glyph.ColumnOption {
 func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, len(findings))
 	for i, finding := range findings {
-		rows[i] = vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: "vulnerable", Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
+		rows[i] = vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: "vulnerable", Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
 	}
 	return rows
 }
@@ -265,7 +268,12 @@ func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
 		if finding.Status != vulnerability.StatusVulnerable && finding.Status != vulnerability.StatusError {
 			continue
 		}
-		rows = append(rows, vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: vulnerabilityIDs(finding.Advisories), UpgradeTo: fixedVersions(finding.Advisories)})
+		for _, advisory := range finding.Advisories {
+			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: advisory.ID, UpgradeTo: advisory.FixedVersion})
+		}
+		if len(finding.Advisories) == 0 {
+			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status})
+		}
 	}
 	return rows
 }
