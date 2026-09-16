@@ -116,7 +116,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 		glyph.Text("Scopes").Underline(),
 		list,
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("j/k move  Enter open  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k move  Enter open  r refresh  q quit").Dim(),
 	), list
 }
 
@@ -128,7 +128,7 @@ func resultView(data *model) glyph.Component {
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
 		table,
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("j/k move  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
 }
 
@@ -140,7 +140,7 @@ func driftView(data *model) glyph.Component {
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
 		table,
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("j/k move  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
 }
 
@@ -152,7 +152,7 @@ func vulnerabilityView(data *model) glyph.Component {
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		table,
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("j/k move  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
 	)
 }
 
