@@ -88,7 +88,16 @@ func run() error {
 	}
 
 	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string)}
-	if err := runSession(data); err != nil {
+	startView := "scopes"
+	if encoded := os.Getenv(restartStateEnv); encoded != "" {
+		state, decodeErr := decodeRestartState(encoded)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		startView = restoreRestartState(data, state)
+		_ = os.Unsetenv(restartStateEnv)
+	}
+	if err := runSession(data, startView); err != nil {
 		return err
 	}
 	if !data.runInteractive {
@@ -97,7 +106,7 @@ func run() error {
 	return runInteractiveUpgrades(data)
 }
 
-func runSession(data *model) error {
+func runSession(data *model, startView string) error {
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)
@@ -151,7 +160,7 @@ func runSession(data *model) error {
 			data.cancel()
 		}
 	}()
-	return app.RunFrom("scopes")
+	return app.RunFrom(startView)
 }
 
 func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[config.Scope]) {

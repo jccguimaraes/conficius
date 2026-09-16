@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -186,15 +185,5 @@ func runInteractiveUpgrades(data *model) error {
 		clear(data.selected)
 		data.status = "Upgrades applied"
 	}
-	return restartTUI(tty)
-}
-
-func restartTUI(tty *os.File) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve TUI executable: %w", err)
-	}
-	cmd := exec.Command(executable, os.Args[1:]...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
-	return cmd.Run()
+	return execFreshTUI(tty, data)
 }
