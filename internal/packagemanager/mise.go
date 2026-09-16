@@ -96,6 +96,7 @@ func (p Mise) listOutdated(ctx context.Context, dir, executable string, options 
 		args = append(args, MiseFlagOnlyInactive)
 	} else {
 		args = append(args, MiseFlagLocal)
+		options.IncludeBumpCandidates = true
 	}
 	if options.IncludeBumpCandidates {
 		args = append(args, MiseFlagBump)

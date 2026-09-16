@@ -132,7 +132,7 @@ func TestProjectMiseOutdatedExcludesInactiveGlobalTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(contents)
-	if !strings.Contains(got, project+"|outdated --json --local") || strings.Contains(got, "--inactive") {
+	if !strings.Contains(got, project+"|outdated --json --local --bump") || strings.Contains(got, "--inactive") {
 		t.Fatalf("invocation = %q", got)
 	}
 }
