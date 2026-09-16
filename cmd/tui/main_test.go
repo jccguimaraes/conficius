@@ -103,6 +103,12 @@ func TestSelectingScopeActivatesOnlyOnExplicitSelection(t *testing.T) {
 	}
 }
 
+func TestIncludesGlobal(t *testing.T) {
+	if !includesGlobal([]config.Scope{{Kind: "global"}}) || includesGlobal([]config.Scope{{Kind: "project", Path: "/repo"}}) {
+		t.Fatal("global scope detection failed")
+	}
+}
+
 func TestSelectedScopesUsesAllScopesWithoutSelection(t *testing.T) {
 	scopes := []config.Scope{{Kind: "global"}, {Kind: "project", Path: "/repo"}}
 	selected := selectedScopes(&model{scopes: scopes})

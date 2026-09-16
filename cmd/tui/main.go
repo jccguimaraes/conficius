@@ -185,6 +185,11 @@ func refresh(data *model, app *glyph.App) {
 		options := packagemanager.QueryOptionsFromProfile(profile)
 		result, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
 		inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
+		if includesGlobal(scopeSelection) {
+			managerPackages, managerErr := packagemanager.ManagerPackages(ctx, inventory.Managers)
+			inventory.Packages = append(inventory.Packages, managerPackages...)
+			inventoryErr = errors.Join(inventoryErr, managerErr)
+		}
 		packages := packagemanager.Records(result.Packages)
 		installed := make([]config.InstalledVersion, len(inventory.Packages))
 		for i, pkg := range inventory.Packages {
@@ -319,6 +324,15 @@ func packageKey(scope, path, manager, name string) string {
 
 func isCurrentGeneration(current, completed uint64) bool {
 	return current == completed
+}
+
+func includesGlobal(scopes []config.Scope) bool {
+	for _, scope := range scopes {
+		if scope.Kind == "global" {
+			return true
+		}
+	}
+	return false
 }
 
 func selectedScopes(data *model) []config.Scope {

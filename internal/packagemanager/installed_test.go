@@ -7,6 +7,30 @@ import (
 	"testing"
 )
 
+func TestManagerPackagesReadsManagerVersionsAndOSVIdentities(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "mise"), "#!/bin/sh\nprintf '2026.9.6 macos-arm64\n'\n")
+	writeExecutable(t, filepath.Join(dir, "brew"), "#!/bin/sh\nprintf 'Homebrew 7.0.1\n'\n")
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '11.19.1\n'\n")
+	statuses := []ManagerStatus{
+		{Name: PM_MISE, Status: StatusAvailable, Executables: []string{filepath.Join(dir, "mise")}},
+		{Name: PM_BREW, Status: StatusAvailable, Executables: []string{filepath.Join(dir, "brew")}},
+		{Name: PM_NPM, Status: StatusAvailable, Executables: []string{filepath.Join(dir, "npm")}},
+	}
+	packages, err := ManagerPackages(context.Background(), statuses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{
+		{Manager: "manager", Name: PM_MISE, Version: "2026.9.6", Scope: "global", OSVEcosystem: "crates.io", OSVName: "mise"},
+		{Manager: "manager", Name: PM_BREW, Version: "7.0.1", Scope: "global"},
+		{Manager: "manager", Name: PM_NPM, Version: "11.19.1", Scope: "global", OSVEcosystem: "npm", OSVName: "npm"},
+	}
+	if !reflect.DeepEqual(packages, want) {
+		t.Fatalf("packages = %#v; want %#v", packages, want)
+	}
+}
+
 func TestQueryInstalledReadsSupportedManagerInventories(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh

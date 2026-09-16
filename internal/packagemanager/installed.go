@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
+	"strings"
 )
 
 type InstalledPackage struct {
-	Manager   string `json:"manager"`
-	Name      string `json:"name"`
-	Version   string `json:"version"`
-	Scope     string `json:"scope,omitempty"`
-	Path      string `json:"path,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
+	Manager      string `json:"manager"`
+	Name         string `json:"name"`
+	Version      string `json:"version"`
+	Scope        string `json:"scope,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Workspace    string `json:"workspace,omitempty"`
+	OSVEcosystem string `json:"osv_ecosystem,omitempty"`
+	OSVName      string `json:"osv_name,omitempty"`
 }
 
 type Scope struct {
@@ -185,6 +188,45 @@ func installedHomebrew(ctx context.Context, executable string) ([]InstalledPacka
 		}
 	}
 	return packages, nil
+}
+
+func ManagerPackages(ctx context.Context, statuses []ManagerStatus) ([]InstalledPackage, error) {
+	var packages []InstalledPackage
+	var versionErrors []error
+	for _, status := range statuses {
+		if status.Status != StatusAvailable || len(status.Executables) == 0 {
+			continue
+		}
+		output, err := runOutput(ctx, status.Executables[0], "--version")
+		if err != nil {
+			versionErrors = append(versionErrors, fmt.Errorf("read %s version: %w", status.Name, err))
+			continue
+		}
+		version := firstVersion(string(output))
+		if version == "" {
+			versionErrors = append(versionErrors, fmt.Errorf("read %s version: no version in output", status.Name))
+			continue
+		}
+		pkg := InstalledPackage{Manager: "manager", Name: status.Name, Version: version, Scope: "global"}
+		switch status.Name {
+		case PM_MISE:
+			pkg.OSVEcosystem, pkg.OSVName = "crates.io", "mise"
+		case PM_NPM:
+			pkg.OSVEcosystem, pkg.OSVName = "npm", "npm"
+		}
+		packages = append(packages, pkg)
+	}
+	return packages, errors.Join(versionErrors...)
+}
+
+func firstVersion(output string) string {
+	for _, field := range strings.Fields(output) {
+		candidate := strings.TrimPrefix(field, "v")
+		if candidate != "" && candidate[0] >= '0' && candidate[0] <= '9' && strings.Contains(candidate, ".") {
+			return strings.TrimRight(candidate, ",;")
+		}
+	}
+	return ""
 }
 
 func dedupeInstalled(packages []InstalledPackage) []InstalledPackage {
