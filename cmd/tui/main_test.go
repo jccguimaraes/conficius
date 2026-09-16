@@ -62,6 +62,17 @@ func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	}
 }
 
+func TestSeverityColorUsesCVSSBands(t *testing.T) {
+	for _, test := range []struct {
+		score float64
+		want  glyph.Color
+	}{{9.8, glyph.Red}, {8.0, glyph.RGB(255, 140, 0)}, {5.0, glyph.Yellow}, {2.0, glyph.Blue}} {
+		if got := severityColor(test.score); !got.Equal(test.want) {
+			t.Fatalf("severityColor(%v) = %#v", test.score, got)
+		}
+	}
+}
+
 func TestVulnerabilityRowsSortHighestScoreFirst(t *testing.T) {
 	rows := []vulnerabilityRow{{Package: "medium", Score: 5.0}, {Package: "critical", Score: 9.8}, {Package: "high", Score: 8.1}}
 	sortVulnerabilityRows(rows)

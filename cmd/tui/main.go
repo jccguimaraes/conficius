@@ -246,7 +246,7 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 		Render(func(row *vulnerabilityRow) glyph.Component {
 			return glyph.HBox.Gap(1)(
 				glyph.Text(&row.Source).Width(6), glyph.Text(&row.Manager).Width(8), glyph.Text(&row.Package).Width(22),
-				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Score).Width(6), glyph.Text(&row.Advisory).Width(22),
+				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Score).Width(6).FG(severityColor(row.Score)), glyph.Text(&row.Advisory).Width(22).FG(severityColor(row.Score)),
 				glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
 			)
 		}).Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
@@ -284,8 +284,26 @@ func refresh(data *model, app *glyph.App) {
 			scopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
 		options := packagemanager.QueryOptionsFromProfile(profile)
-		result, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
-		inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
+		type outdatedResult struct {
+			result packagemanager.QueryResult
+			err    error
+		}
+		type inventoryResult struct {
+			result packagemanager.InstalledResult
+			err    error
+		}
+		outdatedCh, inventoryCh := make(chan outdatedResult, 1), make(chan inventoryResult, 1)
+		go func() {
+			result, err := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
+			outdatedCh <- outdatedResult{result, err}
+		}()
+		go func() {
+			result, err := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
+			inventoryCh <- inventoryResult{result, err}
+		}()
+		outdatedData, inventoryData := <-outdatedCh, <-inventoryCh
+		result, outdatedErr := outdatedData.result, outdatedData.err
+		inventory, inventoryErr := inventoryData.result, inventoryData.err
 		if includesGlobal(scopeSelection) {
 			managerPackages, managerErr := packagemanager.ManagerPackages(ctx, inventory.Managers)
 			inventory.Packages = append(inventory.Packages, managerPackages...)
@@ -302,8 +320,6 @@ func refresh(data *model, app *glyph.App) {
 		if profile.SecurityScope == "selected" {
 			scanPackages = filterInstalled(inventory.Packages, selected)
 		}
-		findings, _ := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
-		euvdFindings, _ := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
 		if ctx.Err() != nil {
 			return
 		}
@@ -322,13 +338,33 @@ func refresh(data *model, app *glyph.App) {
 			}
 			data.rows = outdatedRows(packages, data.selected, data.failed)
 			data.drift = drift
-			data.findings = vulnerabilityRows(findings)
-			data.findings = append(data.findings, euvdRows(euvdFindings)...)
-			sortVulnerabilityRows(data.findings)
-			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
+			data.status = fmt.Sprintf("%d outdated, %d drift; scanning vulnerabilities...", len(packages), len(drift))
 			if err != nil {
 				data.status = err.Error()
 			}
+		})
+		type osvResult struct{ findings []vulnerability.Finding }
+		type euvdResult struct{ findings []euvd.Finding }
+		osvCh, euvdCh := make(chan osvResult, 1), make(chan euvdResult, 1)
+		go func() {
+			findings, _ := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
+			osvCh <- osvResult{findings}
+		}()
+		go func() {
+			findings, _ := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
+			euvdCh <- euvdResult{findings}
+		}()
+		osvData, euvdData := <-osvCh, <-euvdCh
+		if ctx.Err() != nil {
+			return
+		}
+		app.Apply(func() {
+			if !isCurrentGeneration(data.generation, generation) {
+				return
+			}
+			data.findings = append(vulnerabilityRows(osvData.findings), euvdRows(euvdData.findings)...)
+			sortVulnerabilityRows(data.findings)
+			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
 		})
 	}()
 }
@@ -337,6 +373,21 @@ func loadingContent(loading *bool, content glyph.Component) glyph.Component {
 	return glyph.VBox.Grow(1)(glyph.If(loading).
 		Then(glyph.HBox.Gap(1)(glyph.Spinner().FG(glyph.Cyan), glyph.Text("Loading...").FG(glyph.Cyan))).
 		Else(content))
+}
+
+func severityColor(score float64) glyph.Color {
+	switch {
+	case score >= 9:
+		return glyph.Red
+	case score >= 7:
+		return glyph.RGB(255, 140, 0)
+	case score >= 4:
+		return glyph.Yellow
+	case score > 0:
+		return glyph.Blue
+	default:
+		return glyph.White
+	}
 }
 
 func coloredText(color glyph.Color) glyph.ColumnOption {
