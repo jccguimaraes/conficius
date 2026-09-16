@@ -67,6 +67,14 @@ func assertRenderedContains(t *testing.T, component glyph.Component, want string
 	t.Fatalf("rendered output does not contain %q", want)
 }
 
+func TestLoadingContentShowsGlyphSpinner(t *testing.T) {
+	loading := true
+	component := loadingContent(&loading, glyph.Text("content"))
+	assertRenderedContains(t, component, "Loading...")
+	loading = false
+	assertRenderedContains(t, component, "content")
+}
+
 func TestGenerationRejectsStaleRefresh(t *testing.T) {
 	if isCurrentGeneration(2, 1) || !isCurrentGeneration(2, 2) {
 		t.Fatal("generation comparison failed")

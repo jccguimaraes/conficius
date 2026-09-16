@@ -36,6 +36,7 @@ type model struct {
 	findings   []vulnerabilityRow
 	mappings   []config.VulnerabilityMapping
 	status     string
+	loading    bool
 	cancel     context.CancelFunc
 	generation uint64
 }
@@ -128,7 +129,7 @@ func resultView(data *model) glyph.Component {
 		Column("Latest", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
-		glyph.VBox.Grow(1)(table),
+		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
@@ -142,7 +143,7 @@ func driftView(data *model) glyph.Component {
 		Column("DesiredVersion", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
-		glyph.VBox.Grow(1)(table),
+		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
@@ -156,7 +157,7 @@ func vulnerabilityView(data *model) glyph.Component {
 		Column("UpgradeTo", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
-		glyph.VBox.Grow(1)(table),
+		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
 	)
@@ -170,6 +171,7 @@ func refresh(data *model, app *glyph.App) {
 	data.cancel = cancel
 	data.generation++
 	generation := data.generation
+	data.loading = true
 	data.status = "Loading..."
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
@@ -203,6 +205,7 @@ func refresh(data *model, app *glyph.App) {
 			if !isCurrentGeneration(data.generation, generation) {
 				return
 			}
+			data.loading = false
 			data.packages = packages
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
@@ -212,6 +215,12 @@ func refresh(data *model, app *glyph.App) {
 			}
 		})
 	}()
+}
+
+func loadingContent(loading *bool, content glyph.Component) glyph.Component {
+	return glyph.If(loading).
+		Then(glyph.HBox.Gap(1)(glyph.Spinner().FG(glyph.Cyan), glyph.Text("Loading...").FG(glyph.Cyan))).
+		Else(glyph.VBox.Grow(1)(content))
 }
 
 func coloredText(color glyph.Color) glyph.ColumnOption {
