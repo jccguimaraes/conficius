@@ -53,6 +53,8 @@ func restoreRestartState(data *model, state restartState) string {
 	return "scopes"
 }
 
+func shouldDuplicateFD(source, target uintptr) bool { return source != target }
+
 func execFreshTUI(tty *os.File, data *model) error {
 	state := restartState{Screen: "results", Failed: data.failed}
 	if data.active != nil {
@@ -69,8 +71,10 @@ func execFreshTUI(tty *os.File, data *model) error {
 	if err != nil {
 		return fmt.Errorf("resolve TUI executable: %w", err)
 	}
-	if err := syscall.Dup2(int(tty.Fd()), int(os.Stdin.Fd())); err != nil {
-		return fmt.Errorf("restore stdin: %w", err)
+	if shouldDuplicateFD(tty.Fd(), os.Stdin.Fd()) {
+		if err := syscall.Dup2(int(tty.Fd()), int(os.Stdin.Fd())); err != nil {
+			return fmt.Errorf("restore stdin: %w", err)
+		}
 	}
 	return syscall.Exec(executable, append([]string{executable}, os.Args[1:]...), os.Environ())
 }
