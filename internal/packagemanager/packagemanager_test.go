@@ -112,7 +112,7 @@ func TestTypedManagerOptionsControlOutdatedFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(contents); !strings.Contains(got, "--bump") || !strings.Contains(got, "--greedy") {
+	if got := string(contents); !strings.Contains(got, "--bump") || !strings.Contains(got, "--greedy") || strings.Contains(got, "--inactive") {
 		t.Fatalf("args = %q", got)
 	}
 }

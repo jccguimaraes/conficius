@@ -93,9 +93,7 @@ func (p Mise) ListOutdated(ctx context.Context, executable string, outdatedPacka
 
 func (p Mise) listOutdated(ctx context.Context, dir, executable string, options ManagerOptions, outdatedPackages Packages) error {
 	args := []string{MiseCommandOutdated, MiseFlagJSON}
-	if dir == "" {
-		args = append(args, MiseFlagOnlyInactive)
-	} else {
+	if dir != "" {
 		args = append(args, MiseFlagLocal)
 		options.IncludeBumpCandidates = true
 	}
