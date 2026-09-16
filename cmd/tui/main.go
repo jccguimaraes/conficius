@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -278,30 +277,6 @@ func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
 		}
 	}
 	return rows
-}
-
-func vulnerabilityIDs(advisories []vulnerability.Advisory) string {
-	ids := make([]string, len(advisories))
-	for i, item := range advisories {
-		ids[i] = item.ID
-	}
-	return strings.Join(ids, ", ")
-}
-
-func fixedVersions(advisories []vulnerability.Advisory) string {
-	seen := map[string]struct{}{}
-	var versions []string
-	for _, item := range advisories {
-		if item.FixedVersion == "" {
-			continue
-		}
-		if _, exists := seen[item.FixedVersion]; exists {
-			continue
-		}
-		seen[item.FixedVersion] = struct{}{}
-		versions = append(versions, item.FixedVersion)
-	}
-	return strings.Join(versions, ", ")
 }
 
 func selectScope(data *model, scope *config.Scope) {
