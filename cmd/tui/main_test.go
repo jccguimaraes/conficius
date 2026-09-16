@@ -65,6 +65,16 @@ func TestFilterOutdatedUsesResolvedProfileSelection(t *testing.T) {
 	}
 }
 
+func TestSelectingScopeActivatesOnlyOnExplicitSelection(t *testing.T) {
+	scopes := []config.Scope{{Kind: "global"}, {Kind: "project", Path: "/repo"}}
+	data := &model{scopes: scopes}
+	selectScope(data, &scopes[1])
+	selected := selectedScopes(data)
+	if len(selected) != 1 || selected[0].Path != "/repo" {
+		t.Fatalf("selected = %#v", selected)
+	}
+}
+
 func TestSelectedScopesUsesAllScopesWithoutSelection(t *testing.T) {
 	scopes := []config.Scope{{Kind: "global"}, {Kind: "project", Path: "/repo"}}
 	selected := selectedScopes(&model{scopes: scopes})

@@ -106,8 +106,8 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 			return glyph.Textf(&scope.Kind, ":", &scope.Name, "  ", &scope.Path)
 		}).
 		BindNav("j", "k").
-		OnSelect(func(scope *config.Scope) {
-			data.active = scope
+		Handle("<Enter>", func(scope *config.Scope) {
+			selectScope(data, scope)
 			refresh(data, app)
 			app.Go("results")
 		})
@@ -207,6 +207,10 @@ func refresh(data *model, app *glyph.App) {
 			}
 		})
 	}()
+}
+
+func selectScope(data *model, scope *config.Scope) {
+	data.active = scope
 }
 
 func filterOutdated(packages []packagemanager.Package, selected []config.InstalledVersion) []packagemanager.Package {
