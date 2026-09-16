@@ -36,6 +36,27 @@ printf '{"formulae":[{"name":"wget","installed":[{"version":"1.2"}]}],"casks":[{
 	}
 }
 
+func TestQueryInstalledScopesUsesOnlyProjectMiseTools(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "mise"), `#!/bin/sh
+[ "$PWD" = "$PROJECT" ] || { printf 'wrong directory: %s' "$PWD" >&2; exit 1; }
+[ "$*" = "ls --current --installed --json --local" ] || { printf 'unexpected args: %s' "$*" >&2; exit 1; }
+printf '{"node":[{"version":"22.1.0","installed":true}]}'
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("PROJECT", project)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_MISE}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "22.1.0", Scope: "project", Path: project}}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledScopesRunsProjectNPMInProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

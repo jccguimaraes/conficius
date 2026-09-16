@@ -117,6 +117,26 @@ func TestTypedManagerOptionsControlOutdatedFlags(t *testing.T) {
 	}
 }
 
+func TestProjectMiseOutdatedExcludesInactiveGlobalTools(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	log := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, "mise"), "#!/bin/sh\nprintf '%s|%s\\n' \"$PWD\" \"$*\" > \"$ARGS_LOG\"\nprintf '{}'\n")
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_LOG", log)
+	if _, err := QueryOutdatedScopes(context.Background(), []string{PM_MISE}, []Scope{{Kind: "project", Path: project}}); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(contents)
+	if !strings.Contains(got, project+"|outdated --json --local") || strings.Contains(got, "--inactive") {
+		t.Fatalf("invocation = %q", got)
+	}
+}
+
 func TestQueryOutdatedContinuesPastUnavailableManager(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
