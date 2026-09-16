@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -17,13 +18,21 @@ import (
 
 var version = "dev"
 
+type vulnerabilityRow struct {
+	Manager string
+	Package string
+	Version string
+	Status  string
+	IDs     string
+}
+
 type model struct {
 	profile    config.ResolvedProfile
 	scopes     []config.Scope
 	active     *config.Scope
 	packages   []packagemanager.Package
 	drift      []config.PackageState
-	findings   []vulnerability.Finding
+	findings   []vulnerabilityRow
 	mappings   []config.VulnerabilityMapping
 	status     string
 	cancel     context.CancelFunc
@@ -64,30 +73,21 @@ func run() error {
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
-	resultComponent, resultList := resultView(data)
-	app.View("results", resultComponent).
+	app.View("results", resultView(data)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("scopes") }).
-		Handle("<down>", resultList.Down).
-		Handle("<up>", resultList.Up).
 		Handle("r", func() { refresh(data, app) }).
 		Handle("d", func() { app.Go("drift") }).
 		Handle("v", func() { app.Go("vulnerabilities") })
-	driftComponent, driftList := driftView(data)
-	app.View("drift", driftComponent).
+	app.View("drift", driftView(data)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
-		Handle("<down>", driftList.Down).
-		Handle("<up>", driftList.Up).
 		Handle("o", func() { app.Go("results") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("r", func() { refresh(data, app) })
-	vulnerabilityComponent, vulnerabilityList := vulnerabilityView(data)
-	app.View("vulnerabilities", vulnerabilityComponent).
+	app.View("vulnerabilities", vulnerabilityView(data)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
-		Handle("<down>", vulnerabilityList.Down).
-		Handle("<up>", vulnerabilityList.Up).
 		Handle("o", func() { app.Go("results") }).
 		Handle("d", func() { app.Go("drift") }).
 		Handle("r", func() { refresh(data, app) })
@@ -120,41 +120,40 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 	), list
 }
 
-func resultView(data *model) (glyph.Component, *glyph.ListC[packagemanager.Package]) {
-	list := glyph.List(&data.packages).
-		Render(func(pkg *packagemanager.Package) glyph.Component {
-			return glyph.Textf(&pkg.Manager, ":", &pkg.Name, "  ", &pkg.Current, " -> ", &pkg.Latest, "  [", &pkg.Scope, "]")
-		}).
-		BindVimNav()
+func resultView(data *model) glyph.Component {
+	table := glyph.AutoTable(&data.packages).
+		Columns("Manager", "Name", "Current", "Latest", "Scope").
+		Headers("Manager", "Tool", "Current", "Latest", "Scope").
+		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
-		list,
+		table,
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("j/k move  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
-	), list
+	)
 }
 
-func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState]) {
-	list := glyph.List(&data.drift).
-		Render(func(state *config.PackageState) glyph.Component {
-			return glyph.Textf(&state.Manager, ":", &state.Name, "  ", &state.Installed, " -> ", &state.DesiredVersion, "  [", &state.Status, "]")
-		}).BindVimNav()
+func driftView(data *model) glyph.Component {
+	table := glyph.AutoTable(&data.drift).
+		Columns("Manager", "Name", "Installed", "DesiredVersion", "Status", "Scope").
+		Headers("Manager", "Tool", "Installed", "Desired", "Status", "Scope").
+		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
-		list,
+		table,
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("j/k move  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
-	), list
+	)
 }
 
-func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability.Finding]) {
-	list := glyph.List(&data.findings).
-		Render(func(finding *vulnerability.Finding) glyph.Component {
-			return glyph.Textf(&finding.Manager, ":", &finding.Package, "@", &finding.Version, "  ", &finding.Status)
-		}).BindVimNav()
+func vulnerabilityView(data *model) glyph.Component {
+	table := glyph.AutoTable(&data.findings).
+		Columns("Manager", "Package", "Version", "Status", "IDs").
+		Headers("Manager", "Tool", "Version", "Status", "Advisories").
+		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
-		list,
+		table,
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("j/k move  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
-	), list
+	)
 }
 
 func refresh(data *model, app *glyph.App) {
@@ -200,13 +199,29 @@ func refresh(data *model, app *glyph.App) {
 			}
 			data.packages = packages
 			data.drift = drift
-			data.findings = findings
+			data.findings = vulnerabilityRows(findings)
 			data.status = fmt.Sprintf("%d outdated, %d drift, %d findings", len(packages), len(drift), len(findings))
 			if err != nil {
 				data.status = err.Error()
 			}
 		})
 	}()
+}
+
+func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
+	rows := make([]vulnerabilityRow, len(findings))
+	for i, finding := range findings {
+		rows[i] = vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Status: finding.Status, IDs: vulnerabilityIDs(finding.Vulnerabilities)}
+	}
+	return rows
+}
+
+func vulnerabilityIDs(vulnerabilities []vulnerability.Vulnerability) string {
+	ids := make([]string, len(vulnerabilities))
+	for i, item := range vulnerabilities {
+		ids[i] = item.ID
+	}
+	return strings.Join(ids, ", ")
 }
 
 func selectScope(data *model, scope *config.Scope) {

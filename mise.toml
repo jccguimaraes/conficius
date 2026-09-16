@@ -20,6 +20,9 @@ chmod +x ./.commitlint/hooks/*
 [tasks.cli]
 run = "go run ./cmd/cli/..."
 
+[tasks.tui]
+run = "go run ./cmd/tui/..."
+
 [tasks.pkgsite]
 run = "go tool pkgsite"
 

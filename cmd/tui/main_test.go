@@ -13,8 +13,9 @@ import (
 
 func TestResultViewRendersPackageIdentity(t *testing.T) {
 	data := &model{packages: []packagemanager.Package{{Manager: "npm", Name: "typescript", Current: "5.0", Latest: "5.1", Scope: "global"}}}
-	component, _ := resultView(data)
-	assertRenderedContains(t, component, "npm:typescript")
+	component := resultView(data)
+	assertRenderedContains(t, component, "Manager")
+	assertRenderedContains(t, component, "typescript")
 }
 
 func TestScopeViewRendersScopeIdentity(t *testing.T) {
@@ -25,20 +26,26 @@ func TestScopeViewRendersScopeIdentity(t *testing.T) {
 
 func TestDriftViewRendersPackageIdentity(t *testing.T) {
 	data := &model{drift: []config.PackageState{{Manager: "mise", Name: "node", Installed: "20", DesiredVersion: "22", Status: config.DriftBehind}}}
-	component, _ := driftView(data)
-	assertRenderedContains(t, component, "mise:node")
+	component := driftView(data)
+	assertRenderedContains(t, component, "Desired")
+	assertRenderedContains(t, component, "node")
 }
 
-func TestVulnerabilityViewRendersPackageIdentity(t *testing.T) {
-	data := &model{findings: []vulnerability.Finding{{Manager: "npm", Package: "typescript", Version: "5.0", Status: vulnerability.StatusClean}}}
-	component, _ := vulnerabilityView(data)
-	assertRenderedContains(t, component, "npm:typescript")
+func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
+	data := &model{findings: vulnerabilityRows([]vulnerability.Finding{{
+		Manager: "npm", Package: "lodash", Version: "4.17.20", Status: vulnerability.StatusVulnerable,
+		Vulnerabilities: []vulnerability.Vulnerability{{ID: "GHSA-29mw-wpgm-hmr9"}},
+	}})}
+	component := vulnerabilityView(data)
+	assertRenderedContains(t, component, "Advisories")
+	assertRenderedContains(t, component, "lodash")
+	assertRenderedContains(t, component, "GHSA-29mw-wpgm-hmr9")
 }
 
 func assertRenderedContains(t *testing.T, component glyph.Component, want string) {
 	t.Helper()
-	buffer := glyph.NewBuffer(80, 8)
-	glyph.Build(component).Execute(buffer, 80, 8)
+	buffer := glyph.NewBuffer(160, 8)
+	glyph.Build(component).Execute(buffer, 160, 8)
 	for row := range 8 {
 		if strings.Contains(buffer.GetLine(row), want) {
 			return
