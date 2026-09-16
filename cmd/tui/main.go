@@ -24,6 +24,7 @@ type outdatedRow struct {
 	Package packagemanager.Package
 	Mark    string
 	Failed  bool
+	Error   string
 }
 
 type vulnerabilityRow struct {
@@ -45,7 +46,7 @@ type model struct {
 	rows        []outdatedRow
 	query       packagemanager.QueryResult
 	selected    map[string]bool
-	failed      map[string]bool
+	failed      map[string]string
 	plans       []packagemanager.UpdatePlan
 	preview     string
 	commands    []commandRow
@@ -85,7 +86,7 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]bool)}
+	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string)}
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)
@@ -181,6 +182,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 					return glyph.Green
 				}()),
 				glyph.Text(&row.Package.Scope).Width(10).FG(color),
+				glyph.Text(&row.Error).Width(30).FG(glyph.Red),
 			)
 		}).
 		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
@@ -188,7 +190,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 		MaxVisible(1000)
 	header := glyph.HBox.Gap(2)(
 		glyph.Text("Mark").Width(3).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
-		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(),
+		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(), glyph.Text("Error").Width(30).Bold(),
 	)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
 		header,
@@ -230,14 +232,14 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 		Render(func(row *vulnerabilityRow) glyph.Component {
 			return glyph.HBox.Gap(1)(
 				glyph.Text(&row.Source).Width(6), glyph.Text(&row.Manager).Width(8), glyph.Text(&row.Package).Width(22),
-				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Advisory).Width(22),
+				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Score).Width(6), glyph.Text(&row.Advisory).Width(22),
 				glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
 			)
 		}).Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
 		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
 	header := glyph.HBox.Gap(1)(
 		glyph.Text("Source").Width(6).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(22).Bold(),
-		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(20).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
+		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(20).Bold(), glyph.Text("CVSS").Width(6).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
 		glyph.Text("Upgrade To").Width(14).Bold(),
 	)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(

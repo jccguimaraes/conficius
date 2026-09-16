@@ -27,14 +27,15 @@ func toggleSelected(data *model, row *outdatedRow) {
 	}
 }
 
-func outdatedRows(packages []packagemanager.Package, selected, failed map[string]bool) []outdatedRow {
+func outdatedRows(packages []packagemanager.Package, selected map[string]bool, failed map[string]string) []outdatedRow {
 	rows := make([]outdatedRow, len(packages))
 	for i, pkg := range packages {
 		mark := "[ ]"
 		if selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] {
 			mark = "[x]"
 		}
-		rows[i] = outdatedRow{Package: pkg, Mark: mark, Failed: failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]}
+		err := failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]
+		rows[i] = outdatedRow{Package: pkg, Mark: mark, Failed: err != "", Error: err}
 	}
 	return rows
 }
@@ -142,6 +143,18 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+func shortUpgradeError(err error, output string) string {
+	output = strings.TrimSpace(strings.ReplaceAll(output, "\n", " "))
+	if output == "" {
+		return err.Error()
+	}
+	const limit = 80
+	if len(output) > limit {
+		output = output[:limit-1] + "…"
+	}
+	return output
+}
+
 func applyUpgrades(data *model, app *glyph.App) {
 	if data.updating {
 		return
@@ -151,14 +164,15 @@ func applyUpgrades(data *model, app *glyph.App) {
 	app.RequestRender()
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
 	go func() {
-		failed := make(map[string]bool)
+		failed := make(map[string]string)
 		var failures int
 		for _, plan := range plans {
 			var output bytes.Buffer
 			if err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, nil, &output, &output); err != nil {
 				failures++
+				message := shortUpgradeError(err, output.String())
 				for _, pkg := range plan.Packages {
-					failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = true
+					failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = message
 				}
 			}
 		}
@@ -166,20 +180,19 @@ func applyUpgrades(data *model, app *glyph.App) {
 			data.updating = false
 			clear(data.failed)
 			for key := range data.selected {
-				if !failed[key] {
+				if failed[key] == "" {
 					delete(data.selected, key)
 				}
 			}
-			for key := range failed {
-				data.failed[key] = true
+			for key, message := range failed {
+				data.failed[key] = message
 			}
-			data.rows = outdatedRows(data.packages, data.selected, data.failed)
 			if failures > 0 {
-				data.status = fmt.Sprintf("%d command(s) failed; red rows remain marked for retry", failures)
-				return
+				data.status = fmt.Sprintf("%d command(s) failed; refreshing", failures)
+			} else {
+				clear(data.selected)
+				data.status = "Upgrades applied; refreshing"
 			}
-			clear(data.selected)
-			data.status = "Upgrades applied"
 			refresh(data, app)
 		})
 	}()
