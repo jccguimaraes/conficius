@@ -114,7 +114,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 			refresh(data, app)
 			app.Go("results")
 		})
-	return glyph.VBox.Border(glyph.BorderRounded).Title("Conficius "+version)(
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Conficius "+version)(
 		glyph.Text("Profile: "+data.profile.Name).Bold(),
 		glyph.Text("Scopes").Underline(),
 		list,
@@ -129,7 +129,7 @@ func resultView(data *model) glyph.Component {
 		Headers("Manager", "Tool", "Current", "Latest", "Scope").
 		Column("Latest", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
-	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
 		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
@@ -143,7 +143,7 @@ func driftView(data *model) glyph.Component {
 		Column("Status", statusStyle()).
 		Column("DesiredVersion", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
-	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Profile drift")(
 		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
@@ -157,7 +157,7 @@ func vulnerabilityView(data *model) glyph.Component {
 		Column("Status", statusStyle()).
 		Column("UpgradeTo", coloredText(glyph.Green)).
 		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
-	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
@@ -173,7 +173,7 @@ func refresh(data *model, app *glyph.App) {
 	data.generation++
 	generation := data.generation
 	data.loading = true
-	data.status = "Loading..."
+	data.status = ""
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
@@ -225,9 +225,9 @@ func refresh(data *model, app *glyph.App) {
 }
 
 func loadingContent(loading *bool, content glyph.Component) glyph.Component {
-	return glyph.If(loading).
+	return glyph.VBox.Grow(1)(glyph.If(loading).
 		Then(glyph.HBox.Gap(1)(glyph.Spinner().FG(glyph.Cyan), glyph.Text("Loading...").FG(glyph.Cyan))).
-		Else(glyph.VBox.Grow(1)(content))
+		Else(content))
 }
 
 func coloredText(color glyph.Color) glyph.ColumnOption {

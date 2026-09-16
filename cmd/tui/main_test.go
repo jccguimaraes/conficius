@@ -75,6 +75,21 @@ func assertRenderedContains(t *testing.T, component glyph.Component, want string
 	t.Fatalf("rendered output does not contain %q", want)
 }
 
+func TestViewsFillAvailableHeight(t *testing.T) {
+	data := &model{}
+	for name, component := range map[string]glyph.Component{
+		"outdated":        resultView(data),
+		"drift":           driftView(data),
+		"vulnerabilities": vulnerabilityView(data),
+	} {
+		buffer := glyph.NewBuffer(80, 20)
+		glyph.Build(component).Execute(buffer, 80, 20)
+		if line := buffer.GetLine(19); !strings.Contains(line, "╰") {
+			t.Fatalf("%s bottom border = %q", name, line)
+		}
+	}
+}
+
 func TestLoadingContentShowsGlyphSpinner(t *testing.T) {
 	loading := true
 	component := loadingContent(&loading, glyph.Text("content"))
