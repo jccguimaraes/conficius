@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
@@ -62,6 +63,13 @@ func containsPackage(packages []packagemanager.Package, key string) bool {
 	return false
 }
 
+type commandRow struct {
+	Manager  string
+	Scope    string
+	Packages string
+	Command  string
+}
+
 func prepareUpgrade(data *model, app *glyph.App, all bool) {
 	allowed := make(map[string]bool)
 	for _, pkg := range data.packages {
@@ -86,23 +94,45 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 		return
 	}
 	data.plans, data.preview = plans, formatPlans(plans)
+	data.commands = commandRows(plans)
+	packageCount := 0
+	for _, plan := range plans {
+		packageCount += len(plan.Packages)
+	}
+	data.planSummary = fmt.Sprintf("%d packages in %d commands", packageCount, len(plans))
 	app.Go("confirm")
+}
+
+func commandRows(plans []packagemanager.UpdatePlan) []commandRow {
+	rows := make([]commandRow, len(plans))
+	for i, plan := range plans {
+		scope := plan.Scope
+		if plan.Directory != "" {
+			scope += "  " + plan.Directory
+		}
+		rows[i] = commandRow{Manager: plan.Manager, Scope: scope, Packages: strconv.Itoa(len(plan.Packages)) + " package(s)", Command: formatPlan(plan)}
+	}
+	return rows
 }
 
 func formatPlans(plans []packagemanager.UpdatePlan) string {
 	var lines []string
 	for _, plan := range plans {
-		command := append([]string{plan.Executable}, plan.Args...)
-		for i := range command {
-			command[i] = shellQuote(command[i])
-		}
-		line := strings.Join(command, " ")
-		if plan.Directory != "" {
-			line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)
-		}
-		lines = append(lines, line)
+		lines = append(lines, formatPlan(plan))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatPlan(plan packagemanager.UpdatePlan) string {
+	command := append([]string{plan.Executable}, plan.Args...)
+	for i := range command {
+		command[i] = shellQuote(command[i])
+	}
+	line := strings.Join(command, " ")
+	if plan.Directory != "" {
+		line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)
+	}
+	return line
 }
 
 func shellQuote(value string) string {

@@ -35,24 +35,26 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
-	profile    config.ResolvedProfile
-	scopes     []config.Scope
-	active     *config.Scope
-	packages   []packagemanager.Package
-	rows       []outdatedRow
-	query      packagemanager.QueryResult
-	selected   map[string]bool
-	plans      []packagemanager.UpdatePlan
-	preview    string
-	updating   bool
-	drift      []config.PackageState
-	findings   []vulnerabilityRow
-	mappings   []config.VulnerabilityMapping
-	euvdMaps   []config.EUVDMapping
-	status     string
-	loading    bool
-	cancel     context.CancelFunc
-	generation uint64
+	profile     config.ResolvedProfile
+	scopes      []config.Scope
+	active      *config.Scope
+	packages    []packagemanager.Package
+	rows        []outdatedRow
+	query       packagemanager.QueryResult
+	selected    map[string]bool
+	plans       []packagemanager.UpdatePlan
+	preview     string
+	commands    []commandRow
+	planSummary string
+	updating    bool
+	drift       []config.PackageState
+	findings    []vulnerabilityRow
+	mappings    []config.VulnerabilityMapping
+	euvdMaps    []config.EUVDMapping
+	status      string
+	loading     bool
+	cancel      context.CancelFunc
+	generation  uint64
 }
 
 func main() {
@@ -184,8 +186,14 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 }
 
 func confirmView(data *model) glyph.Component {
+	list := glyph.List(&data.commands).Render(func(row *commandRow) glyph.Component {
+		return glyph.VBox(
+			glyph.Textf(&row.Manager, "  ", &row.Scope, "  ", &row.Packages),
+			glyph.Text(&row.Command).FG(glyph.Cyan),
+		)
+	}).Marker("").MaxVisible(100)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Confirm upgrades")(
-		glyph.Text("Commands to run:").Bold(), glyph.Text(&data.preview),
+		glyph.Text(&data.planSummary).Bold(), loadingContent(&data.updating, list),
 		glyph.Text("y apply  n/Esc cancel").Dim(),
 	)
 }
