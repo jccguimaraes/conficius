@@ -189,7 +189,7 @@ func driftView(data *model) glyph.Component {
 		Headers("Manager", "Tool", "Installed", "Desired", "Status", "Scope").
 		Column("Status", statusStyle()).
 		Column("DesiredVersion", coloredText(glyph.Green)).
-		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
+		Scrollable(12).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Profile drift")(
 		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),
@@ -203,7 +203,7 @@ func vulnerabilityView(data *model) glyph.Component {
 		Headers("Source", "Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
 		Column("Status", statusStyle()).
 		Column("UpgradeTo", coloredText(glyph.Green)).
-		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
+		Scrollable(12).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		loadingContent(&data.loading, table),
 		glyph.Text(&data.status).Dim(),

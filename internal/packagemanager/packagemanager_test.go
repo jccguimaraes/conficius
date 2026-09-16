@@ -48,7 +48,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 		{
 			Manager: PM_MISE, Executable: "/bin/mise",
 			Scope:    "",
-			Args:     []string{"upgrade", "--bump", "--inactive", "node"},
+			Args:     []string{"upgrade", "--bump", "node"},
 			Packages: []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: "22", Executable: "/bin/mise"}},
 		},
 		{

@@ -419,7 +419,7 @@ func hasPackage(records []Package, manager, name string) bool {
 func updateArgs(manager string, packages []Package) []string {
 	switch manager {
 	case PM_MISE:
-		args := []string{MiseCommandUpgrade, MiseFlagBump, MiseFlagOnlyInactive}
+		args := []string{MiseCommandUpgrade, MiseFlagBump}
 		for _, pkg := range packages {
 			args = append(args, pkg.Name)
 		}
