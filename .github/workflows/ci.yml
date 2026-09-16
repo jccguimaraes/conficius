@@ -64,4 +64,6 @@ jobs:
       - name: Lint Go
         run: golangci-lint run
       - name: Check GoReleaser
-        run: goreleaser check
+        run: |
+          goreleaser check
+          goreleaser check --config .goreleaser-tui.yaml
