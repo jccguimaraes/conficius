@@ -55,6 +55,7 @@ const (
 
 	HomebrewCommandOutdated string = "outdated"
 	HomebrewCommandUpgrade  string = "upgrade"
+	HomebrewFlagYes         string = "--yes"
 
 	HomebrewFlagVersions  string = "--versions"
 	HomebrewFlagGreedy    string = "--greedy"
