@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -32,6 +33,7 @@ type vulnerabilityRow struct {
 	Status    string
 	Advisory  string
 	UpgradeTo string
+	Score     float64
 }
 
 type model struct {
@@ -295,6 +297,7 @@ func refresh(data *model, app *glyph.App) {
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
 			data.findings = append(data.findings, euvdRows(euvdFindings)...)
+			sortVulnerabilityRows(data.findings)
 			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
 			if err != nil {
 				data.status = err.Error()
@@ -336,9 +339,24 @@ func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
 		if finding.Status == security.StatusClean {
 			continue
 		}
-		rows = append(rows, vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo})
+		rows = append(rows, vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo, Score: finding.Score})
 	}
 	return rows
+}
+
+func sortVulnerabilityRows(rows []vulnerabilityRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Score != rows[j].Score {
+			return rows[i].Score > rows[j].Score
+		}
+		if rows[i].Package != rows[j].Package {
+			return rows[i].Package < rows[j].Package
+		}
+		if rows[i].Advisory != rows[j].Advisory {
+			return rows[i].Advisory < rows[j].Advisory
+		}
+		return rows[i].Source < rows[j].Source
+	})
 }
 
 func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {

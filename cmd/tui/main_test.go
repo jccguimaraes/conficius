@@ -62,6 +62,14 @@ func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	}
 }
 
+func TestVulnerabilityRowsSortHighestScoreFirst(t *testing.T) {
+	rows := []vulnerabilityRow{{Package: "medium", Score: 5.0}, {Package: "critical", Score: 9.8}, {Package: "high", Score: 8.1}}
+	sortVulnerabilityRows(rows)
+	if rows[0].Package != "critical" || rows[1].Package != "high" || rows[2].Package != "medium" {
+		t.Fatalf("rows = %#v", rows)
+	}
+}
+
 func TestVulnerabilityRowsHideOnlyCleanPackages(t *testing.T) {
 	rows := vulnerabilityRows([]vulnerability.Finding{
 		{Package: "clean", Status: vulnerability.StatusClean},
