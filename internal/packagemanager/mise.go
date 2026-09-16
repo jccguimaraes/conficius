@@ -3,6 +3,7 @@ package packagemanager
 import (
 	"context"
 	"encoding/json"
+	"strings"
 )
 
 type MiseOutdatedTools map[string]MiseOutdatedTool
@@ -87,6 +88,10 @@ func (t MiseTool) GetExecutable() string {
 	return t.executable
 }
 
+func equivalentMiseVersions(current, latest string) bool {
+	return strings.TrimPrefix(current, "v") == strings.TrimPrefix(latest, "v")
+}
+
 func (p Mise) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
 	return p.listOutdated(ctx, "", executable, ManagerOptions{IncludeBumpCandidates: true}, outdatedPackages)
 }
@@ -111,6 +116,9 @@ func (p Mise) listOutdated(ctx context.Context, dir, executable string, options 
 	}
 
 	for _, tool := range tools {
+		if equivalentMiseVersions(tool.Current, tool.Latest) {
+			continue
+		}
 		outdatedPackages[tool.Name] = append(outdatedPackages[tool.Name], NewMiseTool(tool, executable))
 	}
 
