@@ -70,6 +70,14 @@ type Link struct {
 
 type VulnerabilityConfig struct {
 	Mappings []VulnerabilityMapping `toml:"mappings"`
+	EUVD     []EUVDMapping          `toml:"euvd"`
+}
+
+type EUVDMapping struct {
+	Manager string `toml:"manager"`
+	Package string `toml:"package"`
+	Product string `toml:"product"`
+	Vendor  string `toml:"vendor"`
 }
 
 type VulnerabilityMapping struct {
@@ -255,6 +263,9 @@ func (project *Project) normalize() error {
 	if err := project.normalizeVulnerabilityMappings(); err != nil {
 		return err
 	}
+	if err := project.normalizeEUVDMappings(); err != nil {
+		return err
+	}
 	if project.Version == 2 {
 		if project.Profile != "" && !profileNamePattern.MatchString(project.Profile) {
 			return fmt.Errorf("invalid selected profile %q", project.Profile)
@@ -309,6 +320,26 @@ func (project *Project) normalizeVulnerabilityMappings() error {
 		key := mapping.Manager + "\x00" + mapping.Package
 		if _, exists := seen[key]; exists {
 			return fmt.Errorf("duplicate vulnerability mapping for %s:%s", mapping.Manager, mapping.Package)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func (project *Project) normalizeEUVDMappings() error {
+	seen := make(map[string]struct{}, len(project.Vulnerabilities.EUVD))
+	for i := range project.Vulnerabilities.EUVD {
+		mapping := &project.Vulnerabilities.EUVD[i]
+		mapping.Manager = strings.ToLower(strings.TrimSpace(mapping.Manager))
+		mapping.Package = strings.TrimSpace(mapping.Package)
+		mapping.Product = strings.TrimSpace(mapping.Product)
+		mapping.Vendor = strings.TrimSpace(mapping.Vendor)
+		if mapping.Manager == "" || mapping.Package == "" || mapping.Product == "" || mapping.Vendor == "" {
+			return fmt.Errorf("EUVD mapping %d requires manager, package, product, and vendor", i+1)
+		}
+		key := mapping.Manager + "\x00" + mapping.Package + "\x00" + mapping.Product + "\x00" + mapping.Vendor
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("duplicate EUVD mapping for %s:%s", mapping.Manager, mapping.Package)
 		}
 		seen[key] = struct{}{}
 	}

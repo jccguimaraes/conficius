@@ -19,7 +19,7 @@ func (stub) Query(_ context.Context, identity Identity, version string) ([]Vulne
 func TestScanUsesManagerLatestAsUpgradeTarget(t *testing.T) {
 	installed := []packagemanager.InstalledPackage{{Manager: "mise", Name: "node", Version: "22.10.0", Scope: "project", Path: "/repo"}}
 	outdated := []packagemanager.Package{{Manager: "mise", Name: "node", Current: "22.10.0", Latest: "22.22.4", Scope: "project", Path: "/repo"}}
-	findings, err := Scan(context.Background(), installed, outdated, stub{})
+	findings, err := Scan(context.Background(), installed, outdated, nil, stub{})
 	if err != nil {
 		t.Fatal(err)
 	}

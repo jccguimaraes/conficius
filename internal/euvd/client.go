@@ -61,6 +61,7 @@ type response struct {
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
+	cache      map[string][]Vulnerability
 }
 
 func NewClient(httpClient *http.Client, baseURL string) *Client {
@@ -74,19 +75,39 @@ func NewClient(httpClient *http.Client, baseURL string) *Client {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
-	return &Client{httpClient: httpClient, baseURL: baseURL}
+	return &Client{httpClient: httpClient, baseURL: baseURL, cache: make(map[string][]Vulnerability)}
 }
 
 func (client *Client) Query(ctx context.Context, identity Identity, version string) ([]Vulnerability, error) {
-	const pageSize = 100
+	items, err := client.queryProduct(ctx, identity.Product)
+	if err != nil {
+		return nil, err
+	}
 	var matched []Vulnerability
+	for _, item := range items {
+		if item.Affects(identity, version) {
+			matched = append(matched, item)
+		}
+	}
+	return matched, nil
+}
+
+func (client *Client) ClearCache() { client.cache = make(map[string][]Vulnerability) }
+
+func (client *Client) queryProduct(ctx context.Context, product string) ([]Vulnerability, error) {
+	key := strings.ToLower(strings.TrimSpace(product))
+	if cached, ok := client.cache[key]; ok {
+		return cached, nil
+	}
+	const pageSize = 100
+	var items []Vulnerability
 	for page := 0; ; page++ {
 		u, err := url.Parse(client.baseURL)
 		if err != nil {
 			return nil, fmt.Errorf("parse EUVD URL: %w", err)
 		}
 		query := u.Query()
-		query.Set("product", identity.Product)
+		query.Set("product", product)
 		query.Set("page", strconv.Itoa(page))
 		query.Set("size", strconv.Itoa(pageSize))
 		u.RawQuery = query.Encode()
@@ -109,13 +130,10 @@ func (client *Client) Query(ctx context.Context, identity Identity, version stri
 		if decodeErr != nil {
 			return nil, fmt.Errorf("decode EUVD response: %w", decodeErr)
 		}
-		for _, item := range body.Items {
-			if item.Affects(identity, version) {
-				matched = append(matched, item)
-			}
-		}
+		items = append(items, body.Items...)
 		if (page+1)*pageSize >= body.Total || len(body.Items) == 0 {
-			return matched, nil
+			client.cache[key] = items
+			return items, nil
 		}
 	}
 }

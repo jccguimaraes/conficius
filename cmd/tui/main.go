@@ -38,6 +38,7 @@ type model struct {
 	drift      []config.PackageState
 	findings   []vulnerabilityRow
 	mappings   []config.VulnerabilityMapping
+	euvdMaps   []config.EUVDMapping
 	status     string
 	loading    bool
 	cancel     context.CancelFunc
@@ -68,7 +69,7 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, status: "Loading..."}
+	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading..."}
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)
@@ -179,6 +180,7 @@ func refresh(data *model, app *glyph.App) {
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
+	euvdMaps := append([]config.EUVDMapping(nil), data.euvdMaps...)
 	app.RequestRender()
 	go func() {
 		scopes := make([]packagemanager.Scope, len(scopeSelection))
@@ -205,7 +207,7 @@ func refresh(data *model, app *glyph.App) {
 			scanPackages = filterInstalled(inventory.Packages, selected)
 		}
 		findings, scanErr := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
-		euvdFindings, euvdErr := euvd.Scan(ctx, scanPackages, packages, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
+		euvdFindings, euvdErr := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
 		if ctx.Err() != nil {
 			return
 		}
