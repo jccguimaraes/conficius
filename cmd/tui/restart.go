@@ -53,7 +53,20 @@ func restoreRestartState(data *model, state restartState) string {
 	return "scopes"
 }
 
-func shouldDuplicateFD(source, target uintptr) bool { return source != target }
+func restoreStdin(source, target int) error {
+	if source == target {
+		duplicate, err := syscall.Dup(source)
+		if err != nil {
+			return fmt.Errorf("duplicate terminal descriptor: %w", err)
+		}
+		defer func() { _ = syscall.Close(duplicate) }()
+		source = duplicate
+	}
+	if err := syscall.Dup2(source, target); err != nil {
+		return fmt.Errorf("restore stdin: %w", err)
+	}
+	return nil
+}
 
 func execFreshTUI(tty *os.File, data *model) error {
 	state := restartState{Screen: "results", Failed: data.failed}
@@ -71,10 +84,8 @@ func execFreshTUI(tty *os.File, data *model) error {
 	if err != nil {
 		return fmt.Errorf("resolve TUI executable: %w", err)
 	}
-	if shouldDuplicateFD(tty.Fd(), os.Stdin.Fd()) {
-		if err := syscall.Dup2(int(tty.Fd()), int(os.Stdin.Fd())); err != nil {
-			return fmt.Errorf("restore stdin: %w", err)
-		}
+	if err := restoreStdin(int(tty.Fd()), int(os.Stdin.Fd())); err != nil {
+		return err
 	}
 	return syscall.Exec(executable, append([]string{executable}, os.Args[1:]...), os.Environ())
 }
