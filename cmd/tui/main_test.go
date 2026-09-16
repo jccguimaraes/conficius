@@ -14,8 +14,8 @@ import (
 
 func TestResultViewRendersPackageIdentity(t *testing.T) {
 	data := &model{packages: []packagemanager.Package{{Manager: "npm", Name: "typescript", Current: "5.0", Latest: "5.1", Scope: "global"}}}
-	component := resultView(data)
-	assertRenderedContains(t, component, "Manager")
+	component, _ := resultView(data)
+	assertRenderedContains(t, component, "[ ]")
 	assertRenderedContains(t, component, "typescript")
 }
 
@@ -65,20 +65,25 @@ func TestVulnerabilityRowsHideOnlyCleanPackages(t *testing.T) {
 
 func assertRenderedContains(t *testing.T, component glyph.Component, want string) {
 	t.Helper()
-	buffer := glyph.NewBuffer(160, 8)
-	glyph.Build(component).Execute(buffer, 160, 8)
-	for row := range 8 {
+	buffer := glyph.NewBuffer(160, 20)
+	glyph.Build(component).Execute(buffer, 160, 20)
+	for row := range 20 {
 		if strings.Contains(buffer.GetLine(row), want) {
 			return
 		}
 	}
-	t.Fatalf("rendered output does not contain %q", want)
+	var lines []string
+	for row := range 20 {
+		lines = append(lines, buffer.GetLine(row))
+	}
+	t.Fatalf("rendered output does not contain %q:\n%s", want, strings.Join(lines, "\n"))
 }
 
 func TestViewsFillAvailableHeight(t *testing.T) {
 	data := &model{}
+	outdated, _ := resultView(data)
 	for name, component := range map[string]glyph.Component{
-		"outdated":        resultView(data),
+		"outdated":        outdated,
 		"drift":           driftView(data),
 		"vulnerabilities": vulnerabilityView(data),
 	} {

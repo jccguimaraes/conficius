@@ -34,6 +34,11 @@ type model struct {
 	scopes     []config.Scope
 	active     *config.Scope
 	packages   []packagemanager.Package
+	query      packagemanager.QueryResult
+	selected   map[string]bool
+	plans      []packagemanager.UpdatePlan
+	preview    string
+	updating   bool
 	drift      []config.PackageState
 	findings   []vulnerabilityRow
 	mappings   []config.VulnerabilityMapping
@@ -68,7 +73,7 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading..."}
+	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool)}
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)
@@ -78,18 +83,31 @@ func run() error {
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
-	app.View("results", resultView(data)).
+	resultComponent, packageList := resultView(data)
+	app.View("results", resultComponent).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("scopes") }).
 		Handle("r", func() { refresh(data, app) }).
 		Handle("d", func() { app.Go("drift") }).
-		Handle("v", func() { app.Go("vulnerabilities") })
+		Handle("v", func() { app.Go("vulnerabilities") }).
+		Handle("<down>", packageList.Down).
+		Handle("<up>", packageList.Up).
+		Handle("j", packageList.Down).
+		Handle("k", packageList.Up).
+		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()) }).
+		Handle("a", func() { toggleAll(data) }).
+		Handle("u", func() { prepareUpgrade(data, app, false) }).
+		Handle("U", func() { prepareUpgrade(data, app, true) })
 	app.View("drift", driftView(data)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("r", func() { refresh(data, app) })
+	app.View("confirm", confirmView(data)).
+		Handle("y", func() { applyUpgrades(data, app) }).
+		Handle("n", func() { app.Go("results") }).
+		Handle("<Esc>", func() { app.Go("results") })
 	app.View("vulnerabilities", vulnerabilityView(data)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
@@ -125,16 +143,29 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 	), list
 }
 
-func resultView(data *model) glyph.Component {
-	table := glyph.AutoTable(&data.packages).
-		Columns("Manager", "Name", "Current", "Latest", "Scope").
-		Headers("Manager", "Tool", "Current", "Latest", "Scope").
-		Column("Latest", coloredText(glyph.Green)).
-		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
+func resultView(data *model) (glyph.Component, *glyph.ListC[packagemanager.Package]) {
+	list := glyph.List(&data.packages).
+		Render(func(pkg *packagemanager.Package) glyph.Component {
+			mark := "[ ]"
+			if data.selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] {
+				mark = "[x]"
+			}
+			return glyph.Textf(&mark, " ", &pkg.Manager, "  ", &pkg.Name, "  ", &pkg.Current, " → ", &pkg.Latest, "  ", &pkg.Scope)
+		}).
+		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
+		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold}).
+		MaxVisible(1000)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
-		loadingContent(&data.loading, table),
+		loadingContent(&data.loading, list),
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k move  Space mark  a mark all  u upgrade marked  U upgrade all  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+	), list
+}
+
+func confirmView(data *model) glyph.Component {
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Confirm upgrades")(
+		glyph.Text("Commands to run:").Bold(), glyph.Text(&data.preview),
+		glyph.Text("y apply  n/Esc cancel").Dim(),
 	)
 }
 
@@ -216,7 +247,13 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.loading = false
+			data.query = result
 			data.packages = packages
+			for key := range data.selected {
+				if !containsPackage(packages, key) {
+					delete(data.selected, key)
+				}
+			}
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
 			data.findings = append(data.findings, euvdRows(euvdFindings)...)
