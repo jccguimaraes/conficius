@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -151,12 +152,17 @@ func applyUpgrades(data *model, app *glyph.App) {
 	app.Stop()
 }
 
-func runInteractiveUpgrades(data *model) {
+func runInteractiveUpgrades(data *model) error {
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("open controlling terminal: %w", err)
+	}
+	defer func() { _ = tty.Close() }()
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
 	failed := make(map[string]string)
 	var failures int
 	for _, plan := range plans {
-		err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, os.Stdin, os.Stdout, os.Stderr)
+		err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, tty, tty, tty)
 		if err == nil {
 			continue
 		}
@@ -180,4 +186,15 @@ func runInteractiveUpgrades(data *model) {
 		clear(data.selected)
 		data.status = "Upgrades applied"
 	}
+	return restartTUI(tty)
+}
+
+func restartTUI(tty *os.File) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve TUI executable: %w", err)
+	}
+	cmd := exec.Command(executable, os.Args[1:]...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
+	return cmd.Run()
 }

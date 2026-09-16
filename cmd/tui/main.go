@@ -88,16 +88,13 @@ func run() error {
 	}
 
 	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string)}
-	for {
-		data.runInteractive = false
-		if err := runSession(data); err != nil {
-			return err
-		}
-		if !data.runInteractive {
-			return nil
-		}
-		runInteractiveUpgrades(data)
+	if err := runSession(data); err != nil {
+		return err
 	}
+	if !data.runInteractive {
+		return nil
+	}
+	return runInteractiveUpgrades(data)
 }
 
 func runSession(data *model) error {
