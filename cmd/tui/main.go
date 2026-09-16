@@ -39,27 +39,28 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
-	profile     config.ResolvedProfile
-	scopes      []config.Scope
-	active      *config.Scope
-	packages    []packagemanager.Package
-	rows        []outdatedRow
-	query       packagemanager.QueryResult
-	selected    map[string]bool
-	failed      map[string]string
-	plans       []packagemanager.UpdatePlan
-	preview     string
-	commands    []commandRow
-	planSummary string
-	updating    bool
-	drift       []config.PackageState
-	findings    []vulnerabilityRow
-	mappings    []config.VulnerabilityMapping
-	euvdMaps    []config.EUVDMapping
-	status      string
-	loading     bool
-	cancel      context.CancelFunc
-	generation  uint64
+	profile        config.ResolvedProfile
+	scopes         []config.Scope
+	active         *config.Scope
+	packages       []packagemanager.Package
+	rows           []outdatedRow
+	query          packagemanager.QueryResult
+	selected       map[string]bool
+	failed         map[string]string
+	plans          []packagemanager.UpdatePlan
+	preview        string
+	commands       []commandRow
+	planSummary    string
+	updating       bool
+	runInteractive bool
+	drift          []config.PackageState
+	findings       []vulnerabilityRow
+	mappings       []config.VulnerabilityMapping
+	euvdMaps       []config.EUVDMapping
+	status         string
+	loading        bool
+	cancel         context.CancelFunc
+	generation     uint64
 }
 
 func main() {
@@ -87,6 +88,19 @@ func run() error {
 	}
 
 	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string)}
+	for {
+		data.runInteractive = false
+		if err := runSession(data); err != nil {
+			return err
+		}
+		if !data.runInteractive {
+			return nil
+		}
+		runInteractiveUpgrades(data)
+	}
+}
+
+func runSession(data *model) error {
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)

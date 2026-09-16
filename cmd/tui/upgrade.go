@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -143,57 +143,41 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
-func shortUpgradeError(err error, output string) string {
-	output = strings.TrimSpace(strings.ReplaceAll(output, "\n", " "))
-	if output == "" {
-		return err.Error()
-	}
-	const limit = 80
-	if len(output) > limit {
-		output = output[:limit-1] + "…"
-	}
-	return output
-}
-
 func applyUpgrades(data *model, app *glyph.App) {
 	if data.updating {
 		return
 	}
-	data.updating, data.status = true, "Applying upgrades..."
-	app.Go("results")
-	app.RequestRender()
+	data.runInteractive = true
+	app.Stop()
+}
+
+func runInteractiveUpgrades(data *model) {
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
-	go func() {
-		failed := make(map[string]string)
-		var failures int
-		for _, plan := range plans {
-			var output bytes.Buffer
-			if err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, nil, &output, &output); err != nil {
-				failures++
-				message := shortUpgradeError(err, output.String())
-				for _, pkg := range plan.Packages {
-					failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = message
-				}
-			}
+	failed := make(map[string]string)
+	var failures int
+	for _, plan := range plans {
+		err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, os.Stdin, os.Stdout, os.Stderr)
+		if err == nil {
+			continue
 		}
-		app.Apply(func() {
-			data.updating = false
-			clear(data.failed)
-			for key := range data.selected {
-				if failed[key] == "" {
-					delete(data.selected, key)
-				}
-			}
-			for key, message := range failed {
-				data.failed[key] = message
-			}
-			if failures > 0 {
-				data.status = fmt.Sprintf("%d command(s) failed; refreshing", failures)
-			} else {
-				clear(data.selected)
-				data.status = "Upgrades applied; refreshing"
-			}
-			refresh(data, app)
-		})
-	}()
+		failures++
+		for _, pkg := range plan.Packages {
+			failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = err.Error()
+		}
+	}
+	clear(data.failed)
+	for key := range data.selected {
+		if failed[key] == "" {
+			delete(data.selected, key)
+		}
+	}
+	for key, message := range failed {
+		data.failed[key] = message
+	}
+	if failures > 0 {
+		data.status = fmt.Sprintf("%d command(s) failed", failures)
+	} else {
+		clear(data.selected)
+		data.status = "Upgrades applied"
+	}
 }
