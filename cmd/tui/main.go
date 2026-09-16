@@ -23,6 +23,7 @@ var version = "dev"
 type outdatedRow struct {
 	Package packagemanager.Package
 	Mark    string
+	Failed  bool
 }
 
 type vulnerabilityRow struct {
@@ -44,6 +45,7 @@ type model struct {
 	rows        []outdatedRow
 	query       packagemanager.QueryResult
 	selected    map[string]bool
+	failed      map[string]bool
 	plans       []packagemanager.UpdatePlan
 	preview     string
 	commands    []commandRow
@@ -83,7 +85,7 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool)}
+	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]bool)}
 	app := glyph.NewApp()
 	app.HideCursor()
 	scopeComponent, scopeList := scopeView(data, app)
@@ -163,13 +165,22 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 	list := glyph.List(&data.rows).
 		Render(func(row *outdatedRow) glyph.Component {
+			color := glyph.White
+			if row.Failed {
+				color = glyph.Red
+			}
 			return glyph.HBox.Gap(2)(
-				glyph.Text(&row.Mark).Width(3),
-				glyph.Text(&row.Package.Manager).Width(8),
-				glyph.Text(&row.Package.Name).Width(26),
-				glyph.Text(&row.Package.Current).Width(16),
-				glyph.Text(&row.Package.Latest).Width(16).FG(glyph.Green),
-				glyph.Text(&row.Package.Scope).Width(10),
+				glyph.Text(&row.Mark).Width(3).FG(color),
+				glyph.Text(&row.Package.Manager).Width(8).FG(color),
+				glyph.Text(&row.Package.Name).Width(26).FG(color),
+				glyph.Text(&row.Package.Current).Width(16).FG(color),
+				glyph.Text(&row.Package.Latest).Width(16).FG(func() glyph.Color {
+					if row.Failed {
+						return glyph.Red
+					}
+					return glyph.Green
+				}()),
+				glyph.Text(&row.Package.Scope).Width(10).FG(color),
 			)
 		}).
 		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
@@ -293,7 +304,7 @@ func refresh(data *model, app *glyph.App) {
 					delete(data.selected, key)
 				}
 			}
-			data.rows = outdatedRows(packages, data.selected)
+			data.rows = outdatedRows(packages, data.selected, data.failed)
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
 			data.findings = append(data.findings, euvdRows(euvdFindings)...)

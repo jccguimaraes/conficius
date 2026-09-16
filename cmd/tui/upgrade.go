@@ -27,14 +27,14 @@ func toggleSelected(data *model, row *outdatedRow) {
 	}
 }
 
-func outdatedRows(packages []packagemanager.Package, selected map[string]bool) []outdatedRow {
+func outdatedRows(packages []packagemanager.Package, selected, failed map[string]bool) []outdatedRow {
 	rows := make([]outdatedRow, len(packages))
 	for i, pkg := range packages {
 		mark := "[ ]"
 		if selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] {
 			mark = "[x]"
 		}
-		rows[i] = outdatedRow{Package: pkg, Mark: mark}
+		rows[i] = outdatedRow{Package: pkg, Mark: mark, Failed: failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]}
 	}
 	return rows
 }
@@ -142,18 +142,6 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
-func compactError(summary, output string) string {
-	output = strings.TrimSpace(strings.ReplaceAll(output, "\n", " "))
-	if output == "" {
-		return summary
-	}
-	const max = 160
-	if len(output) > max {
-		output = output[:max-1] + "…"
-	}
-	return summary + ": " + output
-}
-
 func applyUpgrades(data *model, app *glyph.App) {
 	if data.updating {
 		return
@@ -163,12 +151,31 @@ func applyUpgrades(data *model, app *glyph.App) {
 	app.RequestRender()
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
 	go func() {
-		var output bytes.Buffer
-		err := packagemanager.ApplyUpdates(context.Background(), plans, nil, &output, &output)
+		failed := make(map[string]bool)
+		var failures int
+		for _, plan := range plans {
+			var output bytes.Buffer
+			if err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, nil, &output, &output); err != nil {
+				failures++
+				for _, pkg := range plan.Packages {
+					failed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = true
+				}
+			}
+		}
 		app.Apply(func() {
 			data.updating = false
-			if err != nil {
-				data.status = compactError("Upgrade failed: "+err.Error(), output.String())
+			clear(data.failed)
+			for key := range data.selected {
+				if !failed[key] {
+					delete(data.selected, key)
+				}
+			}
+			for key := range failed {
+				data.failed[key] = true
+			}
+			data.rows = outdatedRows(data.packages, data.selected, data.failed)
+			if failures > 0 {
+				data.status = fmt.Sprintf("%d command(s) failed; red rows remain marked for retry", failures)
 				return
 			}
 			clear(data.selected)
