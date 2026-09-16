@@ -60,6 +60,7 @@ const (
 	MiseFlagExcludes     string = "--exclude"
 	MiseFlagLocal        string = "--local"
 	MiseFlagOnlyInactive string = "--inactive"
+	MiseFlagYes          string = "--yes"
 )
 
 func (t MiseTool) GetPackageManager() string {
