@@ -45,8 +45,20 @@ func TestVersionMatchesEUVDRange(t *testing.T) {
 	}
 }
 
-func TestVersionMatchesReportsUnsupportedRule(t *testing.T) {
-	if matched, supported := versionMatches("1.2.3", "before 2.0.0"); matched || supported {
-		t.Fatalf("versionMatches = %v, %v", matched, supported)
+func TestVersionMatchesTextualUpperBounds(t *testing.T) {
+	for _, test := range []struct {
+		version, rule string
+		want          bool
+	}{
+		{"1.2.3", "before 2.0.0", true},
+		{"2.1.0", "before 2.0.0", false},
+		{"1.5.0", "1.0 through 2.0", true},
+		{"2.1.0", "1.0 through 2.0", false},
+		{"2.1.0", "<2.0.0", false},
+	} {
+		matched, supported := versionMatches(test.version, test.rule)
+		if matched != test.want || !supported {
+			t.Fatalf("versionMatches(%q, %q) = %v, %v", test.version, test.rule, matched, supported)
+		}
 	}
 }

@@ -114,12 +114,19 @@ func run() error {
 		Handle("y", func() { applyUpgrades(data, app) }).
 		Handle("n", func() { app.Go("results") }).
 		Handle("<Esc>", func() { app.Go("results") })
-	app.View("vulnerabilities", vulnerabilityView(data)).
+	vulnerabilityComponent, vulnerabilityList := vulnerabilityView(data)
+	app.View("vulnerabilities", vulnerabilityComponent).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
 		Handle("d", func() { app.Go("drift") }).
-		Handle("r", func() { refresh(data, app) })
+		Handle("r", func() { refresh(data, app) }).
+		Handle("<down>", vulnerabilityList.Down).
+		Handle("<up>", vulnerabilityList.Up).
+		Handle("j", vulnerabilityList.Down).
+		Handle("k", vulnerabilityList.Up).
+		Handle("<C-d>", vulnerabilityList.HalfPageDown).
+		Handle("<C-u>", vulnerabilityList.HalfPageUp)
 	refresh(data, app)
 	defer func() {
 		if data.cancel != nil {
@@ -197,18 +204,26 @@ func driftView(data *model) glyph.Component {
 	)
 }
 
-func vulnerabilityView(data *model) glyph.Component {
-	table := glyph.AutoTable(&data.findings).
-		Columns("Source", "Manager", "Package", "Current", "Status", "Advisory", "UpgradeTo").
-		Headers("Source", "Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
-		Column("Status", statusStyle()).
-		Column("UpgradeTo", coloredText(glyph.Green)).
-		Scrollable(12).BindVimNav().BindNav("<down>", "<up>")
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
-		loadingContent(&data.loading, table),
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
+func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerabilityRow]) {
+	list := glyph.List(&data.findings).
+		Render(func(row *vulnerabilityRow) glyph.Component {
+			return glyph.HBox.Gap(1)(
+				glyph.Text(&row.Source).Width(6), glyph.Text(&row.Manager).Width(8), glyph.Text(&row.Package).Width(22),
+				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Advisory).Width(22),
+				glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
+			)
+		}).Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
+		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
+	header := glyph.HBox.Gap(1)(
+		glyph.Text("Source").Width(6).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(22).Bold(),
+		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(20).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
+		glyph.Text("Upgrade To").Width(14).Bold(),
 	)
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
+		header, loadingContent(&data.loading, list),
+		glyph.Text(&data.status).Dim(),
+		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
+	), list
 }
 
 func refresh(data *model, app *glyph.App) {

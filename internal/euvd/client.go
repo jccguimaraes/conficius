@@ -200,7 +200,21 @@ func versionMatches(version, rule string) (bool, bool) {
 			return (lower == "" || compare(version, lower) >= 0) && compare(version, strings.TrimSpace(upper)) <= 0, true
 		}
 	}
-	if strings.ContainsAny(rule, "*<>") || strings.Contains(strings.ToLower(rule), "before") || strings.Contains(strings.ToLower(rule), "through") {
+	lowerRule := strings.ToLower(rule)
+	if strings.HasPrefix(lowerRule, "before ") {
+		return compare(version, strings.TrimSpace(rule[len("before "):])) < 0, true
+	}
+	if strings.Contains(lowerRule, " through ") {
+		bounds := strings.SplitN(lowerRule, " through ", 2)
+		return compare(version, strings.TrimSpace(bounds[0])) >= 0 && compare(version, strings.TrimSpace(bounds[1])) <= 0, true
+	}
+	if strings.HasPrefix(rule, "<=") || strings.HasPrefix(rule, "≤") {
+		return compare(version, strings.TrimLeft(rule, "<=≤ ")) <= 0, true
+	}
+	if strings.HasPrefix(rule, "<") {
+		return compare(version, strings.TrimLeft(rule, "< ")) < 0, true
+	}
+	if strings.ContainsAny(rule, "*>") {
 		return false, false
 	}
 	return compare(version, rule) == 0, true

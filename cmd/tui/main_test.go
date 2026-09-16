@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 		Manager: "npm", Package: "lodash", Version: "4.17.20", Status: vulnerability.StatusVulnerable,
 		Advisories: []vulnerability.Advisory{{ID: "GHSA-29mw-wpgm-hmr9", FixedVersion: "4.17.21"}},
 	}})}
-	component := vulnerabilityView(data)
+	component, _ := vulnerabilityView(data)
 	assertRenderedContains(t, component, "Advisory")
 	assertRenderedContains(t, component, "lodash")
 	assertRenderedContains(t, component, "GHSA-29mw-wpgm-hmr9")
@@ -89,13 +90,31 @@ func assertRenderedContains(t *testing.T, component glyph.Component, want string
 	t.Fatalf("rendered output does not contain %q:\n%s", want, strings.Join(lines, "\n"))
 }
 
+func TestVulnerabilityViewKeepsFooterAtBottomWithManyRows(t *testing.T) {
+	data := &model{status: "summary"}
+	for i := range 40 {
+		data.findings = append(data.findings, vulnerabilityRow{Source: "EUVD", Package: fmt.Sprintf("tool-%02d", i), Status: "vulnerable"})
+	}
+	component, list := vulnerabilityView(data)
+	buffer := glyph.NewBuffer(120, 12)
+	glyph.Build(component).Execute(buffer, 120, 12)
+	if !strings.Contains(buffer.GetLine(10), "move") {
+		t.Fatalf("footer = %q", buffer.GetLine(10))
+	}
+	list.Down(nil)
+	if list.Index() != 1 {
+		t.Fatalf("selection = %d", list.Index())
+	}
+}
+
 func TestViewsFillAvailableHeight(t *testing.T) {
 	data := &model{}
 	outdated, _ := resultView(data)
+	vulnerabilities, _ := vulnerabilityView(data)
 	for name, component := range map[string]glyph.Component{
 		"outdated":        outdated,
 		"drift":           driftView(data),
-		"vulnerabilities": vulnerabilityView(data),
+		"vulnerabilities": vulnerabilities,
 	} {
 		buffer := glyph.NewBuffer(80, 20)
 		glyph.Build(component).Execute(buffer, 80, 20)
