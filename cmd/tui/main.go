@@ -12,6 +12,7 @@ import (
 	glyph "github.com/kungfusheep/glyph"
 
 	"github.com/jccguimaraes/conficius/internal/config"
+	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
@@ -202,10 +203,11 @@ func refresh(data *model, app *glyph.App) {
 			scanPackages = filterInstalled(inventory.Packages, selected)
 		}
 		findings, scanErr := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
+		euvdFindings, euvdErr := euvd.Scan(ctx, scanPackages, packages, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
 		if ctx.Err() != nil {
 			return
 		}
-		err := errors.Join(outdatedErr, inventoryErr, scanErr)
+		err := errors.Join(outdatedErr, inventoryErr, scanErr, euvdErr)
 		app.Apply(func() {
 			if !isCurrentGeneration(data.generation, generation) {
 				return
@@ -213,7 +215,7 @@ func refresh(data *model, app *glyph.App) {
 			data.loading = false
 			data.packages = packages
 			data.drift = drift
-			data.findings = vulnerabilityRows(findings)
+			data.findings = append(vulnerabilityRows(findings), euvdRows(euvdFindings)...)
 			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
 			if err != nil {
 				data.status = err.Error()
@@ -247,6 +249,14 @@ func statusStyle() glyph.ColumnOption {
 			}
 		})
 	}
+}
+
+func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
+	rows := make([]vulnerabilityRow, len(findings))
+	for i, finding := range findings {
+		rows[i] = vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: "vulnerable", Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
+	}
+	return rows
 }
 
 func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {

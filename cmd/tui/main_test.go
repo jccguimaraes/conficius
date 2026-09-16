@@ -7,6 +7,7 @@ import (
 	glyph "github.com/kungfusheep/glyph"
 
 	"github.com/jccguimaraes/conficius/internal/config"
+	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
@@ -41,6 +42,13 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 	assertRenderedContains(t, component, "lodash")
 	assertRenderedContains(t, component, "GHSA-29mw-wpgm-hmr9")
 	assertRenderedContains(t, component, "4.17.21")
+}
+
+func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
+	rows := euvdRows([]euvd.Finding{{Manager: "mise", Package: "node", Version: "22.10.0", Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}})
+	if len(rows) != 1 || rows[0].Current != "22.10.0" || rows[0].UpgradeTo != "22.22.4" {
+		t.Fatalf("rows = %#v", rows)
+	}
 }
 
 func TestVulnerabilityRowsHideNonActionablePackages(t *testing.T) {
