@@ -246,7 +246,7 @@ func statusStyle() glyph.ColumnOption {
 			switch value {
 			case vulnerability.StatusVulnerable, config.DriftBehind, config.DriftMissing:
 				return glyph.Style{FG: glyph.Red}
-			case vulnerability.StatusError, config.DriftUnsupported:
+			case vulnerability.StatusError, security.StatusUnknownVersionRule, config.DriftUnsupported:
 				return glyph.Style{FG: glyph.Yellow}
 			default:
 				return glyph.Style{FG: glyph.Green}
@@ -258,7 +258,7 @@ func statusStyle() glyph.ColumnOption {
 func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, len(findings))
 	for i, finding := range findings {
-		rows[i] = vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: "vulnerable", Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
+		rows[i] = vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
 	}
 	return rows
 }

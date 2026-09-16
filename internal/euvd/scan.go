@@ -7,6 +7,7 @@ import (
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/security"
 )
 
 type Finding struct {
@@ -17,6 +18,10 @@ type Finding struct {
 	Advisory  string
 	UpgradeTo string
 	Score     float64
+	Status    string
+	SourceID  string
+	Aliases   []string
+	Rule      string
 }
 
 type Queryer interface {
@@ -51,9 +56,15 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 				continue
 			}
 			for _, item := range items {
+				match, rule := item.Match(identity, pkg.Version)
+				status := security.StatusVulnerable
+				if match == UnknownRule {
+					status = security.StatusUnknownVersionRule
+				}
 				findings = append(findings, Finding{
 					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
 					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
+					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule,
 				})
 			}
 		}

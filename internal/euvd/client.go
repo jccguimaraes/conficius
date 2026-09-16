@@ -85,7 +85,8 @@ func (client *Client) Query(ctx context.Context, identity Identity, version stri
 	}
 	var matched []Vulnerability
 	for _, item := range items {
-		if item.Affects(identity, version) {
+		match, _ := item.Match(identity, version)
+		if match != NoMatch {
 			matched = append(matched, item)
 		}
 	}
@@ -138,16 +139,44 @@ func (client *Client) queryProduct(ctx context.Context, product string) ([]Vulne
 	}
 }
 
-func (item Vulnerability) Affects(identity Identity, version string) bool {
+type Match int
+
+const (
+	NoMatch Match = iota
+	Affected
+	UnknownRule
+)
+
+func (item Vulnerability) Match(identity Identity, version string) (Match, string) {
+	result := NoMatch
 	for _, product := range item.Products {
 		if !strings.EqualFold(product.Product.Name, identity.Product) || !strings.EqualFold(product.Product.Vendor.Name, identity.Vendor) {
 			continue
 		}
-		if versionMatches(version, product.ProductVersion) {
-			return true
+		matched, supported := versionMatches(version, product.ProductVersion)
+		if matched {
+			return Affected, product.ProductVersion
+		}
+		if !supported {
+			result = UnknownRule
 		}
 	}
-	return false
+	return result, ""
+}
+
+func (item Vulnerability) Affects(identity Identity, version string) bool {
+	match, _ := item.Match(identity, version)
+	return match == Affected
+}
+
+func (item Vulnerability) AliasList() []string {
+	var aliases []string
+	for line := range strings.Lines(item.Aliases) {
+		if line = strings.TrimSpace(line); line != "" {
+			aliases = append(aliases, line)
+		}
+	}
+	return aliases
 }
 
 func (item Vulnerability) AdvisoryID() string {
@@ -160,18 +189,21 @@ func (item Vulnerability) AdvisoryID() string {
 	return item.ID
 }
 
-func versionMatches(version, rule string) bool {
+func versionMatches(version, rule string) (bool, bool) {
 	version, rule = strings.TrimSpace(version), strings.TrimSpace(rule)
 	if version == "" || rule == "" || rule == "n/a" {
-		return false
+		return false, true
 	}
 	for _, token := range []string{"≤", "<="} {
 		if before, upper, ok := strings.Cut(rule, token); ok {
 			lower := strings.TrimSpace(strings.TrimPrefix(before, "0"))
-			return (lower == "" || compare(version, lower) >= 0) && compare(version, strings.TrimSpace(upper)) <= 0
+			return (lower == "" || compare(version, lower) >= 0) && compare(version, strings.TrimSpace(upper)) <= 0, true
 		}
 	}
-	return compare(version, rule) == 0
+	if strings.ContainsAny(rule, "*<>") || strings.Contains(strings.ToLower(rule), "before") || strings.Contains(strings.ToLower(rule), "through") {
+		return false, false
+	}
+	return compare(version, rule) == 0, true
 }
 
 func compare(a, b string) int {

@@ -39,8 +39,14 @@ func TestVersionMatchesEUVDRange(t *testing.T) {
 		{"23.0.0", "22.0.0 ≤22.22.3", false},
 		{"4.17.20", "4.17.20", true},
 	} {
-		if got := versionMatches(test.version, test.rule); got != test.want {
-			t.Fatalf("versionMatches(%q, %q) = %v", test.version, test.rule, got)
+		if got, supported := versionMatches(test.version, test.rule); got != test.want || !supported {
+			t.Fatalf("versionMatches(%q, %q) = %v, %v", test.version, test.rule, got, supported)
 		}
+	}
+}
+
+func TestVersionMatchesReportsUnsupportedRule(t *testing.T) {
+	if matched, supported := versionMatches("1.2.3", "before 2.0.0"); matched || supported {
+		t.Fatalf("versionMatches = %v, %v", matched, supported)
 	}
 }
