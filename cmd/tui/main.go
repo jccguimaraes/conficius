@@ -125,9 +125,10 @@ func resultView(data *model) glyph.Component {
 	table := glyph.AutoTable(&data.packages).
 		Columns("Manager", "Name", "Current", "Latest", "Scope").
 		Headers("Manager", "Tool", "Current", "Latest", "Scope").
-		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
+		Column("Latest", coloredText(glyph.Green)).
+		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
-		table,
+		glyph.VBox.Grow(1)(table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
@@ -137,9 +138,11 @@ func driftView(data *model) glyph.Component {
 	table := glyph.AutoTable(&data.drift).
 		Columns("Manager", "Name", "Installed", "DesiredVersion", "Status", "Scope").
 		Headers("Manager", "Tool", "Installed", "Desired", "Status", "Scope").
-		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
+		Column("Status", statusStyle()).
+		Column("DesiredVersion", coloredText(glyph.Green)).
+		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
-		table,
+		glyph.VBox.Grow(1)(table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
 	)
@@ -149,9 +152,11 @@ func vulnerabilityView(data *model) glyph.Component {
 	table := glyph.AutoTable(&data.findings).
 		Columns("Manager", "Package", "Current", "Status", "Advisory", "UpgradeTo").
 		Headers("Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
-		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
+		Column("Status", statusStyle()).
+		Column("UpgradeTo", coloredText(glyph.Green)).
+		Scrollable(1000).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
-		table,
+		glyph.VBox.Grow(1)(table),
 		glyph.Text(&data.status).Dim(),
 		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
 	)
@@ -201,12 +206,33 @@ func refresh(data *model, app *glyph.App) {
 			data.packages = packages
 			data.drift = drift
 			data.findings = vulnerabilityRows(findings)
-			data.status = fmt.Sprintf("%d outdated, %d drift, %d findings", len(packages), len(drift), len(findings))
+			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
 			if err != nil {
 				data.status = err.Error()
 			}
 		})
 	}()
+}
+
+func coloredText(color glyph.Color) glyph.ColumnOption {
+	return func(column *glyph.ColumnConfig) {
+		column.Style(func(any) glyph.Style { return glyph.Style{FG: color} })
+	}
+}
+
+func statusStyle() glyph.ColumnOption {
+	return func(column *glyph.ColumnConfig) {
+		column.Style(func(value any) glyph.Style {
+			switch value {
+			case vulnerability.StatusVulnerable, config.DriftBehind, config.DriftMissing:
+				return glyph.Style{FG: glyph.Red}
+			case vulnerability.StatusError, config.DriftUnsupported:
+				return glyph.Style{FG: glyph.Yellow}
+			default:
+				return glyph.Style{FG: glyph.Green}
+			}
+		})
+	}
 }
 
 func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {

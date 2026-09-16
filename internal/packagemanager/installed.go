@@ -125,7 +125,7 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 }
 
 func installedMise(ctx context.Context, executable, dir string) ([]InstalledPackage, error) {
-	output, err := runOutputDir(ctx, dir, executable, "ls", "--installed", "--json")
+	output, err := runOutputDir(ctx, dir, executable, "ls", "--current", "--installed", "--json")
 	if err != nil {
 		return nil, err
 	}

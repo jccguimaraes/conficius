@@ -13,6 +13,7 @@ func TestQueryInstalledReadsSupportedManagerInventories(t *testing.T) {
 printf '{"dependencies":{"left-pad":{"version":"1.3.0"},"missing":{}}}'
 `)
 	writeExecutable(t, filepath.Join(dir, "mise"), `#!/bin/sh
+[ "$*" = "ls --current --installed --json" ] || { printf 'unexpected args: %s' "$*" >&2; exit 1; }
 printf '{"node":[{"version":"22.1.0","installed":true},{"version":"20","installed":false}]}'
 `)
 	writeExecutable(t, filepath.Join(dir, "brew"), `#!/bin/sh
