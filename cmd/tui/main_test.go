@@ -34,12 +34,25 @@ func TestDriftViewRendersPackageIdentity(t *testing.T) {
 func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 	data := &model{findings: vulnerabilityRows([]vulnerability.Finding{{
 		Manager: "npm", Package: "lodash", Version: "4.17.20", Status: vulnerability.StatusVulnerable,
-		Vulnerabilities: []vulnerability.Vulnerability{{ID: "GHSA-29mw-wpgm-hmr9"}},
+		Advisories: []vulnerability.Advisory{{ID: "GHSA-29mw-wpgm-hmr9", FixedVersion: "4.17.21"}},
 	}})}
 	component := vulnerabilityView(data)
-	assertRenderedContains(t, component, "Advisories")
+	assertRenderedContains(t, component, "Advisory")
 	assertRenderedContains(t, component, "lodash")
 	assertRenderedContains(t, component, "GHSA-29mw-wpgm-hmr9")
+	assertRenderedContains(t, component, "4.17.21")
+}
+
+func TestVulnerabilityRowsHideNonActionablePackages(t *testing.T) {
+	rows := vulnerabilityRows([]vulnerability.Finding{
+		{Package: "clean", Status: vulnerability.StatusClean},
+		{Package: "unknown", Status: vulnerability.StatusUnknown},
+		{Package: "affected", Status: vulnerability.StatusVulnerable},
+		{Package: "failed", Status: vulnerability.StatusError},
+	})
+	if len(rows) != 2 || rows[0].Package != "affected" || rows[1].Package != "failed" {
+		t.Fatalf("rows = %#v", rows)
+	}
 }
 
 func assertRenderedContains(t *testing.T, component glyph.Component, want string) {

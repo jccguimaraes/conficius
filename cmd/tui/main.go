@@ -19,11 +19,12 @@ import (
 var version = "dev"
 
 type vulnerabilityRow struct {
-	Manager string
-	Package string
-	Version string
-	Status  string
-	IDs     string
+	Manager   string
+	Package   string
+	Current   string
+	Status    string
+	Advisory  string
+	UpgradeTo string
 }
 
 type model struct {
@@ -146,8 +147,8 @@ func driftView(data *model) glyph.Component {
 
 func vulnerabilityView(data *model) glyph.Component {
 	table := glyph.AutoTable(&data.findings).
-		Columns("Manager", "Package", "Version", "Status", "IDs").
-		Headers("Manager", "Tool", "Version", "Status", "Advisories").
+		Columns("Manager", "Package", "Current", "Status", "Advisory", "UpgradeTo").
+		Headers("Manager", "Tool", "Current", "Status", "CVE / Advisory", "Upgrade To").
 		Scrollable(20).BindVimNav().BindNav("<down>", "<up>")
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		table,
@@ -209,19 +210,38 @@ func refresh(data *model, app *glyph.App) {
 }
 
 func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
-	rows := make([]vulnerabilityRow, len(findings))
-	for i, finding := range findings {
-		rows[i] = vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Status: finding.Status, IDs: vulnerabilityIDs(finding.Vulnerabilities)}
+	rows := make([]vulnerabilityRow, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Status != vulnerability.StatusVulnerable && finding.Status != vulnerability.StatusError {
+			continue
+		}
+		rows = append(rows, vulnerabilityRow{Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: vulnerabilityIDs(finding.Advisories), UpgradeTo: fixedVersions(finding.Advisories)})
 	}
 	return rows
 }
 
-func vulnerabilityIDs(vulnerabilities []vulnerability.Vulnerability) string {
-	ids := make([]string, len(vulnerabilities))
-	for i, item := range vulnerabilities {
+func vulnerabilityIDs(advisories []vulnerability.Advisory) string {
+	ids := make([]string, len(advisories))
+	for i, item := range advisories {
 		ids[i] = item.ID
 	}
 	return strings.Join(ids, ", ")
+}
+
+func fixedVersions(advisories []vulnerability.Advisory) string {
+	seen := map[string]struct{}{}
+	var versions []string
+	for _, item := range advisories {
+		if item.FixedVersion == "" {
+			continue
+		}
+		if _, exists := seen[item.FixedVersion]; exists {
+			continue
+		}
+		seen[item.FixedVersion] = struct{}{}
+		versions = append(versions, item.FixedVersion)
+	}
+	return strings.Join(versions, ", ")
 }
 
 func selectScope(data *model, scope *config.Scope) {
