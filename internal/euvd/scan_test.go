@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/security"
 )
 
 type stub struct{}
@@ -14,6 +15,17 @@ func (stub) Query(_ context.Context, identity Identity, version string) ([]Vulne
 		return []Vulnerability{{ID: "EUVD-1", Aliases: "CVE-2026-1\n", BaseScore: 8.1}}, nil
 	}
 	return nil, nil
+}
+
+func TestScanEmitsUnmappedAndClean(t *testing.T) {
+	installed := []packagemanager.InstalledPackage{{Manager: "mise", Name: "bat", Version: "1.0"}, {Manager: "mise", Name: "node", Version: "99.0"}}
+	findings, err := Scan(context.Background(), installed, nil, nil, stub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || findings[0].Status != security.StatusUnmapped || findings[1].Status != security.StatusClean {
+		t.Fatalf("findings = %#v", findings)
+	}
 }
 
 func TestScanUsesManagerLatestAsUpgradeTarget(t *testing.T) {

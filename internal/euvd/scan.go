@@ -22,6 +22,7 @@ type Finding struct {
 	SourceID  string
 	Aliases   []string
 	Rule      string
+	Reason    string
 }
 
 type Queryer interface {
@@ -47,12 +48,16 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			}
 		}
 		if len(identities) == 0 {
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusUnmapped, Reason: "no explicit EUVD mapping"})
 			continue
 		}
+		packageFindings := 0
 		for _, identity := range identities {
 			items, err := client.Query(ctx, identity, pkg.Version)
 			if err != nil {
 				scanErrors = append(scanErrors, fmt.Errorf("%s:%s@%s: %w", pkg.Manager, pkg.Name, pkg.Version, err))
+				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusError, Reason: "request failed"})
+				packageFindings++
 				continue
 			}
 			for _, item := range items {
@@ -66,7 +71,11 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
 					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule,
 				})
+				packageFindings++
 			}
+		}
+		if packageFindings == 0 {
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusClean})
 		}
 	}
 	return findings, errors.Join(scanErrors...)

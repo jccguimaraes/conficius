@@ -205,12 +205,12 @@ func refresh(data *model, app *glyph.App) {
 		if profile.SecurityScope == "selected" {
 			scanPackages = filterInstalled(inventory.Packages, selected)
 		}
-		findings, scanErr := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
-		euvdFindings, euvdErr := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
+		findings, _ := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
+		euvdFindings, _ := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
 		if ctx.Err() != nil {
 			return
 		}
-		err := errors.Join(outdatedErr, inventoryErr, scanErr, euvdErr)
+		err := errors.Join(outdatedErr, inventoryErr)
 		app.Apply(func() {
 			if !isCurrentGeneration(data.generation, generation) {
 				return
@@ -256,9 +256,12 @@ func statusStyle() glyph.ColumnOption {
 }
 
 func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
-	rows := make([]vulnerabilityRow, len(findings))
-	for i, finding := range findings {
-		rows[i] = vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo}
+	rows := make([]vulnerabilityRow, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Status == security.StatusClean {
+			continue
+		}
+		rows = append(rows, vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo})
 	}
 	return rows
 }
@@ -266,7 +269,7 @@ func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
 func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, 0, len(findings))
 	for _, finding := range findings {
-		if finding.Status != vulnerability.StatusVulnerable && finding.Status != vulnerability.StatusError {
+		if finding.Status == vulnerability.StatusClean {
 			continue
 		}
 		for _, advisory := range finding.Advisories {

@@ -51,14 +51,14 @@ func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityRowsHideNonActionablePackages(t *testing.T) {
+func TestVulnerabilityRowsHideOnlyCleanPackages(t *testing.T) {
 	rows := vulnerabilityRows([]vulnerability.Finding{
 		{Package: "clean", Status: vulnerability.StatusClean},
 		{Package: "unknown", Status: vulnerability.StatusUnknown},
 		{Package: "affected", Status: vulnerability.StatusVulnerable},
 		{Package: "failed", Status: vulnerability.StatusError},
 	})
-	if len(rows) != 2 || rows[0].Package != "affected" || rows[1].Package != "failed" {
+	if len(rows) != 3 || rows[0].Package != "unknown" || rows[1].Package != "affected" || rows[2].Package != "failed" {
 		t.Fatalf("rows = %#v", rows)
 	}
 }
