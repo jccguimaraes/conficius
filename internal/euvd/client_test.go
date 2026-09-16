@@ -10,10 +10,15 @@ import (
 
 func TestClientMatchesInstalledVersion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("product") != "Node" || r.URL.Query().Get("vendor") != "nodejs" {
+		if r.URL.Query().Get("product") != "Node" || r.URL.Query().Has("vendor") {
 			t.Fatalf("query = %s", r.URL.RawQuery)
 		}
-		_, _ = fmt.Fprint(w, `{"total":1,"items":[{"id":"EUVD-1","aliases":"CVE-2026-1\n","baseScore":8.1,"enisaIdProduct":[{"product":{"name":"Node","vendor":{"name":"nodejs"}},"product_version":"22.0.0 ≤22.22.3"}]}]}`)
+		_, _ = fmt.Fprint(w, `{"total":4,"items":[
+			{"id":"EUVD-match","aliases":"CVE-2026-1\n","baseScore":8.1,"enisaIdProduct":[{"product":{"name":"Node","vendor":{"name":"nodejs"}},"product_version":"22.0.0 ≤22.22.3"}]},
+			{"id":"EUVD-wrong-vendor","enisaIdProduct":[{"product":{"name":"Node","vendor":{"name":"other"}},"product_version":"22.0.0 ≤22.22.3"}]},
+			{"id":"EUVD-wrong-product","enisaIdProduct":[{"product":{"name":"Node Manager","vendor":{"name":"nodejs"}},"product_version":"22.0.0 ≤22.22.3"}]},
+			{"id":"EUVD-wrong-version","enisaIdProduct":[{"product":{"name":"Node","vendor":{"name":"nodejs"}},"product_version":"23.0.0 ≤23.1.0"}]}
+		]}`)
 	}))
 	defer server.Close()
 	items, err := NewClient(server.Client(), server.URL).Query(context.Background(), Identity{Product: "Node", Vendor: "nodejs"}, "22.10.0")

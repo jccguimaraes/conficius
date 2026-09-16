@@ -87,7 +87,6 @@ func (client *Client) Query(ctx context.Context, identity Identity, version stri
 		}
 		query := u.Query()
 		query.Set("product", identity.Product)
-		query.Set("vendor", identity.Vendor)
 		query.Set("page", strconv.Itoa(page))
 		query.Set("size", strconv.Itoa(pageSize))
 		u.RawQuery = query.Encode()
