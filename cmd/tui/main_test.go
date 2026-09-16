@@ -1,11 +1,24 @@
 package main
 
 import (
+	"strings"
 	"testing"
+
+	glyph "github.com/kungfusheep/glyph"
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
+
+func TestResultViewRendersPackageIdentity(t *testing.T) {
+	data := &model{packages: []packagemanager.Package{{Manager: "npm", Name: "typescript", Current: "5.0", Latest: "5.1", Scope: "global"}}}
+	component, _ := resultView(data)
+	buffer := glyph.NewBuffer(80, 8)
+	glyph.Build(component).Execute(buffer, 80, 8)
+	if output := buffer.GetLine(1); !strings.Contains(output, "npm:typescript") {
+		t.Fatalf("row = %q", output)
+	}
+}
 
 func TestGenerationRejectsStaleRefresh(t *testing.T) {
 	if isCurrentGeneration(2, 1) || !isCurrentGeneration(2, 2) {

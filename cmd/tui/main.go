@@ -103,14 +103,7 @@ func run() error {
 func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[config.Scope]) {
 	list := glyph.List(&data.scopes).
 		Render(func(scope *config.Scope) glyph.Component {
-			label := scope.Kind
-			if scope.Name != "" {
-				label += ":" + scope.Name
-			}
-			if scope.Path != "" {
-				label += "  " + scope.Path
-			}
-			return glyph.Text(label)
+			return glyph.Textf(&scope.Kind, ":", &scope.Name, "  ", &scope.Path)
 		}).
 		BindNav("j", "k").
 		OnSelect(func(scope *config.Scope) {
@@ -130,7 +123,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 func resultView(data *model) (glyph.Component, *glyph.ListC[packagemanager.Package]) {
 	list := glyph.List(&data.packages).
 		Render(func(pkg *packagemanager.Package) glyph.Component {
-			return glyph.Text(fmt.Sprintf("%s:%s  %s -> %s  [%s]", pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Scope))
+			return glyph.Textf(&pkg.Manager, ":", &pkg.Name, "  ", &pkg.Current, " -> ", &pkg.Latest, "  [", &pkg.Scope, "]")
 		}).
 		BindVimNav()
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Outdated packages")(
@@ -143,7 +136,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[packagemanager.Packa
 func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState]) {
 	list := glyph.List(&data.drift).
 		Render(func(state *config.PackageState) glyph.Component {
-			return glyph.Text(fmt.Sprintf("%s:%s  %s -> %s  [%s]", state.Manager, state.Name, state.Installed, state.DesiredVersion, state.Status))
+			return glyph.Textf(&state.Manager, ":", &state.Name, "  ", &state.Installed, " -> ", &state.DesiredVersion, "  [", &state.Status, "]")
 		}).BindVimNav()
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Profile drift")(
 		list,
@@ -155,7 +148,7 @@ func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState])
 func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability.Finding]) {
 	list := glyph.List(&data.findings).
 		Render(func(finding *vulnerability.Finding) glyph.Component {
-			return glyph.Text(fmt.Sprintf("%s:%s@%s  %s  (%d vulnerabilities)", finding.Manager, finding.Package, finding.Version, finding.Status, len(finding.Vulnerabilities)))
+			return glyph.Textf(&finding.Manager, ":", &finding.Package, "@", &finding.Version, "  ", &finding.Status)
 		}).BindVimNav()
 	return glyph.VBox.Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		list,
