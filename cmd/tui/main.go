@@ -47,6 +47,7 @@ type model struct {
 	query          packagemanager.QueryResult
 	selected       map[string]bool
 	failed         map[string]string
+	attempted      map[string]string
 	plans          []packagemanager.UpdatePlan
 	preview        string
 	commands       []commandRow
@@ -87,7 +88,7 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string)}
+	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string)}
 	startView := "scopes"
 	if encoded := os.Getenv(restartStateEnv); encoded != "" {
 		state, decodeErr := decodeRestartState(encoded)
@@ -342,9 +343,10 @@ func refresh(data *model, app *glyph.App) {
 					delete(data.selected, key)
 				}
 			}
+			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
 			data.rows = outdatedRows(packages, data.selected, data.failed)
 			data.drift = drift
-			data.status = fmt.Sprintf("%d outdated, %d drift; scanning vulnerabilities...", len(packages), len(drift))
+			data.status = refreshStatus(len(packages), len(drift), upgraded, unchanged, failed)
 			if err != nil {
 				data.status = err.Error()
 			}

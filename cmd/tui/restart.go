@@ -15,6 +15,7 @@ type restartState struct {
 	ScopeKind string            `json:"scope_kind,omitempty"`
 	ScopePath string            `json:"scope_path,omitempty"`
 	Failed    map[string]string `json:"failed,omitempty"`
+	Attempted map[string]string `json:"attempted,omitempty"`
 }
 
 func encodeRestartState(state restartState) (string, error) {
@@ -47,6 +48,9 @@ func restoreRestartState(data *model, state restartState) string {
 	for key, message := range state.Failed {
 		data.failed[key] = message
 	}
+	for key, version := range state.Attempted {
+		data.attempted[key] = version
+	}
 	if state.Screen == "results" {
 		return state.Screen
 	}
@@ -69,7 +73,7 @@ func restoreStdin(source, target int) error {
 }
 
 func execFreshTUI(tty *os.File, data *model) error {
-	state := restartState{Screen: "results", Failed: data.failed}
+	state := restartState{Screen: "results", Failed: data.failed, Attempted: data.attempted}
 	if data.active != nil {
 		state.ScopeKind, state.ScopePath = data.active.Kind, data.active.Path
 	}

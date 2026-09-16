@@ -158,6 +158,12 @@ func runInteractiveUpgrades(data *model) error {
 	}
 	defer func() { _ = tty.Close() }()
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
+	clear(data.attempted)
+	for _, plan := range plans {
+		for _, pkg := range plan.Packages {
+			data.attempted[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = pkg.Current
+		}
+	}
 	failed := make(map[string]string)
 	var failures int
 	for _, plan := range plans {
