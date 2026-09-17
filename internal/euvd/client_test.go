@@ -64,6 +64,31 @@ func TestVersionMatchesEUVDRange(t *testing.T) {
 	}
 }
 
+func TestNPMCurrentVersionDoesNotMatchCVE202229244Rules(t *testing.T) {
+	item := Vulnerability{Products: []ProductEntry{
+		productEntryForClientTest("NPM", "npm", "7.9.0 <7.9.0*"),
+		productEntryForClientTest("NPM", "npm", "8.11.0 <8.11.0"),
+	}}
+	if match, _ := item.Match(Identity{Product: "NPM", Vendor: "npm"}, "11.19.1"); match != NoMatch {
+		t.Fatalf("match = %v", match)
+	}
+}
+
+func productEntryForClientTest(name, vendor, version string) ProductEntry {
+	var entry ProductEntry
+	entry.Product.Name, entry.Product.Vendor.Name, entry.ProductVersion = name, vendor, version
+	return entry
+}
+
+func TestVersionMatchesEUVDExclusiveRangeWithWildcard(t *testing.T) {
+	for _, rule := range []string{"7.9.0 <7.9.0*", "8.11.0 <8.11.0"} {
+		matched, supported := versionMatches("11.19.1", rule)
+		if matched || !supported {
+			t.Fatalf("versionMatches(11.19.1, %q) = %v, %v", rule, matched, supported)
+		}
+	}
+}
+
 func TestVersionMatchesTextualUpperBounds(t *testing.T) {
 	for _, test := range []struct {
 		version, rule string

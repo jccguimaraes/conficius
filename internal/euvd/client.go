@@ -225,6 +225,11 @@ func versionMatches(version, rule string) (bool, bool) {
 	if strings.HasPrefix(rule, "<") {
 		return compare(version, strings.TrimLeft(rule, "< ")) < 0, true
 	}
+	if lower, upper, ok := strings.Cut(rule, " <"); ok {
+		lower = strings.TrimSpace(lower)
+		upper = strings.TrimSpace(strings.TrimSuffix(upper, "*"))
+		return compare(version, lower) >= 0 && compare(version, upper) < 0, true
+	}
 	if strings.ContainsAny(rule, "*>") {
 		return false, false
 	}

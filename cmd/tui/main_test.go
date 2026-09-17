@@ -187,6 +187,14 @@ func TestGenerationRejectsStaleRefresh(t *testing.T) {
 	}
 }
 
+func TestSecurityTargetsSurviveOutdatedDisplayFiltering(t *testing.T) {
+	all := []packagemanager.Package{{Manager: "manager", Name: "npm", Scope: "global", Latest: "11.20.0"}}
+	displayed := filterOutdated(append([]packagemanager.Package(nil), all...), nil)
+	if len(displayed) != 0 || len(all) != 1 || all[0].Latest != "11.20.0" {
+		t.Fatalf("displayed = %#v, security targets = %#v", displayed, all)
+	}
+}
+
 func TestFilterOutdatedUsesResolvedProfileSelection(t *testing.T) {
 	packages := []packagemanager.Package{
 		{Manager: "npm", Name: "keep", Scope: "global"},

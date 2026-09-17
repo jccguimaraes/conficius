@@ -386,7 +386,8 @@ func refresh(data *model, app *glyph.App) {
 			packagemanager.MergePackages(result.Packages, managerUpdates)
 			inventoryErr = errors.Join(inventoryErr, managerErr, managerUpdateErr)
 		}
-		packages := packagemanager.Records(result.Packages)
+		securityTargets := packagemanager.Records(result.Packages)
+		packages := append([]packagemanager.Package(nil), securityTargets...)
 		installed := make([]config.InstalledVersion, len(inventory.Packages))
 		for i, pkg := range inventory.Packages {
 			installed[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
@@ -422,7 +423,7 @@ func refresh(data *model, app *glyph.App) {
 			}
 		})
 		report, _ := security.Scan(ctx, scanPackages, security.Options{
-			Outdated: packages, OSVMappings: mappings, EUVDMappings: euvdMaps,
+			Outdated: securityTargets, OSVMappings: mappings, EUVDMappings: euvdMaps,
 			OSVClient: data.osvClient, EUVDClient: data.euvdClient,
 		})
 		if ctx.Err() != nil {
