@@ -425,7 +425,7 @@ func updateArgs(manager string, packages []Package) []string {
 		}
 		return args
 	case PM_BREW:
-		args := []string{HomebrewCommandUpgrade, HomebrewFlagYes}
+		args := []string{HomebrewCommandUpgrade, HomebrewFlagYes, HomebrewFlagGreedy}
 		for _, pkg := range packages {
 			args = append(args, pkg.Name)
 		}
