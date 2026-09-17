@@ -10,6 +10,7 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
@@ -59,6 +60,15 @@ func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	rows := euvdRows([]euvd.Finding{{Manager: "mise", Package: "node", Version: "22.10.0", Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}})
 	if len(rows) != 1 || rows[0].Current != "22.10.0" || rows[0].UpgradeTo != "22.22.4" {
 		t.Fatalf("rows = %#v", rows)
+	}
+}
+
+func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
+	rows := []vulnerabilityRow{{Status: security.StatusVulnerable}, {Status: security.StatusUnmapped}, {Status: security.StatusUnknownVersionRule}, {Status: vulnerability.StatusUnknown}, {Status: security.StatusError}}
+	got := vulnerabilitySummary(3, 2, rows)
+	want := "3 outdated, 2 drift; 1 vulnerable, 1 unmapped, 2 unknown, 1 errors"
+	if got != want {
+		t.Fatalf("summary = %q", got)
 	}
 }
 

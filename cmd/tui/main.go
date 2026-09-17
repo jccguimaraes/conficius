@@ -372,7 +372,7 @@ func refresh(data *model, app *glyph.App) {
 			}
 			data.findings = append(vulnerabilityRows(osvData.findings), euvdRows(euvdData.findings)...)
 			sortVulnerabilityRows(data.findings)
-			data.status = fmt.Sprintf("%d outdated, %d drift, %d vulnerabilities", len(packages), len(drift), len(data.findings))
+			data.status = vulnerabilitySummary(len(packages), len(drift), data.findings)
 		})
 	}()
 }
@@ -428,6 +428,15 @@ func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
 		rows = append(rows, vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo, Score: finding.Score})
 	}
 	return rows
+}
+
+func vulnerabilitySummary(outdated, drift int, rows []vulnerabilityRow) string {
+	counts := map[string]int{}
+	for _, row := range rows {
+		counts[row.Status]++
+	}
+	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unmapped, %d unknown, %d errors", outdated, drift,
+		counts[security.StatusVulnerable], counts[security.StatusUnmapped], counts[security.StatusUnknownVersionRule]+counts[vulnerability.StatusUnknown], counts[security.StatusError])
 }
 
 func sortVulnerabilityRows(rows []vulnerabilityRow) {
