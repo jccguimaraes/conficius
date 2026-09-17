@@ -16,7 +16,9 @@ import (
 
 	"github.com/jccguimaraes/conficius/internal/audit"
 	"github.com/jccguimaraes/conficius/internal/config"
+	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
@@ -42,7 +44,7 @@ type updateOutput struct {
 type vulnerabilityOutput struct {
 	Scopes   []config.Scope                 `json:"scopes"`
 	Managers []packagemanager.ManagerStatus `json:"managers"`
-	Findings []vulnerability.Finding        `json:"findings"`
+	Report   security.Report                `json:"report"`
 }
 
 func (cli *Cli) packages() *urfave.Command {
@@ -148,9 +150,11 @@ func (cli *Cli) packages() *urfave.Command {
 					if loadErr != nil && !errors.Is(loadErr, config.ErrNotFound) {
 						return loadErr
 					}
-					var mappings []config.VulnerabilityMapping
+					var osvMappings []config.VulnerabilityMapping
+					var euvdMappings []config.EUVDMapping
 					if project != nil {
-						mappings = project.Vulnerabilities.Mappings
+						osvMappings = project.Vulnerabilities.Mappings
+						euvdMappings = project.Vulnerabilities.EUVD
 					}
 					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					if resolved.Profile.SecurityScope == "selected" {
@@ -171,19 +175,23 @@ func (cli *Cli) packages() *urfave.Command {
 						}
 						inventory.Packages = filtered
 					}
-					client := vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL"))
-					findings, scanErr := vulnerability.Scan(ctx, inventory.Packages, mappings, client)
+					outdated, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					report, scanErr := security.Scan(ctx, inventory.Packages, security.Options{
+						Outdated: packagemanager.Records(outdated.Packages), OSVMappings: osvMappings, EUVDMappings: euvdMappings,
+						OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
+						EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
+					})
 					if c.Bool("json") {
-						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Scopes: scopes, Managers: inventory.Managers, Findings: findings})
-						return errors.Join(inventoryErr, scanErr, writeErr)
+						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Scopes: scopes, Managers: inventory.Managers, Report: report})
+						return errors.Join(inventoryErr, outdatedErr, scanErr, writeErr)
 					}
 					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
 						return err
 					}
-					if err := printVulnerabilityFindings(cli.Writer, findings); err != nil {
+					if err := printVulnerabilityFindings(cli.Writer, report.Evidence); err != nil {
 						return err
 					}
-					return errors.Join(inventoryErr, scanErr)
+					return errors.Join(inventoryErr, outdatedErr, scanErr)
 				},
 			},
 			{
@@ -390,33 +398,10 @@ func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerSta
 	return nil
 }
 
-func printVulnerabilityFindings(writer io.Writer, findings []vulnerability.Finding) error {
-	for _, finding := range findings {
-		if _, err := fmt.Fprintf(writer, "%s:%s@%s: %s", finding.Manager, finding.Package, finding.Version, finding.Status); err != nil {
+func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) error {
+	for _, item := range evidence {
+		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.UpgradeTo); err != nil {
 			return err
-		}
-		if finding.Scope != "" {
-			if _, err := fmt.Fprintf(writer, " scope=%s", finding.Scope); err != nil {
-				return err
-			}
-			if finding.Path != "" {
-				if _, err := fmt.Fprintf(writer, " path=%s", finding.Path); err != nil {
-					return err
-				}
-			}
-		}
-		if finding.Reason != "" {
-			if _, err := fmt.Fprintf(writer, " (%s)", finding.Reason); err != nil {
-				return err
-			}
-		}
-		if _, err := fmt.Fprintln(writer); err != nil {
-			return err
-		}
-		for _, advisory := range finding.Vulnerabilities {
-			if _, err := fmt.Fprintf(writer, "  %s: %s\n", advisory.ID, advisory.Summary); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

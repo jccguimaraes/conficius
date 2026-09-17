@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jccguimaraes/conficius/internal/security"
 )
 
 func writeFakeManager(t *testing.T, path, contents string) {
@@ -188,6 +190,31 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	}
 	if requests != 1 || !strings.Contains(output.String(), `"scope": "project"`) {
 		t.Fatalf("requests = %d, output = %q", requests, output.String())
+	}
+}
+
+func TestPrintVulnerabilityFindingsIncludesSharedReportFields(t *testing.T) {
+	var output bytes.Buffer
+	evidence := []security.Evidence{{Source: security.SourceEUVD, Manager: "mise", Package: "node", Version: "22.10.0", Status: security.StatusVulnerable, Score: 8.1, Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}}
+	if err := printVulnerabilityFindings(&output, evidence); err != nil {
+		t.Fatal(err)
+	}
+	want := "EUVD mise node 22.10.0 vulnerable 8.1 CVE-2026-1 22.22.4\n"
+	if output.String() != want {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestVulnerabilityJSONRetainsEvidenceDetails(t *testing.T) {
+	var output bytes.Buffer
+	item := security.Evidence{Source: security.SourceEUVD, SourceID: "EUVD-1", Aliases: []string{"CVE-2026-1"}, AffectedRule: "before 22.22.4", Reason: "test reason"}
+	if err := writePackageJSON(&output, vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"source_id": "EUVD-1"`, `"aliases": [`, `"affected_rule": "before 22.22.4"`, `"reason": "test reason"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("output missing %s: %s", want, output.String())
+		}
 	}
 }
 
