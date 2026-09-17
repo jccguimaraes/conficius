@@ -94,6 +94,24 @@ func TestNPMPrefixWarningsReportMismatchAndMissingPath(t *testing.T) {
 	}
 }
 
+func TestHomebrewOutdatedIsAlwaysGreedy(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, "brew"), "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$ARGS_LOG\"\nprintf '{\"formulae\":[],\"casks\":[]}'\n")
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_LOG", log)
+	if _, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_BREW}, []Scope{{Kind: "global"}}, QueryOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(contents), "--greedy") {
+		t.Fatalf("args = %q", contents)
+	}
+}
+
 func TestTypedManagerOptionsControlOutdatedFlags(t *testing.T) {
 	dir := t.TempDir()
 	log := filepath.Join(dir, "args")
