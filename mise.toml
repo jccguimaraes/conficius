@@ -3,7 +3,7 @@ actionlint = "1.7.12"
 ghalint = "1.5.6"
 git-cliff = "2.14.1"
 go = "1.27.1"
-golangci-lint = "v2.13.2"
+golangci-lint = "2.13.2"
 goreleaser = "2.18.1"
 
 [env]
