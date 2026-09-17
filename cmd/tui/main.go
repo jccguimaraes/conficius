@@ -476,7 +476,7 @@ func vulnerabilitySummary(outdated, drift int, summary security.Summary) string 
 func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, 0, len(evidence))
 	for _, item := range evidence {
-		if item.Status == security.StatusClean {
+		if item.Status == security.StatusClean || item.Advisory == "" {
 			continue
 		}
 		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version})

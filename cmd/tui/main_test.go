@@ -92,14 +92,15 @@ func TestSeverityColorUsesCVSSBands(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityRowsHideOnlyCleanPackages(t *testing.T) {
+func TestVulnerabilityRowsHideCleanAndAdvisorylessDiagnostics(t *testing.T) {
 	rows := vulnerabilityRows([]security.Evidence{
 		{Package: "clean", Status: security.StatusClean},
-		{Package: "unknown", Status: security.StatusUnknownVersionRule},
-		{Package: "affected", Status: security.StatusVulnerable},
+		{Package: "unmapped", Status: security.StatusUnmapped},
 		{Package: "failed", Status: security.StatusError},
+		{Package: "unknown-rule", Status: security.StatusUnknownVersionRule, Advisory: "CVE-1"},
+		{Package: "affected", Status: security.StatusVulnerable, Advisory: "CVE-2"},
 	})
-	if len(rows) != 3 || rows[0].Package != "unknown" || rows[1].Package != "affected" || rows[2].Package != "failed" {
+	if len(rows) != 2 || rows[0].Package != "unknown-rule" || rows[1].Package != "affected" {
 		t.Fatalf("rows = %#v", rows)
 	}
 }

@@ -205,6 +205,21 @@ func TestPrintVulnerabilityFindingsIncludesSharedReportFields(t *testing.T) {
 	}
 }
 
+func TestPrintVulnerabilityFindingsHidesAdvisorylessDiagnostics(t *testing.T) {
+	var output bytes.Buffer
+	evidence := []security.Evidence{
+		{Package: "unmapped", Status: security.StatusUnmapped},
+		{Package: "failed", Status: security.StatusError},
+		{Source: security.SourceOSV, Package: "affected", Status: security.StatusVulnerable, Advisory: "CVE-1"},
+	}
+	if err := printVulnerabilityFindings(&output, evidence); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "unmapped") || strings.Contains(output.String(), "failed") || !strings.Contains(output.String(), "CVE-1") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestVulnerabilityJSONRetainsEvidenceDetails(t *testing.T) {
 	var output bytes.Buffer
 	item := security.Evidence{Source: security.SourceEUVD, SourceID: "EUVD-1", Aliases: []string{"CVE-2026-1"}, AffectedRule: "before 22.22.4", Reason: "test reason", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "not confirmed"}

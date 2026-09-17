@@ -400,6 +400,9 @@ func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerSta
 
 func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) error {
 	for _, item := range evidence {
+		if item.Advisory == "" {
+			continue
+		}
 		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote); err != nil {
 			return err
 		}
