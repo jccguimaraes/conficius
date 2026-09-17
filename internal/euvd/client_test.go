@@ -30,6 +30,25 @@ func TestClientMatchesInstalledVersion(t *testing.T) {
 	}
 }
 
+func TestClientReusesProductCacheAcrossVersions(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		_, _ = fmt.Fprint(w, `{"total":1,"items":[{"id":"EUVD-1","enisaIdProduct":[{"product":{"name":"Node","vendor":{"name":"nodejs"}},"product_version":"before 23.0.0"}]}]}`)
+	}))
+	defer server.Close()
+	client := NewClient(server.Client(), server.URL)
+	identity := Identity{Product: "Node", Vendor: "nodejs"}
+	for _, version := range []string{"22.10.0", "22.11.0"} {
+		if _, err := client.Query(context.Background(), identity, version); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d", requests)
+	}
+}
+
 func TestVersionMatchesEUVDRange(t *testing.T) {
 	for _, test := range []struct {
 		version, rule string

@@ -53,6 +53,8 @@ type model struct {
 	detail         vulnerabilityRow
 	mappings       []config.VulnerabilityMapping
 	euvdMaps       []config.EUVDMapping
+	osvClient      vulnerability.Queryer
+	euvdClient     euvd.Queryer
 	status         string
 	loading        bool
 	cancel         context.CancelFunc
@@ -83,7 +85,12 @@ func run() error {
 		return err
 	}
 
-	data := &model{profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD, status: "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string)}
+	data := &model{
+		profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD,
+		osvClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
+		euvdClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
+		status:     "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string),
+	}
 	startView := "scopes"
 	if encoded := os.Getenv(restartStateEnv); encoded != "" {
 		state, decodeErr := decodeRestartState(encoded)
@@ -395,8 +402,7 @@ func refresh(data *model, app *glyph.App) {
 		})
 		report, _ := security.Scan(ctx, scanPackages, security.Options{
 			Outdated: packages, OSVMappings: mappings, EUVDMappings: euvdMaps,
-			OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
-			EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
+			OSVClient: data.osvClient, EUVDClient: data.euvdClient,
 		})
 		if ctx.Err() != nil {
 			return

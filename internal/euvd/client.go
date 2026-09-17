@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,6 +62,7 @@ type response struct {
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
+	cacheMu    sync.RWMutex
 	cache      map[string][]Vulnerability
 }
 
@@ -93,11 +95,18 @@ func (client *Client) Query(ctx context.Context, identity Identity, version stri
 	return matched, nil
 }
 
-func (client *Client) ClearCache() { client.cache = make(map[string][]Vulnerability) }
+func (client *Client) ClearCache() {
+	client.cacheMu.Lock()
+	defer client.cacheMu.Unlock()
+	client.cache = make(map[string][]Vulnerability)
+}
 
 func (client *Client) queryProduct(ctx context.Context, product string) ([]Vulnerability, error) {
 	key := strings.ToLower(strings.TrimSpace(product))
-	if cached, ok := client.cache[key]; ok {
+	client.cacheMu.RLock()
+	cached, ok := client.cache[key]
+	client.cacheMu.RUnlock()
+	if ok {
 		return cached, nil
 	}
 	const pageSize = 100
@@ -133,7 +142,9 @@ func (client *Client) queryProduct(ctx context.Context, product string) ([]Vulne
 		}
 		items = append(items, body.Items...)
 		if (page+1)*pageSize >= body.Total || len(body.Items) == 0 {
+			client.cacheMu.Lock()
 			client.cache[key] = items
+			client.cacheMu.Unlock()
 			return items, nil
 		}
 	}
