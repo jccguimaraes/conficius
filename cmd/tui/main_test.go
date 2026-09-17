@@ -58,10 +58,10 @@ func TestVulnerabilityDetailViewRendersEvidence(t *testing.T) {
 	data := &model{detail: vulnerabilityRow{Evidence: security.Evidence{
 		Source: security.SourceEUVD, Advisory: "CVE-2026-1", SourceID: "EUVD-1", Score: 8.1,
 		AffectedRule: "before 22.22.4", Aliases: []string{"CVE-2026-1", "GHSA-1"}, UpgradeTo: "22.22.4",
-		Description: "test description", Reference: "https://example.test/advisory",
+		Description: "test description", Reference: "https://example.test/advisory", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1",
 	}}}
 	component := vulnerabilityDetailView(data)
-	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", "before 22.22.4", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory"} {
+	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", "before 22.22.4", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory", "https://www.cve.org/CVERecord?id=CVE-2026-1"} {
 		assertRenderedContains(t, component, want)
 	}
 }

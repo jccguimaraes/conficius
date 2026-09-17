@@ -29,6 +29,7 @@ type Evidence struct {
 	Reason       string   `json:"reason,omitempty"`
 	Description  string   `json:"description,omitempty"`
 	Reference    string   `json:"reference,omitempty"`
+	CVELink      string   `json:"cve_link,omitempty"`
 	Score        float64  `json:"score,omitempty"`
 }
 

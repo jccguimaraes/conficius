@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/euvd"
@@ -82,6 +83,7 @@ func osvEvidence(findings []vulnerability.Finding) []Evidence {
 					item.Reference = vulnerability.References[0].URL
 				}
 			}
+			item.CVELink = cveLink(item.Advisory, item.Aliases)
 			evidence = append(evidence, item)
 		}
 	}
@@ -92,8 +94,19 @@ func euvdEvidence(findings []euvd.Finding) []Evidence {
 	evidence := make([]Evidence, len(findings))
 	for i, finding := range findings {
 		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, AffectedRule: finding.Rule, Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
+		evidence[i].CVELink = cveLink(evidence[i].Advisory, evidence[i].Aliases)
 	}
 	return evidence
+}
+
+func cveLink(advisory string, aliases []string) string {
+	for _, id := range append([]string{advisory}, aliases...) {
+		id = strings.ToUpper(strings.TrimSpace(id))
+		if strings.HasPrefix(id, "CVE-") {
+			return "https://www.cve.org/CVERecord?id=" + id
+		}
+	}
+	return ""
 }
 
 func normalizeStatus(status string) string {

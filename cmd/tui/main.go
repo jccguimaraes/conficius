@@ -307,6 +307,7 @@ func vulnerabilityDetailView(data *model) glyph.Component {
 		glyph.Textf("Source: ", &row.Source),
 		glyph.Textf("CVE/advisory: ", &row.Advisory),
 		glyph.Textf("Source ID: ", &row.SourceID),
+		glyph.Textf("CVE link: ", &row.CVELink),
 		glyph.HBox(glyph.Text("CVSS: "), glyph.Text(&row.Score)),
 		glyph.Textf("Affected rule: ", &row.AffectedRule),
 		glyph.Text("Aliases: "+strings.Join(row.Aliases, ", ")),

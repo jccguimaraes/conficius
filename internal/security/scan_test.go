@@ -35,8 +35,11 @@ func TestScanCombinesSourcesWithoutDeduplicating(t *testing.T) {
 		t.Fatalf("sources = %#v", report.Evidence)
 	}
 	for _, item := range report.Evidence {
-		if item.Source == SourceOSV && (item.Description != "OSV summary" || item.Reference != "https://osv.dev/GHSA-1") {
+		if item.Source == SourceOSV && (item.Description != "OSV summary" || item.Reference != "https://osv.dev/GHSA-1" || item.CVELink != "https://www.cve.org/CVERecord?id=CVE-1") {
 			t.Fatalf("OSV evidence = %#v", item)
+		}
+		if item.Source == SourceEUVD && item.CVELink != "https://www.cve.org/CVERecord?id=CVE-1" {
+			t.Fatalf("EUVD evidence = %#v", item)
 		}
 	}
 }
