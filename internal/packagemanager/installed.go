@@ -219,6 +219,54 @@ func ManagerPackages(ctx context.Context, statuses []ManagerStatus) ([]Installed
 	return packages, errors.Join(versionErrors...)
 }
 
+func ManagerUpdates(ctx context.Context, statuses []ManagerStatus, installed []InstalledPackage) (Packages, error) {
+	updates := make(Packages)
+	var queryErrors []error
+	for _, pkg := range installed {
+		if pkg.Manager != "manager" || pkg.Name != PM_NPM {
+			continue
+		}
+		status, ok := managerStatus(statuses, PM_NPM)
+		if !ok || len(status.Executables) == 0 || npmManagedByOtherTool(ctx, status.Executables[0], statuses) {
+			continue
+		}
+		output, err := runOutput(ctx, status.Executables[0], "view", "npm", "version")
+		if err != nil {
+			queryErrors = append(queryErrors, fmt.Errorf("read latest npm version: %w", err))
+			continue
+		}
+		latest := strings.TrimSpace(string(output))
+		if latest == "" || latest == pkg.Version {
+			continue
+		}
+		updates[PM_NPM] = append(updates[PM_NPM], scopedTool{Tool: NewNPMTool(PM_NPM, NPMOutdatedTool{Current: pkg.Version, Wanted: latest, Latest: latest}, status.Executables[0]), scope: Scope{Kind: "global"}})
+	}
+	return updates, errors.Join(queryErrors...)
+}
+
+func managerStatus(statuses []ManagerStatus, name string) (ManagerStatus, bool) {
+	for _, status := range statuses {
+		if status.Name == name && status.Status == StatusAvailable {
+			return status, true
+		}
+	}
+	return ManagerStatus{}, false
+}
+
+func npmManagedByOtherTool(ctx context.Context, npmExecutable string, statuses []ManagerStatus) bool {
+	if status, ok := managerStatus(statuses, PM_MISE); ok && len(status.Executables) > 0 {
+		if output, err := runOutput(ctx, status.Executables[0], "which", "npm"); err == nil && strings.TrimSpace(string(output)) == npmExecutable {
+			return true
+		}
+	}
+	if status, ok := managerStatus(statuses, PM_BREW); ok && len(status.Executables) > 0 {
+		if output, err := runOutput(ctx, status.Executables[0], "which-formula", npmExecutable); err == nil && strings.TrimSpace(string(output)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func firstVersion(output string) string {
 	for _, field := range strings.Fields(output) {
 		candidate := strings.TrimPrefix(field, "v")

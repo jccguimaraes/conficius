@@ -382,7 +382,9 @@ func refresh(data *model, app *glyph.App) {
 		if includesGlobal(scopeSelection) {
 			managerPackages, managerErr := packagemanager.ManagerPackages(ctx, inventory.Managers)
 			inventory.Packages = append(inventory.Packages, managerPackages...)
-			inventoryErr = errors.Join(inventoryErr, managerErr)
+			managerUpdates, managerUpdateErr := packagemanager.ManagerUpdates(ctx, inventory.Managers, managerPackages)
+			packagemanager.MergePackages(result.Packages, managerUpdates)
+			inventoryErr = errors.Join(inventoryErr, managerErr, managerUpdateErr)
 		}
 		packages := packagemanager.Records(result.Packages)
 		installed := make([]config.InstalledVersion, len(inventory.Packages))

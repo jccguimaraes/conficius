@@ -134,7 +134,7 @@ func TestPackagesOutdatedMissingManagerWarnsAndExitZero(t *testing.T) {
 func TestPackagesVulnerabilitiesQueriesExactInstalledNPMVersion(t *testing.T) {
 	dir := t.TempDir()
 	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
-printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
+if [ "$1" = "--version" ]; then printf '11.19.1\n'; elif [ "$1" = "view" ]; then printf '11.19.1\n'; else printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'; fi
 `)
 	t.Setenv("PATH", dir)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,10 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request.Package.Ecosystem != "npm" || request.Package.Name != "left-pad" || request.Version != "1.3.0" {
+		if request.Package.Ecosystem != "npm" {
+			t.Errorf("request = %#v", request)
+		}
+		if request.Package.Name == "left-pad" && request.Version != "1.3.0" {
 			t.Errorf("request = %#v", request)
 		}
 		if _, err := fmt.Fprint(w, `{"vulns":[{"id":"GHSA-test","summary":"test advisory"}]}`); err != nil {
@@ -171,12 +174,22 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 func TestPackagesVulnerabilitiesDeduplicatesAcrossScopes(t *testing.T) {
 	dir := t.TempDir()
 	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
-printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
+if [ "$1" = "--version" ]; then printf '11.19.1\n'; elif [ "$1" = "view" ]; then printf '11.19.1\n'; else printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'; fi
 `)
 	t.Setenv("PATH", dir)
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests++
+		var request struct {
+			Package struct {
+				Name string `json:"name"`
+			} `json:"package"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if request.Package.Name == "left-pad" {
+			requests++
+		}
 		_, _ = fmt.Fprint(w, `{"vulns":[]}`)
 	}))
 	defer server.Close()

@@ -54,7 +54,7 @@ func TestScanUsesManagerLatestAsUpgradeTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(findings) != 1 || findings[0].Advisory != "CVE-2026-1" || findings[0].UpgradeTo != "22.22.4" {
+	if len(findings) != 1 || findings[0].Advisory != "CVE-2026-1" || findings[0].UpgradeTo != "22.22.4" || findings[0].UpgradeNote == "" {
 		t.Fatalf("findings = %#v", findings)
 	}
 }

@@ -280,6 +280,12 @@ func Filter(packages Packages, keep func(Package) bool) Packages {
 	return filtered
 }
 
+func MergePackages(target, source Packages) {
+	for name, tools := range source {
+		target[name] = append(target[name], tools...)
+	}
+}
+
 func Records(packages Packages) []Package {
 	records := make([]Package, 0)
 	for _, tools := range packages {
@@ -431,6 +437,9 @@ func updateArgs(manager string, packages []Package) []string {
 		}
 		return args
 	case PM_NPM:
+		if len(packages) == 1 && packages[0].Name == PM_NPM && packages[0].Scope != "project" {
+			return []string{"install", NPMFlagGlobal, PM_NPM + "@" + packages[0].Latest}
+		}
 		args := []string{NPMCommandUpdate}
 		if len(packages) > 0 && packages[0].Scope != "project" {
 			args = append(args, NPMFlagGlobal)

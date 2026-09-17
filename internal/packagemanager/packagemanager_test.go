@@ -174,6 +174,17 @@ printf '{"typescript":{"current":"5.0","wanted":"5.1","latest":"5.1"}}'
 	}
 }
 
+func TestPlanUpdatesInstallsNPMManagerVersionGlobally(t *testing.T) {
+	result := QueryResult{Packages: Packages{"npm": []Tool{NewNPMTool("npm", NPMOutdatedTool{Current: "11.19.1", Latest: "11.20.0", Wanted: "11.20.0"}, "/bin/npm")}}}
+	plans, err := PlanUpdates(result, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || !reflect.DeepEqual(plans[0].Args, []string{"install", "--global", "npm@11.20.0"}) {
+		t.Fatalf("plans = %#v", plans)
+	}
+}
+
 func TestApplyUpdatesPreservesArgsAndContinuesFailures(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" {
 		line := strings.Join(os.Args[1:], "|") + "\n"

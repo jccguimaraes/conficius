@@ -157,6 +157,12 @@ func (cli *Cli) packages() *urfave.Command {
 						euvdMappings = project.Vulnerabilities.EUVD
 					}
 					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					var managerPackages []packagemanager.InstalledPackage
+					if includesGlobalScope(scopes) {
+						var managerErr error
+						managerPackages, managerErr = packagemanager.ManagerPackages(ctx, inventory.Managers)
+						inventoryErr = errors.Join(inventoryErr, managerErr)
+					}
 					if resolved.Profile.SecurityScope == "selected" {
 						versions := make([]config.InstalledVersion, len(inventory.Packages))
 						for i, pkg := range inventory.Packages {
@@ -175,7 +181,11 @@ func (cli *Cli) packages() *urfave.Command {
 						}
 						inventory.Packages = filtered
 					}
+					inventory.Packages = append(inventory.Packages, managerPackages...)
 					outdated, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					managerUpdates, managerUpdateErr := packagemanager.ManagerUpdates(ctx, inventory.Managers, managerPackages)
+					packagemanager.MergePackages(outdated.Packages, managerUpdates)
+					outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 					report, scanErr := security.Scan(ctx, inventory.Packages, security.Options{
 						Outdated: packagemanager.Records(outdated.Packages), OSVMappings: osvMappings, EUVDMappings: euvdMappings,
 						OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
@@ -351,6 +361,15 @@ func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.Resol
 	}
 	scopes, err := config.ResolveScopes(project, resolved, command.Bool("global"), command.StringSlice("project"), command.StringSlice("profile-project"))
 	return scopes, resolved, err
+}
+
+func includesGlobalScope(scopes []config.Scope) bool {
+	for _, scope := range scopes {
+		if scope.Kind == "global" {
+			return true
+		}
+	}
+	return false
 }
 
 func managerScopes(scopes []config.Scope) []packagemanager.Scope {
