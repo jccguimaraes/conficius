@@ -27,6 +27,8 @@ type Evidence struct {
 	UpgradeTo    string   `json:"upgrade_to,omitempty"`
 	AffectedRule string   `json:"affected_rule,omitempty"`
 	Reason       string   `json:"reason,omitempty"`
+	Description  string   `json:"description,omitempty"`
+	Reference    string   `json:"reference,omitempty"`
 	Score        float64  `json:"score,omitempty"`
 }
 

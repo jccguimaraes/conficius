@@ -13,7 +13,7 @@ import (
 type osvStub struct{}
 
 func (osvStub) Query(context.Context, vulnerability.Package) ([]vulnerability.Vulnerability, error) {
-	return []vulnerability.Vulnerability{{ID: "GHSA-1", Aliases: []string{"CVE-1"}, Severity: []vulnerability.Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}}}}, nil
+	return []vulnerability.Vulnerability{{ID: "GHSA-1", Aliases: []string{"CVE-1"}, Summary: "OSV summary", References: []vulnerability.Reference{{URL: "https://osv.dev/GHSA-1"}}, Severity: []vulnerability.Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}}}}, nil
 }
 
 type euvdStub struct{}
@@ -33,6 +33,11 @@ func TestScanCombinesSourcesWithoutDeduplicating(t *testing.T) {
 	}
 	if report.Evidence[0].Source == report.Evidence[1].Source {
 		t.Fatalf("sources = %#v", report.Evidence)
+	}
+	for _, item := range report.Evidence {
+		if item.Source == SourceOSV && (item.Description != "OSV summary" || item.Reference != "https://osv.dev/GHSA-1") {
+			t.Fatalf("OSV evidence = %#v", item)
+		}
 	}
 }
 

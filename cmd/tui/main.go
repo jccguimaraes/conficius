@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -27,14 +28,8 @@ type outdatedRow struct {
 }
 
 type vulnerabilityRow struct {
-	Source    string
-	Manager   string
-	Package   string
-	Current   string
-	Status    string
-	Advisory  string
-	UpgradeTo string
-	Score     float64
+	security.Evidence
+	Current string
 }
 
 type model struct {
@@ -55,6 +50,7 @@ type model struct {
 	runInteractive bool
 	drift          []config.PackageState
 	findings       []vulnerabilityRow
+	detail         vulnerabilityRow
 	mappings       []config.VulnerabilityMapping
 	euvdMaps       []config.EUVDMapping
 	status         string
@@ -155,12 +151,21 @@ func runSession(data *model, startView string) error {
 		Handle("o", func() { app.Go("results") }).
 		Handle("d", func() { app.Go("drift") }).
 		Handle("r", func() { refresh(data, app) }).
+		Handle("<Enter>", func() {
+			if selected := vulnerabilityList.Selected(); selected != nil {
+				data.detail = *selected
+				app.Go("vulnerability-detail")
+			}
+		}).
 		Handle("<down>", vulnerabilityList.Down).
 		Handle("<up>", vulnerabilityList.Up).
 		Handle("j", vulnerabilityList.Down).
 		Handle("k", vulnerabilityList.Up).
 		Handle("<C-d>", vulnerabilityList.HalfPageDown).
 		Handle("<C-u>", vulnerabilityList.HalfPageUp)
+	app.View("vulnerability-detail", vulnerabilityDetailView(data)).
+		Handle("q", app.Stop).
+		Handle("<Esc>", func() { app.Go("vulnerabilities") })
 	refresh(data, app)
 	defer func() {
 		if data.cancel != nil {
@@ -285,8 +290,26 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		header, loadingContent(&data.loading, list),
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  Enter details  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
 	), list
+}
+
+func vulnerabilityDetailView(data *model) glyph.Component {
+	row := &data.detail
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerability detail")(
+		glyph.Textf("Source: ", &row.Source),
+		glyph.Textf("CVE/advisory: ", &row.Advisory),
+		glyph.Textf("Source ID: ", &row.SourceID),
+		glyph.HBox(glyph.Text("CVSS: "), glyph.Text(&row.Score)),
+		glyph.Textf("Affected rule: ", &row.AffectedRule),
+		glyph.Text("Aliases: "+strings.Join(row.Aliases, ", ")),
+		glyph.Textf("Upgrade target: ", &row.UpgradeTo),
+		glyph.Textf("Description: ", &row.Description),
+		glyph.Textf("Reference: ", &row.Reference),
+		glyph.Textf("Reason/error: ", &row.Reason),
+		glyph.Space().Grow(1),
+		glyph.Text("Esc back  q quit").Dim(),
+	)
 }
 
 func refresh(data *model, app *glyph.App) {
@@ -431,7 +454,7 @@ func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
 		if item.Status == security.StatusClean {
 			continue
 		}
-		rows = append(rows, vulnerabilityRow{Source: item.Source, Manager: item.Manager, Package: item.Package, Current: item.Version, Status: item.Status, Advisory: item.Advisory, UpgradeTo: item.UpgradeTo, Score: item.Score})
+		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version})
 	}
 	return rows
 }

@@ -54,6 +54,18 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 	assertRenderedContains(t, component, "4.17.21")
 }
 
+func TestVulnerabilityDetailViewRendersEvidence(t *testing.T) {
+	data := &model{detail: vulnerabilityRow{Evidence: security.Evidence{
+		Source: security.SourceEUVD, Advisory: "CVE-2026-1", SourceID: "EUVD-1", Score: 8.1,
+		AffectedRule: "before 22.22.4", Aliases: []string{"CVE-2026-1", "GHSA-1"}, UpgradeTo: "22.22.4",
+		Description: "test description", Reference: "https://example.test/advisory",
+	}}}
+	component := vulnerabilityDetailView(data)
+	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", "before 22.22.4", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory"} {
+		assertRenderedContains(t, component, want)
+	}
+}
+
 func TestEvidenceRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	rows := vulnerabilityRows([]security.Evidence{{Source: security.SourceEUVD, Manager: "mise", Package: "node", Version: "22.10.0", Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}})
 	if len(rows) != 1 || rows[0].Current != "22.10.0" || rows[0].UpgradeTo != "22.22.4" {
@@ -111,7 +123,7 @@ func assertRenderedContains(t *testing.T, component glyph.Component, want string
 func TestVulnerabilityViewKeepsFooterAtBottomWithManyRows(t *testing.T) {
 	data := &model{status: "summary"}
 	for i := range 40 {
-		data.findings = append(data.findings, vulnerabilityRow{Source: "EUVD", Package: fmt.Sprintf("tool-%02d", i), Status: "vulnerable"})
+		data.findings = append(data.findings, vulnerabilityRow{Evidence: security.Evidence{Source: "EUVD", Package: fmt.Sprintf("tool-%02d", i), Status: "vulnerable"}})
 	}
 	component, list := vulnerabilityView(data)
 	buffer := glyph.NewBuffer(120, 12)

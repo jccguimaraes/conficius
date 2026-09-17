@@ -71,8 +71,16 @@ func osvEvidence(findings []vulnerability.Finding) []Evidence {
 		for i, advisory := range finding.Advisories {
 			item := Evidence{Source: SourceOSV, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Path: finding.Path, Status: normalizeStatus(finding.Status), Advisory: advisory.ID, SourceID: advisory.ID, UpgradeTo: advisory.FixedVersion, Score: advisory.Score}
 			if i < len(finding.Vulnerabilities) {
-				item.SourceID = finding.Vulnerabilities[i].ID
-				item.Aliases = append([]string(nil), finding.Vulnerabilities[i].Aliases...)
+				vulnerability := finding.Vulnerabilities[i]
+				item.SourceID = vulnerability.ID
+				item.Aliases = append([]string(nil), vulnerability.Aliases...)
+				item.Description = vulnerability.Summary
+				if item.Description == "" {
+					item.Description = vulnerability.Details
+				}
+				if len(vulnerability.References) > 0 {
+					item.Reference = vulnerability.References[0].URL
+				}
 			}
 			evidence = append(evidence, item)
 		}
@@ -83,7 +91,7 @@ func osvEvidence(findings []vulnerability.Finding) []Evidence {
 func euvdEvidence(findings []euvd.Finding) []Evidence {
 	evidence := make([]Evidence, len(findings))
 	for i, finding := range findings {
-		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, AffectedRule: finding.Rule, Reason: finding.Reason, Score: finding.Score}
+		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, AffectedRule: finding.Rule, Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
 	}
 	return evidence
 }

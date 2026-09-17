@@ -18,18 +18,19 @@ const (
 )
 
 type Finding struct {
-	Manager   string
-	Package   string
-	Version   string
-	Scope     string
-	Advisory  string
-	UpgradeTo string
-	Score     float64
-	Status    string
-	SourceID  string
-	Aliases   []string
-	Rule      string
-	Reason    string
+	Manager     string
+	Package     string
+	Version     string
+	Scope       string
+	Advisory    string
+	UpgradeTo   string
+	Score       float64
+	Status      string
+	SourceID    string
+	Aliases     []string
+	Rule        string
+	Reason      string
+	Description string
 }
 
 type Queryer interface {
@@ -76,7 +77,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 				findings = append(findings, Finding{
 					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
 					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
-					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule,
+					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule, Description: item.Description,
 				})
 				packageFindings++
 			}
