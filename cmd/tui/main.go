@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
@@ -112,6 +113,7 @@ func run() error {
 func runSession(data *model, startView string) error {
 	app := glyph.NewApp()
 	app.HideCursor()
+	app.JumpKey("f")
 	scopeComponent, scopeList := scopeView(data, app)
 	app.View("scopes", scopeComponent).
 		Handle("q", app.Stop).
@@ -170,7 +172,7 @@ func runSession(data *model, startView string) error {
 		Handle("k", vulnerabilityList.Up).
 		Handle("<C-d>", vulnerabilityList.HalfPageDown).
 		Handle("<C-u>", vulnerabilityList.HalfPageUp)
-	app.View("vulnerability-detail", vulnerabilityDetailView(data)).
+	app.View("vulnerability-detail", vulnerabilityDetailView(data, app)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
 	refresh(data, app)
@@ -301,23 +303,39 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 	), list
 }
 
-func vulnerabilityDetailView(data *model) glyph.Component {
+func vulnerabilityDetailView(data *model, app *glyph.App) glyph.Component {
 	row := &data.detail
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerability detail")(
 		glyph.Textf("Source: ", &row.Source),
-		glyph.Textf("CVE/advisory: ", &row.Advisory),
+		glyph.HBox(glyph.Text("CVE/advisory: "), glyph.Jump(glyph.Text(&row.Advisory).FG(glyph.Cyan).Underline(), func() {
+			if err := openURL(row.CVELink); err != nil {
+				data.status = err.Error()
+				app.RequestRender()
+			}
+		})),
 		glyph.Textf("Source ID: ", &row.SourceID),
-		glyph.Textf("CVE link: ", &row.CVELink),
 		glyph.HBox(glyph.Text("CVSS: "), glyph.Text(&row.Score)),
 		glyph.Textf("Affected rule: ", &row.AffectedRule),
 		glyph.Text("Aliases: "+strings.Join(row.Aliases, ", ")),
 		glyph.Textf("Upgrade target: ", &row.UpgradeTo),
+		glyph.Textf("Upgrade note: ", &row.UpgradeNote),
 		glyph.Textf("Description: ", &row.Description),
 		glyph.Textf("Reference: ", &row.Reference),
 		glyph.Textf("Reason/error: ", &row.Reason),
+		glyph.Text(&data.status).FG(glyph.Red),
 		glyph.Space().Grow(1),
-		glyph.Text("Esc back  q quit").Dim(),
+		glyph.Text("f then link label open CVE  Esc back  q quit").Dim(),
 	)
+}
+
+func openURL(rawURL string) error {
+	if !strings.HasPrefix(rawURL, "https://www.cve.org/CVERecord?id=CVE-") {
+		return errors.New("no CVE link available")
+	}
+	if err := exec.Command("open", rawURL).Start(); err != nil {
+		return fmt.Errorf("open CVE link: %w", err)
+	}
+	return nil
 }
 
 func refresh(data *model, app *glyph.App) {

@@ -27,6 +27,26 @@ func TestScanEmitsUnmappedAndClean(t *testing.T) {
 	}
 }
 
+func TestEUVDUpgradeNoteDistinguishesAffectedAndUnconfirmedVersions(t *testing.T) {
+	identity := Identity{Product: "Node", Vendor: "nodejs"}
+	item := Vulnerability{Products: []ProductEntry{productEntry("Node", "nodejs", "before 23.0.0")}}
+	if got := euvdUpgradeNote(item, identity, "22.22.4"); got != "Latest available version is still affected; it does not fix this CVE." {
+		t.Fatalf("affected note = %q", got)
+	}
+	if got := euvdUpgradeNote(item, identity, "23.0.0"); got != "Latest available version is not listed as affected by EUVD." {
+		t.Fatalf("unaffected note = %q", got)
+	}
+	if got := euvdUpgradeNote(item, identity, ""); got != "No newer version found; no confirmed fix available." {
+		t.Fatalf("missing note = %q", got)
+	}
+}
+
+func productEntry(name, vendor, version string) ProductEntry {
+	var entry ProductEntry
+	entry.Product.Name, entry.Product.Vendor.Name, entry.ProductVersion = name, vendor, version
+	return entry
+}
+
 func TestScanUsesManagerLatestAsUpgradeTarget(t *testing.T) {
 	installed := []packagemanager.InstalledPackage{{Manager: "mise", Name: "node", Version: "22.10.0", Scope: "project", Path: "/repo"}}
 	outdated := []packagemanager.Package{{Manager: "mise", Name: "node", Current: "22.10.0", Latest: "22.22.4", Scope: "project", Path: "/repo"}}

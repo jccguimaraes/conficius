@@ -24,6 +24,7 @@ type Finding struct {
 	Scope       string
 	Advisory    string
 	UpgradeTo   string
+	UpgradeNote string
 	Score       float64
 	Status      string
 	SourceID    string
@@ -74,9 +75,10 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 				if match == UnknownRule {
 					status = StatusUnknownVersionRule
 				}
+				upgradeTo := latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]
 				findings = append(findings, Finding{
 					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
-					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
+					Advisory: item.AdvisoryID(), UpgradeTo: upgradeTo, UpgradeNote: euvdUpgradeNote(item, identity, upgradeTo), Score: item.BaseScore,
 					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule, Description: item.Description,
 				})
 				packageFindings++
@@ -87,6 +89,21 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 		}
 	}
 	return findings, errors.Join(scanErrors...)
+}
+
+func euvdUpgradeNote(item Vulnerability, identity Identity, upgradeTo string) string {
+	if upgradeTo == "" {
+		return "No newer version found; no confirmed fix available."
+	}
+	match, _ := item.Match(identity, upgradeTo)
+	switch match {
+	case Affected:
+		return "Latest available version is still affected; it does not fix this CVE."
+	case UnknownRule:
+		return "Latest available version is not confirmed as a fix."
+	default:
+		return "Latest available version is not listed as affected by EUVD."
+	}
 }
 
 func key(scope, path, manager, name string) string {

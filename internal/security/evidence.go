@@ -25,6 +25,7 @@ type Evidence struct {
 	SourceID     string   `json:"source_id,omitempty"`
 	Aliases      []string `json:"aliases,omitempty"`
 	UpgradeTo    string   `json:"upgrade_to,omitempty"`
+	UpgradeNote  string   `json:"upgrade_note,omitempty"`
 	AffectedRule string   `json:"affected_rule,omitempty"`
 	Reason       string   `json:"reason,omitempty"`
 	Description  string   `json:"description,omitempty"`
