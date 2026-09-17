@@ -461,7 +461,7 @@ func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
 			continue
 		}
 		for _, advisory := range finding.Advisories {
-			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: advisory.ID, UpgradeTo: advisory.FixedVersion})
+			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: advisory.ID, UpgradeTo: advisory.FixedVersion, Score: advisory.Score})
 		}
 		if len(finding.Advisories) == 0 {
 			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status})
