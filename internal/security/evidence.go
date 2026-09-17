@@ -34,6 +34,9 @@ func Sort(items []Evidence) {
 	rank := map[string]int{StatusVulnerable: 0, StatusUnknownVersionRule: 1, StatusError: 2, StatusUnmapped: 3, StatusClean: 4}
 	sort.SliceStable(items, func(i, j int) bool {
 		a, b := items[i], items[j]
+		if a.Score != b.Score {
+			return a.Score > b.Score
+		}
 		if rank[a.Status] != rank[b.Status] {
 			return rank[a.Status] < rank[b.Status]
 		}

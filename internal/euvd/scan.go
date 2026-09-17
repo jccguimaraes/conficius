@@ -7,7 +7,14 @@ import (
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
-	"github.com/jccguimaraes/conficius/internal/security"
+)
+
+const (
+	StatusClean              = "clean"
+	StatusVulnerable         = "vulnerable"
+	StatusUnknownVersionRule = "unknown-version-rule"
+	StatusError              = "error"
+	StatusUnmapped           = "unmapped"
 )
 
 type Finding struct {
@@ -48,7 +55,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			}
 		}
 		if len(identities) == 0 {
-			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusUnmapped, Reason: "no explicit EUVD mapping"})
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusUnmapped, Reason: "no explicit EUVD mapping"})
 			continue
 		}
 		packageFindings := 0
@@ -56,15 +63,15 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			items, err := client.Query(ctx, identity, pkg.Version)
 			if err != nil {
 				scanErrors = append(scanErrors, fmt.Errorf("%s:%s@%s: %w", pkg.Manager, pkg.Name, pkg.Version, err))
-				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusError, Reason: "request failed"})
+				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusError, Reason: "request failed"})
 				packageFindings++
 				continue
 			}
 			for _, item := range items {
 				match, rule := item.Match(identity, pkg.Version)
-				status := security.StatusVulnerable
+				status := StatusVulnerable
 				if match == UnknownRule {
-					status = security.StatusUnknownVersionRule
+					status = StatusUnknownVersionRule
 				}
 				findings = append(findings, Finding{
 					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
@@ -75,7 +82,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			}
 		}
 		if packageFindings == 0 {
-			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: security.StatusClean})
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusClean})
 		}
 	}
 	return findings, errors.Join(scanErrors...)

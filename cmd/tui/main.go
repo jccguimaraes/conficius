@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sort"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -371,18 +370,11 @@ func refresh(data *model, app *glyph.App) {
 				data.status = err.Error()
 			}
 		})
-		type osvResult struct{ findings []vulnerability.Finding }
-		type euvdResult struct{ findings []euvd.Finding }
-		osvCh, euvdCh := make(chan osvResult, 1), make(chan euvdResult, 1)
-		go func() {
-			findings, _ := vulnerability.Scan(ctx, scanPackages, mappings, vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")))
-			osvCh <- osvResult{findings}
-		}()
-		go func() {
-			findings, _ := euvd.Scan(ctx, scanPackages, packages, euvdMaps, euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")))
-			euvdCh <- euvdResult{findings}
-		}()
-		osvData, euvdData := <-osvCh, <-euvdCh
+		report, _ := security.Scan(ctx, scanPackages, security.Options{
+			Outdated: packages, OSVMappings: mappings, EUVDMappings: euvdMaps,
+			OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
+			EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
+		})
 		if ctx.Err() != nil {
 			return
 		}
@@ -390,9 +382,8 @@ func refresh(data *model, app *glyph.App) {
 			if !isCurrentGeneration(data.generation, generation) {
 				return
 			}
-			data.findings = append(vulnerabilityRows(osvData.findings), euvdRows(euvdData.findings)...)
-			sortVulnerabilityRows(data.findings)
-			data.status = vulnerabilitySummary(len(packages), len(drift), data.findings)
+			data.findings = vulnerabilityRows(report.Evidence)
+			data.status = vulnerabilitySummary(len(packages), len(drift), report.Summary)
 		})
 	}()
 }
@@ -429,53 +420,18 @@ func driftStatusColor(status string) glyph.Color {
 	}
 }
 
-func euvdRows(findings []euvd.Finding) []vulnerabilityRow {
-	rows := make([]vulnerabilityRow, 0, len(findings))
-	for _, finding := range findings {
-		if finding.Status == security.StatusClean {
-			continue
-		}
-		rows = append(rows, vulnerabilityRow{Source: security.SourceEUVD, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: finding.Advisory, UpgradeTo: finding.UpgradeTo, Score: finding.Score})
-	}
-	return rows
-}
-
-func vulnerabilitySummary(outdated, drift int, rows []vulnerabilityRow) string {
-	counts := map[string]int{}
-	for _, row := range rows {
-		counts[row.Status]++
-	}
+func vulnerabilitySummary(outdated, drift int, summary security.Summary) string {
 	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unmapped, %d unknown, %d errors", outdated, drift,
-		counts[security.StatusVulnerable], counts[security.StatusUnmapped], counts[security.StatusUnknownVersionRule]+counts[vulnerability.StatusUnknown], counts[security.StatusError])
+		summary.Vulnerable, summary.Unmapped, summary.Unknown, summary.Errors)
 }
 
-func sortVulnerabilityRows(rows []vulnerabilityRow) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Score != rows[j].Score {
-			return rows[i].Score > rows[j].Score
-		}
-		if rows[i].Package != rows[j].Package {
-			return rows[i].Package < rows[j].Package
-		}
-		if rows[i].Advisory != rows[j].Advisory {
-			return rows[i].Advisory < rows[j].Advisory
-		}
-		return rows[i].Source < rows[j].Source
-	})
-}
-
-func vulnerabilityRows(findings []vulnerability.Finding) []vulnerabilityRow {
-	rows := make([]vulnerabilityRow, 0, len(findings))
-	for _, finding := range findings {
-		if finding.Status == vulnerability.StatusClean {
+func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
+	rows := make([]vulnerabilityRow, 0, len(evidence))
+	for _, item := range evidence {
+		if item.Status == security.StatusClean {
 			continue
 		}
-		for _, advisory := range finding.Advisories {
-			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status, Advisory: advisory.ID, UpgradeTo: advisory.FixedVersion, Score: advisory.Score})
-		}
-		if len(finding.Advisories) == 0 {
-			rows = append(rows, vulnerabilityRow{Source: security.SourceOSV, Manager: finding.Manager, Package: finding.Package, Current: finding.Version, Status: finding.Status})
-		}
+		rows = append(rows, vulnerabilityRow{Source: item.Source, Manager: item.Manager, Package: item.Package, Current: item.Version, Status: item.Status, Advisory: item.Advisory, UpgradeTo: item.UpgradeTo, Score: item.Score})
 	}
 	return rows
 }

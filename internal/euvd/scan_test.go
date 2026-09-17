@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
-	"github.com/jccguimaraes/conficius/internal/security"
 )
 
 type stub struct{}
@@ -23,7 +22,7 @@ func TestScanEmitsUnmappedAndClean(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(findings) != 2 || findings[0].Status != security.StatusUnmapped || findings[1].Status != security.StatusClean {
+	if len(findings) != 2 || findings[0].Status != StatusUnmapped || findings[1].Status != StatusClean {
 		t.Fatalf("findings = %#v", findings)
 	}
 }

@@ -1,0 +1,59 @@
+package security
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/jccguimaraes/conficius/internal/euvd"
+	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/vulnerability"
+)
+
+type osvStub struct{}
+
+func (osvStub) Query(context.Context, vulnerability.Package) ([]vulnerability.Vulnerability, error) {
+	return []vulnerability.Vulnerability{{ID: "GHSA-1", Aliases: []string{"CVE-1"}, Severity: []vulnerability.Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}}}}, nil
+}
+
+type euvdStub struct{}
+
+func (euvdStub) Query(context.Context, euvd.Identity, string) ([]euvd.Vulnerability, error) {
+	return []euvd.Vulnerability{{ID: "EUVD-1", Aliases: "CVE-1\n", BaseScore: 8.1, Products: []euvd.ProductEntry{product("Node", "nodejs", "22.10.0")}}}, nil
+}
+
+func TestScanCombinesSourcesWithoutDeduplicating(t *testing.T) {
+	inventory := []packagemanager.InstalledPackage{{Manager: "npm", Name: "node", Version: "22.10.0"}}
+	report, err := Scan(context.Background(), inventory, Options{OSVClient: osvStub{}, EUVDClient: euvdStub{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Evidence) != 2 || report.Summary.Vulnerable != 2 {
+		t.Fatalf("report = %#v", report)
+	}
+	if report.Evidence[0].Source == report.Evidence[1].Source {
+		t.Fatalf("sources = %#v", report.Evidence)
+	}
+}
+
+type failingOSVStub struct{}
+
+func (failingOSVStub) Query(context.Context, vulnerability.Package) ([]vulnerability.Vulnerability, error) {
+	return nil, errors.New("offline")
+}
+
+func TestScanReturnsEvidenceAndSourceError(t *testing.T) {
+	inventory := []packagemanager.InstalledPackage{{Manager: "npm", Name: "node", Version: "22.10.0"}}
+	report, err := Scan(context.Background(), inventory, Options{OSVClient: failingOSVStub{}, EUVDClient: euvdStub{}})
+	if err == nil || report.Summary.Errors != 1 || report.Summary.Vulnerable != 1 {
+		t.Fatalf("report = %#v, err = %v", report, err)
+	}
+}
+
+func product(name, vendor, version string) euvd.ProductEntry {
+	var entry euvd.ProductEntry
+	entry.Product.Name = name
+	entry.Product.Vendor.Name = vendor
+	entry.ProductVersion = version
+	return entry
+}

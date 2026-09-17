@@ -8,10 +8,8 @@ import (
 	glyph "github.com/kungfusheep/glyph"
 
 	"github.com/jccguimaraes/conficius/internal/config"
-	"github.com/jccguimaraes/conficius/internal/euvd"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
-	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
 func TestResultViewRendersPackageIdentity(t *testing.T) {
@@ -45,9 +43,9 @@ func TestDriftViewRendersPackageIdentity(t *testing.T) {
 }
 
 func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
-	data := &model{findings: vulnerabilityRows([]vulnerability.Finding{{
-		Manager: "npm", Package: "lodash", Version: "4.17.20", Status: vulnerability.StatusVulnerable,
-		Advisories: []vulnerability.Advisory{{ID: "GHSA-29mw-wpgm-hmr9", FixedVersion: "4.17.21"}},
+	data := &model{findings: vulnerabilityRows([]security.Evidence{{
+		Source: security.SourceOSV, Manager: "npm", Package: "lodash", Version: "4.17.20", Status: security.StatusVulnerable,
+		Advisory: "GHSA-29mw-wpgm-hmr9", UpgradeTo: "4.17.21",
 	}})}
 	component, _ := vulnerabilityView(data)
 	assertRenderedContains(t, component, "Advisory")
@@ -56,16 +54,15 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 	assertRenderedContains(t, component, "4.17.21")
 }
 
-func TestEUVDRowsShowCurrentAndUpgradeVersion(t *testing.T) {
-	rows := euvdRows([]euvd.Finding{{Manager: "mise", Package: "node", Version: "22.10.0", Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}})
+func TestEvidenceRowsShowCurrentAndUpgradeVersion(t *testing.T) {
+	rows := vulnerabilityRows([]security.Evidence{{Source: security.SourceEUVD, Manager: "mise", Package: "node", Version: "22.10.0", Advisory: "CVE-2026-1", UpgradeTo: "22.22.4"}})
 	if len(rows) != 1 || rows[0].Current != "22.10.0" || rows[0].UpgradeTo != "22.22.4" {
 		t.Fatalf("rows = %#v", rows)
 	}
 }
 
 func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
-	rows := []vulnerabilityRow{{Status: security.StatusVulnerable}, {Status: security.StatusUnmapped}, {Status: security.StatusUnknownVersionRule}, {Status: vulnerability.StatusUnknown}, {Status: security.StatusError}}
-	got := vulnerabilitySummary(3, 2, rows)
+	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1})
 	want := "3 outdated, 2 drift; 1 vulnerable, 1 unmapped, 2 unknown, 1 errors"
 	if got != want {
 		t.Fatalf("summary = %q", got)
@@ -83,20 +80,12 @@ func TestSeverityColorUsesCVSSBands(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityRowsSortHighestScoreFirst(t *testing.T) {
-	rows := []vulnerabilityRow{{Package: "medium", Score: 5.0}, {Package: "critical", Score: 9.8}, {Package: "high", Score: 8.1}}
-	sortVulnerabilityRows(rows)
-	if rows[0].Package != "critical" || rows[1].Package != "high" || rows[2].Package != "medium" {
-		t.Fatalf("rows = %#v", rows)
-	}
-}
-
 func TestVulnerabilityRowsHideOnlyCleanPackages(t *testing.T) {
-	rows := vulnerabilityRows([]vulnerability.Finding{
-		{Package: "clean", Status: vulnerability.StatusClean},
-		{Package: "unknown", Status: vulnerability.StatusUnknown},
-		{Package: "affected", Status: vulnerability.StatusVulnerable},
-		{Package: "failed", Status: vulnerability.StatusError},
+	rows := vulnerabilityRows([]security.Evidence{
+		{Package: "clean", Status: security.StatusClean},
+		{Package: "unknown", Status: security.StatusUnknownVersionRule},
+		{Package: "affected", Status: security.StatusVulnerable},
+		{Package: "failed", Status: security.StatusError},
 	})
 	if len(rows) != 3 || rows[0].Package != "unknown" || rows[1].Package != "affected" || rows[2].Package != "failed" {
 		t.Fatalf("rows = %#v", rows)
