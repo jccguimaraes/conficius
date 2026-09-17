@@ -39,7 +39,7 @@ func TestScopeViewRendersScopeIdentity(t *testing.T) {
 
 func TestDriftViewRendersPackageIdentity(t *testing.T) {
 	data := &model{drift: []config.PackageState{{Manager: "mise", Name: "node", Installed: "20", DesiredVersion: "22", Status: config.DriftBehind}}}
-	component := driftView(data)
+	component, _ := driftView(data)
 	assertRenderedContains(t, component, "Desired")
 	assertRenderedContains(t, component, "node")
 }
@@ -136,13 +136,31 @@ func TestVulnerabilityViewKeepsFooterAtBottomWithManyRows(t *testing.T) {
 	}
 }
 
+func TestDriftViewKeepsFooterAtBottomAndMovesSelection(t *testing.T) {
+	data := &model{status: "summary"}
+	for i := range 40 {
+		data.drift = append(data.drift, config.PackageState{Manager: "mise", Name: fmt.Sprintf("tool-%02d", i), Status: config.DriftBehind})
+	}
+	component, list := driftView(data)
+	buffer := glyph.NewBuffer(120, 12)
+	glyph.Build(component).Execute(buffer, 120, 12)
+	if !strings.Contains(buffer.GetLine(10), "move") {
+		t.Fatalf("footer = %q", buffer.GetLine(10))
+	}
+	list.Down(nil)
+	if list.Index() != 1 {
+		t.Fatalf("selection = %d", list.Index())
+	}
+}
+
 func TestViewsFillAvailableHeight(t *testing.T) {
 	data := &model{}
 	outdated, _ := resultView(data)
+	drift, _ := driftView(data)
 	vulnerabilities, _ := vulnerabilityView(data)
 	for name, component := range map[string]glyph.Component{
 		"outdated":        outdated,
-		"drift":           driftView(data),
+		"drift":           drift,
 		"vulnerabilities": vulnerabilities,
 	} {
 		buffer := glyph.NewBuffer(80, 20)

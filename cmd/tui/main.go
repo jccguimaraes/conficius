@@ -132,12 +132,19 @@ func runSession(data *model, startView string) error {
 		Handle("a", func() { toggleAll(data); app.RequestRender() }).
 		Handle("u", func() { prepareUpgrade(data, app, false) }).
 		Handle("U", func() { prepareUpgrade(data, app, true) })
-	app.View("drift", driftView(data)).
+	driftComponent, driftList := driftView(data)
+	app.View("drift", driftComponent).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
-		Handle("r", func() { refresh(data, app) })
+		Handle("r", func() { refresh(data, app) }).
+		Handle("<down>", driftList.Down).
+		Handle("<up>", driftList.Up).
+		Handle("j", driftList.Down).
+		Handle("k", driftList.Up).
+		Handle("<C-d>", driftList.HalfPageDown).
+		Handle("<C-u>", driftList.HalfPageUp)
 	app.View("confirm", confirmView(data)).
 		Handle("y", func() { applyUpgrades(data, app) }).
 		Handle("n", func() { app.Go("results") }).
@@ -234,18 +241,31 @@ func confirmView(data *model) glyph.Component {
 	)
 }
 
-func driftView(data *model) glyph.Component {
-	table := glyph.AutoTable(&data.drift).
-		Columns("Manager", "Name", "Installed", "DesiredVersion", "Status", "Scope").
-		Headers("Manager", "Tool", "Installed", "Desired", "Status", "Scope").
-		Column("Status", statusStyle()).
-		Column("DesiredVersion", coloredText(glyph.Green)).
-		Scrollable(12).BindVimNav().BindNav("<down>", "<up>")
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Profile drift")(
-		loadingContent(&data.loading, table),
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k scroll  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState]) {
+	list := glyph.List(&data.drift).
+		Render(func(row *config.PackageState) glyph.Component {
+			return glyph.HBox.Gap(2)(
+				glyph.Text(&row.Manager).Width(8),
+				glyph.Text(&row.Name).Width(26),
+				glyph.Text(&row.Installed).Width(16),
+				glyph.Text(&row.DesiredVersion).Width(16).FG(glyph.Green),
+				glyph.Text(&row.Status).Width(14).FG(func() glyph.Color { return driftStatusColor(row.Status) }),
+				glyph.Text(&row.Scope).Width(10),
+			)
+		}).
+		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
+		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
+	header := glyph.HBox.Gap(2)(
+		glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
+		glyph.Text("Installed").Width(16).Bold(), glyph.Text("Desired").Width(16).Bold(),
+		glyph.Text("Status").Width(14).Bold(), glyph.Text("Scope").Width(10).Bold(),
 	)
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Profile drift")(
+		header,
+		loadingContent(&data.loading, list),
+		glyph.Text(&data.status).Dim(),
+		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+	), list
 }
 
 func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerabilityRow]) {
@@ -398,24 +418,14 @@ func severityColor(score float64) glyph.Color {
 	}
 }
 
-func coloredText(color glyph.Color) glyph.ColumnOption {
-	return func(column *glyph.ColumnConfig) {
-		column.Style(func(any) glyph.Style { return glyph.Style{FG: color} })
-	}
-}
-
-func statusStyle() glyph.ColumnOption {
-	return func(column *glyph.ColumnConfig) {
-		column.Style(func(value any) glyph.Style {
-			switch value {
-			case vulnerability.StatusVulnerable, config.DriftBehind, config.DriftMissing:
-				return glyph.Style{FG: glyph.Red}
-			case vulnerability.StatusError, security.StatusUnknownVersionRule, config.DriftUnsupported:
-				return glyph.Style{FG: glyph.Yellow}
-			default:
-				return glyph.Style{FG: glyph.Green}
-			}
-		})
+func driftStatusColor(status string) glyph.Color {
+	switch status {
+	case config.DriftBehind, config.DriftMissing:
+		return glyph.Red
+	case config.DriftUnsupported:
+		return glyph.Yellow
+	default:
+		return glyph.Green
 	}
 }
 
