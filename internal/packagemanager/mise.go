@@ -48,6 +48,24 @@ type MiseOpts struct {
 	Local bool
 }
 
+func (Mise) name() string { return PM_MISE }
+
+func (Mise) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	return installedMise(ctx, executable, scope.Path)
+}
+
+func (p Mise) listOutdatedScope(ctx context.Context, executable string, scope Scope, options ManagerOptions, packages Packages) error {
+	return p.listOutdated(ctx, scope.Path, executable, options, packages)
+}
+
+func (Mise) updateArgs(packages []Package) []string {
+	args := []string{MiseCommandUpgrade, MiseFlagBump, MiseFlagYes}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
+
 const (
 	PM_MISE string = "mise"
 

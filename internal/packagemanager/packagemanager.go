@@ -15,10 +15,14 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 )
 
-var RegisteredPackageManagers = []string{
-	PM_MISE,
-	PM_BREW,
-	PM_NPM,
+var RegisteredPackageManagers = registeredManagerNames()
+
+func registeredManagerNames() []string {
+	names := make([]string, len(adapters))
+	for i, adapter := range adapters {
+		names[i] = adapter.name()
+	}
+	return names
 }
 
 const (
@@ -247,16 +251,11 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 }
 
 func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, options ManagerOptions, packages Packages) error {
-	switch pm {
-	case PM_MISE:
-		return (Mise{}).listOutdated(ctx, scope.Path, executable, options, packages)
-	case PM_BREW:
-		return (Homebrew{}).listOutdated(ctx, scope.Path, executable, options, packages)
-	case PM_NPM:
-		return (NPM{}).listOutdated(ctx, scope, executable, packages)
-	default:
-		return fmt.Errorf("unsupported package manager %q", pm)
+	adapter, err := adapterFor(pm)
+	if err != nil {
+		return err
 	}
+	return adapter.listOutdatedScope(ctx, executable, scope, options, packages)
 }
 
 func toolScope(tool Tool) Scope {
@@ -423,34 +422,11 @@ func hasPackage(records []Package, manager, name string) bool {
 }
 
 func updateArgs(manager string, packages []Package) []string {
-	switch manager {
-	case PM_MISE:
-		args := []string{MiseCommandUpgrade, MiseFlagBump, MiseFlagYes}
-		for _, pkg := range packages {
-			args = append(args, pkg.Name)
-		}
-		return args
-	case PM_BREW:
-		args := []string{HomebrewCommandUpgrade, HomebrewFlagYes, HomebrewFlagGreedy}
-		for _, pkg := range packages {
-			args = append(args, pkg.Name)
-		}
-		return args
-	case PM_NPM:
-		if len(packages) == 1 && packages[0].Name == PM_NPM && packages[0].Scope != "project" {
-			return []string{"install", NPMFlagGlobal, PM_NPM + "@" + packages[0].Latest}
-		}
-		args := []string{NPMCommandUpdate}
-		if len(packages) > 0 && packages[0].Scope != "project" {
-			args = append(args, NPMFlagGlobal)
-		}
-		for _, pkg := range packages {
-			args = append(args, pkg.Name)
-		}
-		return args
-	default:
+	adapter, err := adapterFor(manager)
+	if err != nil {
 		return nil
 	}
+	return adapter.updateArgs(packages)
 }
 
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {

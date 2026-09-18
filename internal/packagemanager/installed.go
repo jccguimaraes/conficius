@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 )
@@ -82,18 +81,11 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 }
 
 func listInstalledScope(ctx context.Context, manager, executable string, scope Scope) ([]InstalledPackage, error) {
-	var packages []InstalledPackage
-	var err error
-	switch manager {
-	case PM_NPM:
-		packages, err = installedNPM(ctx, executable, scope)
-	case PM_MISE:
-		packages, err = installedMise(ctx, executable, scope.Path)
-	case PM_BREW:
-		packages, err = installedHomebrew(ctx, executable)
-	default:
-		return nil, exec.ErrNotFound
+	adapter, err := adapterFor(manager)
+	if err != nil {
+		return nil, err
 	}
+	packages, err := adapter.listInstalled(ctx, executable, scope)
 	for i := range packages {
 		packages[i].Scope = scope.Kind
 		packages[i].Path = scope.Path

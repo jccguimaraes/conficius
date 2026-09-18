@@ -47,6 +47,24 @@ type Homebrew struct {
 
 type HomebrewUpdateOpts struct{}
 
+func (Homebrew) name() string { return PM_BREW }
+
+func (Homebrew) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
+	return installedHomebrew(ctx, executable)
+}
+
+func (p Homebrew) listOutdatedScope(ctx context.Context, executable string, scope Scope, options ManagerOptions, packages Packages) error {
+	return p.listOutdated(ctx, scope.Path, executable, options, packages)
+}
+
+func (Homebrew) updateArgs(packages []Package) []string {
+	args := []string{HomebrewCommandUpgrade, HomebrewFlagYes, HomebrewFlagGreedy}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
+
 const (
 	PM_BREW     string = "brew"
 	PM_HOMEBREW string = "homebrew"

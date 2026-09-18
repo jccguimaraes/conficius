@@ -43,6 +43,30 @@ type NPM struct {
 
 type NPMOptsUpdate any
 
+func (NPM) name() string { return PM_NPM }
+
+func (NPM) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	return installedNPM(ctx, executable, scope)
+}
+
+func (p NPM) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
+	return p.listOutdated(ctx, scope, executable, packages)
+}
+
+func (NPM) updateArgs(packages []Package) []string {
+	if len(packages) == 1 && packages[0].Name == PM_NPM && packages[0].Scope != "project" {
+		return []string{"install", NPMFlagGlobal, PM_NPM + "@" + packages[0].Latest}
+	}
+	args := []string{NPMCommandUpdate}
+	if len(packages) > 0 && packages[0].Scope != "project" {
+		args = append(args, NPMFlagGlobal)
+	}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
+
 const (
 	PM_NPM string = "npm"
 
