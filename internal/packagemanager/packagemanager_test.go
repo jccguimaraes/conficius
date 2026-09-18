@@ -216,6 +216,26 @@ func TestPlanUpdatesInstallsNPMManagerVersionGlobally(t *testing.T) {
 	}
 }
 
+func TestManagerEnvironmentOverridesLocaleAndColorWithoutDroppingInheritedValues(t *testing.T) {
+	t.Setenv("NO_COLOR", "0")
+	t.Setenv("CLICOLOR", "1")
+	t.Setenv("LC_ALL", "en_US.UTF-8")
+	t.Setenv("CONFICIUS_TEST_INHERITED", "kept")
+
+	environment := managerEnvironment("")
+	values := make(map[string]string, len(environment))
+	for _, entry := range environment {
+		name, value, _ := strings.Cut(entry, "=")
+		values[name] = value
+	}
+	if values["NO_COLOR"] != "1" || values["CLICOLOR"] != "0" || values["LC_ALL"] != "C" {
+		t.Fatalf("deterministic environment = %#v", values)
+	}
+	if values["CONFICIUS_TEST_INHERITED"] != "kept" {
+		t.Fatalf("inherited environment dropped: %#v", values)
+	}
+}
+
 func TestApplyUpdatesPreservesArgsAndContinuesFailures(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" {
 		line := strings.Join(os.Args[1:], "|") + "\n"

@@ -486,6 +486,7 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 	for _, plan := range plans {
 		cmd := commandContext(ctx, plan.Executable, plan.Args...)
 		cmd.Dir = plan.Directory
+		cmd.Env = managerEnvironment(plan.Directory)
 		cmd.Stdin = stdin
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
@@ -503,6 +504,7 @@ func runOutput(ctx context.Context, executable string, args ...string) ([]byte, 
 func runOutputDir(ctx context.Context, dir, executable string, args ...string) ([]byte, error) {
 	cmd := commandContext(ctx, executable, args...)
 	cmd.Dir = dir
+	cmd.Env = managerEnvironment(dir)
 	output, err := cmd.Output()
 	if err == nil {
 		return output, nil
@@ -515,6 +517,29 @@ func runOutputDir(ctx context.Context, dir, executable string, args ...string) (
 		err = fmt.Errorf("%w: %s", err, stderr)
 	}
 	return output, classifyOperationError(ctx, err, stderr)
+}
+
+func managerEnvironment(dir string) []string {
+	environment := os.Environ()
+	overrides := map[string]string{
+		"NO_COLOR": "1",
+		"CLICOLOR": "0",
+		"LC_ALL":   "C",
+	}
+	result := environment[:0]
+	for _, entry := range environment {
+		name, _, _ := strings.Cut(entry, "=")
+		if _, overridden := overrides[name]; !overridden {
+			result = append(result, entry)
+		}
+	}
+	for _, name := range []string{"NO_COLOR", "CLICOLOR", "LC_ALL"} {
+		result = append(result, name+"="+overrides[name])
+	}
+	if dir != "" {
+		result = append(result, "PWD="+dir)
+	}
+	return result
 }
 
 func managerIndex(manager string) int {
