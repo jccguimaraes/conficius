@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 )
 
@@ -282,6 +283,17 @@ func TestPrintVulnerabilityFindingsShowsFirstRuleAndRemainingCount(t *testing.T)
 		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), ">=20 (+2 more)") || strings.Contains(output.String(), "20.*") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
+	var output bytes.Buffer
+	plans := []packagemanager.UpdatePlan{{Executable: "/bin/npm", Args: []string{"update"}, Confidence: packagemanager.PlanConfidenceEstimated}}
+	if err := printUpdatePlans(&output, plans, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "Confidence: estimated") {
 		t.Fatalf("output = %q", output.String())
 	}
 }

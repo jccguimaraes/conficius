@@ -466,6 +466,9 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 		return err
 	}
 	for _, plan := range plans {
+		if _, err := fmt.Fprintf(writer, "Confidence: %s\n", plan.Confidence); err != nil {
+			return err
+		}
 		parts := append([]string{plan.Executable}, plan.Args...)
 		for i, part := range parts {
 			parts[i] = strconv.Quote(part)

@@ -121,13 +121,22 @@ type Package struct {
 	Path       string `json:"path,omitempty"`
 }
 
+type PlanConfidence string
+
+const (
+	PlanConfidenceExact     PlanConfidence = "exact"
+	PlanConfidenceEstimated PlanConfidence = "estimated"
+	PlanConfidenceUnknown   PlanConfidence = "unknown"
+)
+
 type UpdatePlan struct {
-	Manager    string    `json:"manager"`
-	Executable string    `json:"executable"`
-	Directory  string    `json:"directory,omitempty"`
-	Scope      string    `json:"scope"`
-	Args       []string  `json:"args"`
-	Packages   []Package `json:"packages"`
+	Manager    string         `json:"manager"`
+	Executable string         `json:"executable"`
+	Directory  string         `json:"directory,omitempty"`
+	Scope      string         `json:"scope"`
+	Confidence PlanConfidence `json:"confidence"`
+	Args       []string       `json:"args"`
+	Packages   []Package      `json:"packages"`
 }
 
 var commandContext = exec.CommandContext
@@ -431,7 +440,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		key := planKey{record.Manager, record.Executable, record.Scope, record.Path}
 		plan := plansByKey[key]
 		if plan == nil {
-			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path}
+			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
 			plansByKey[key] = plan
 			keys = append(keys, key)
 		}
