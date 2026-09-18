@@ -74,6 +74,22 @@ func TestNPMCurrentVersionDoesNotMatchCVE202229244Rules(t *testing.T) {
 	}
 }
 
+func TestMatchRetainsUnsupportedRulesAndAffectedOutranksUnknown(t *testing.T) {
+	identity := Identity{Product: "Node", Vendor: "nodejs"}
+	item := Vulnerability{Products: []ProductEntry{
+		productEntryForClientTest("Node", "nodejs", ">=20"),
+		productEntryForClientTest("Node", "nodejs", "20.*"),
+	}}
+	match, rules := item.Match(identity, "20.1.0")
+	if match != UnknownRule || len(rules) != 2 || rules[0] != ">=20" || rules[1] != "20.*" {
+		t.Fatalf("match = %v, rules = %#v", match, rules)
+	}
+	item.Products = append(item.Products, productEntryForClientTest("Node", "nodejs", "before 21.0.0"))
+	if match, rules := item.Match(identity, "20.1.0"); match != Affected || rules != nil {
+		t.Fatalf("affected match = %v, rules = %#v", match, rules)
+	}
+}
+
 func productEntryForClientTest(name, vendor, version string) ProductEntry {
 	var entry ProductEntry
 	entry.Product.Name, entry.Product.Vendor.Name, entry.ProductVersion = name, vendor, version

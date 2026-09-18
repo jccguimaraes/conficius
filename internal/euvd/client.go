@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -158,21 +159,24 @@ const (
 	UnknownRule
 )
 
-func (item Vulnerability) Match(identity Identity, version string) (Match, string) {
-	result := NoMatch
+func (item Vulnerability) Match(identity Identity, version string) (Match, []string) {
+	var unsupportedRules []string
 	for _, product := range item.Products {
 		if !strings.EqualFold(product.Product.Name, identity.Product) || !strings.EqualFold(product.Product.Vendor.Name, identity.Vendor) {
 			continue
 		}
 		matched, supported := versionMatches(version, product.ProductVersion)
 		if matched {
-			return Affected, product.ProductVersion
+			return Affected, nil
 		}
-		if !supported {
-			result = UnknownRule
+		if !supported && !slices.Contains(unsupportedRules, product.ProductVersion) {
+			unsupportedRules = append(unsupportedRules, product.ProductVersion)
 		}
 	}
-	return result, ""
+	if len(unsupportedRules) > 0 {
+		return UnknownRule, unsupportedRules
+	}
+	return NoMatch, nil
 }
 
 func (item Vulnerability) Affects(identity Identity, version string) bool {
@@ -203,7 +207,7 @@ func (item Vulnerability) AdvisoryID() string {
 func versionMatches(version, rule string) (bool, bool) {
 	version, rule = strings.TrimSpace(version), strings.TrimSpace(rule)
 	if version == "" || rule == "" || rule == "n/a" {
-		return false, true
+		return false, false
 	}
 	for _, token := range []string{"≤", "<="} {
 		if before, upper, ok := strings.Cut(rule, token); ok {

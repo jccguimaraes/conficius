@@ -20,7 +20,3 @@ dist/
 bin/
 
 mise.local.toml
-
-# Pix Agent
-.pi/
-.pi-lens/

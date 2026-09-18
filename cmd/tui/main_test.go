@@ -57,11 +57,11 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 func TestVulnerabilityDetailViewRendersEvidence(t *testing.T) {
 	data := &model{detail: vulnerabilityRow{Evidence: security.Evidence{
 		Source: security.SourceEUVD, Advisory: "CVE-2026-1", SourceID: "EUVD-1", Score: 8.1,
-		AffectedRule: "before 22.22.4", Aliases: []string{"CVE-2026-1", "GHSA-1"}, UpgradeTo: "22.22.4",
+		Rules: []string{">=20", "20.*"}, Aliases: []string{"CVE-2026-1", "GHSA-1"}, UpgradeTo: "22.22.4",
 		Description: "test description", Reference: "https://example.test/advisory", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "Latest version does not fix this CVE.",
 	}}}
 	component := vulnerabilityDetailView(data, glyph.NewApp())
-	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", "before 22.22.4", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory", "Latest version does not fix this CVE."} {
+	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", ">=20, 20.*", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory", "Latest version does not fix this CVE."} {
 		assertRenderedContains(t, component, want)
 	}
 }
@@ -97,7 +97,7 @@ func TestVulnerabilityRowsHideCleanAndAdvisorylessDiagnostics(t *testing.T) {
 		{Package: "clean", Status: security.StatusClean},
 		{Package: "unmapped", Status: security.StatusUnmapped},
 		{Package: "failed", Status: security.StatusError},
-		{Package: "unknown-rule", Status: security.StatusUnknownVersionRule, Advisory: "CVE-1"},
+		{Package: "unknown-rule", Status: security.StatusUnknown, Advisory: "CVE-1"},
 		{Package: "affected", Status: security.StatusVulnerable, Advisory: "CVE-2"},
 	})
 	if len(rows) != 2 || rows[0].Package != "unknown-rule" || rows[1].Package != "affected" {

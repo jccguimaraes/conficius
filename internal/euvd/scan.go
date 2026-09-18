@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
 
 const (
-	StatusClean              = "clean"
-	StatusVulnerable         = "vulnerable"
-	StatusUnknownVersionRule = "unknown-version-rule"
-	StatusError              = "error"
-	StatusUnmapped           = "unmapped"
+	StatusClean      = "clean"
+	StatusVulnerable = "vulnerable"
+	StatusUnknown    = "unknown"
+	StatusError      = "error"
+	StatusUnmapped   = "unmapped"
 )
 
 type Finding struct {
@@ -29,7 +30,7 @@ type Finding struct {
 	Status      string
 	SourceID    string
 	Aliases     []string
-	Rule        string
+	Rules       []string
 	Reason      string
 	Description string
 }
@@ -60,31 +61,51 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusUnmapped, Reason: "no explicit EUVD mapping"})
 			continue
 		}
-		packageFindings := 0
+		packageFindings := make(map[string]int)
+		packageHasOutput := false
 		for _, identity := range identities {
 			items, err := client.Query(ctx, identity, pkg.Version)
 			if err != nil {
 				scanErrors = append(scanErrors, fmt.Errorf("%s:%s@%s: %w", pkg.Manager, pkg.Name, pkg.Version, err))
 				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusError, Reason: "request failed"})
-				packageFindings++
+				packageHasOutput = true
 				continue
 			}
 			for _, item := range items {
-				match, rule := item.Match(identity, pkg.Version)
+				match, rules := item.Match(identity, pkg.Version)
 				status := StatusVulnerable
 				if match == UnknownRule {
-					status = StatusUnknownVersionRule
+					status = StatusUnknown
 				}
-				upgradeTo := latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]
-				findings = append(findings, Finding{
+				packageHasOutput = true
+				finding := Finding{
 					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
-					Advisory: item.AdvisoryID(), UpgradeTo: upgradeTo, UpgradeNote: euvdUpgradeNote(item, identity, upgradeTo), Score: item.BaseScore,
-					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rule: rule, Description: item.Description,
-				})
-				packageFindings++
+					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
+					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rules: rules, Description: item.Description,
+				}
+				finding.UpgradeNote = euvdUpgradeNote(item, identity, finding.UpgradeTo)
+				findingKey := item.ID
+				if index, exists := packageFindings[findingKey]; exists {
+					existing := &findings[index]
+					if existing.Status == StatusVulnerable {
+						continue
+					}
+					if finding.Status == StatusVulnerable {
+						*existing = finding
+					} else {
+						for _, rule := range finding.Rules {
+							if !slices.Contains(existing.Rules, rule) {
+								existing.Rules = append(existing.Rules, rule)
+							}
+						}
+					}
+					continue
+				}
+				packageFindings[findingKey] = len(findings)
+				findings = append(findings, finding)
 			}
 		}
-		if packageFindings == 0 {
+		if !packageHasOutput {
 			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusClean})
 		}
 	}

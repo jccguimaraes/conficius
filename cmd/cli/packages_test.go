@@ -235,14 +235,36 @@ func TestPrintVulnerabilityFindingsHidesAdvisorylessDiagnostics(t *testing.T) {
 
 func TestVulnerabilityJSONRetainsEvidenceDetails(t *testing.T) {
 	var output bytes.Buffer
-	item := security.Evidence{Source: security.SourceEUVD, SourceID: "EUVD-1", Aliases: []string{"CVE-2026-1"}, AffectedRule: "before 22.22.4", Reason: "test reason", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "not confirmed"}
+	item := security.Evidence{Source: security.SourceEUVD, SourceID: "EUVD-1", Aliases: []string{"CVE-2026-1"}, Rules: []string{">=20", "20.*"}, Reason: "test reason", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "not confirmed"}
 	if err := writePackageJSON(&output, vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"source_id": "EUVD-1"`, `"aliases": [`, `"affected_rule": "before 22.22.4"`, `"reason": "test reason"`, `"cve_link": "https://www.cve.org/CVERecord?id=CVE-2026-1"`, `"upgrade_note": "not confirmed"`} {
+	for _, want := range []string{`"source_id": "EUVD-1"`, `"aliases": [`, `"rules": [`, `"\u003e=20`, `20.*`, `"reason": "test reason"`, `"cve_link": "https://www.cve.org/CVERecord?id=CVE-2026-1"`, `"upgrade_note": "not confirmed"`} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("output missing %s: %s", want, output.String())
 		}
+	}
+}
+
+func TestVulnerabilityJSONOmitsRulesForConfirmedAffected(t *testing.T) {
+	var output bytes.Buffer
+	item := security.Evidence{Status: security.StatusVulnerable, Advisory: "CVE-1"}
+	if err := writePackageJSON(&output, vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), `"rules"`) {
+		t.Fatalf("output = %s", output.String())
+	}
+}
+
+func TestPrintVulnerabilityFindingsShowsFirstRuleAndRemainingCount(t *testing.T) {
+	var output bytes.Buffer
+	item := security.Evidence{Source: security.SourceEUVD, Status: security.StatusUnknown, Advisory: "CVE-1", Rules: []string{">=20", "20.*", "latest"}}
+	if err := printVulnerabilityFindings(&output, []security.Evidence{item}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), ">=20 (+2 more)") || strings.Contains(output.String(), "20.*") {
+		t.Fatalf("output = %q", output.String())
 	}
 }
 

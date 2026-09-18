@@ -58,3 +58,25 @@ func TestScanUsesManagerLatestAsUpgradeTarget(t *testing.T) {
 		t.Fatalf("findings = %#v", findings)
 	}
 }
+
+type duplicateRuleStub struct{}
+
+func (duplicateRuleStub) Query(_ context.Context, identity Identity, _ string) ([]Vulnerability, error) {
+	item := Vulnerability{ID: "EUVD-1", Aliases: "CVE-1", Products: []ProductEntry{
+		productEntry(identity.Product, identity.Vendor, ">=20"),
+		productEntry(identity.Product, identity.Vendor, ">=20"),
+		productEntry(identity.Product, identity.Vendor, "20.*"),
+	}}
+	return []Vulnerability{item}, nil
+}
+
+func TestScanDeduplicatesVulnerabilityPackageAndRetainsUnsupportedRules(t *testing.T) {
+	installed := []packagemanager.InstalledPackage{{Manager: "mise", Name: "node", Version: "20.1.0"}}
+	findings, err := Scan(context.Background(), installed, nil, nil, duplicateRuleStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || findings[0].Status != StatusUnknown || len(findings[0].Rules) != 2 {
+		t.Fatalf("findings = %#v", findings)
+	}
+}

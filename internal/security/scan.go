@@ -96,7 +96,7 @@ func osvEvidence(findings []vulnerability.Finding) []Evidence {
 func euvdEvidence(findings []euvd.Finding) []Evidence {
 	evidence := make([]Evidence, len(findings))
 	for i, finding := range findings {
-		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, UpgradeNote: finding.UpgradeNote, AffectedRule: finding.Rule, Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
+		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, UpgradeNote: finding.UpgradeNote, Rules: append([]string(nil), finding.Rules...), Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
 		evidence[i].CVELink = cveLink(evidence[i].Advisory, evidence[i].Aliases)
 	}
 	return evidence
@@ -114,7 +114,7 @@ func cveLink(advisory string, aliases []string) string {
 
 func normalizeStatus(status string) string {
 	if status == vulnerability.StatusUnknown {
-		return StatusUnknownVersionRule
+		return StatusUnknown
 	}
 	return status
 }
@@ -127,7 +127,7 @@ func summarize(evidence []Evidence) Summary {
 			summary.Vulnerable++
 		case StatusUnmapped:
 			summary.Unmapped++
-		case StatusUnknownVersionRule:
+		case StatusUnknown:
 			summary.Unknown++
 		case StatusError:
 			summary.Errors++

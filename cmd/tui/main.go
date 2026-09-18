@@ -30,7 +30,8 @@ type outdatedRow struct {
 
 type vulnerabilityRow struct {
 	security.Evidence
-	Current string
+	Current   string
+	RuleCount string
 }
 
 type model struct {
@@ -286,15 +287,15 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 		Render(func(row *vulnerabilityRow) glyph.Component {
 			return glyph.HBox.Gap(1)(
 				glyph.Text(&row.Source).Width(6), glyph.Text(&row.Manager).Width(8), glyph.Text(&row.Package).Width(22),
-				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(20), glyph.Text(&row.Score).Width(6).FG(severityColor(row.Score)), glyph.Text(&row.Advisory).Width(22).FG(severityColor(row.Score)),
-				glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
+				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(12), glyph.Text(&row.Score).Width(6).FG(severityColor(row.Score)), glyph.Text(&row.Advisory).Width(22).FG(severityColor(row.Score)),
+				glyph.Text(&row.RuleCount).Width(5), glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
 			)
 		}).Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
 		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
 	header := glyph.HBox.Gap(1)(
 		glyph.Text("Source").Width(6).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(22).Bold(),
-		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(20).Bold(), glyph.Text("CVSS").Width(6).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
-		glyph.Text("Upgrade To").Width(14).Bold(),
+		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(12).Bold(), glyph.Text("CVSS").Width(6).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
+		glyph.Text("Rules").Width(5).Bold(), glyph.Text("Upgrade To").Width(14).Bold(),
 	)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
 		header, loadingContent(&data.loading, list),
@@ -315,7 +316,7 @@ func vulnerabilityDetailView(data *model, app *glyph.App) glyph.Component {
 		})),
 		glyph.Textf("Source ID: ", &row.SourceID),
 		glyph.HBox(glyph.Text("CVSS: "), glyph.Text(&row.Score)),
-		glyph.Textf("Affected rule: ", &row.AffectedRule),
+		glyph.Text("Unsupported rules: "+strings.Join(row.Rules, ", ")),
 		glyph.Text("Aliases: "+strings.Join(row.Aliases, ", ")),
 		glyph.Textf("Upgrade target: ", &row.UpgradeTo),
 		glyph.Textf("Upgrade note: ", &row.UpgradeNote),
@@ -482,7 +483,7 @@ func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
 		if item.Status == security.StatusClean || item.Advisory == "" {
 			continue
 		}
-		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version})
+		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version, RuleCount: fmt.Sprint(len(item.Rules))})
 	}
 	return rows
 }

@@ -422,7 +422,17 @@ func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) 
 		if item.Advisory == "" {
 			continue
 		}
-		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote); err != nil {
+		rule := ""
+		if len(item.Rules) > 0 {
+			rule = item.Rules[0]
+			if len(item.Rules) > 1 {
+				rule += fmt.Sprintf(" (+%d more)", len(item.Rules)-1)
+			}
+		}
+		if rule != "" {
+			rule = " " + rule
+		}
+		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s%s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote, rule); err != nil {
 			return err
 		}
 	}
