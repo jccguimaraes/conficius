@@ -222,6 +222,8 @@ func (cli *Cli) packages() *urfave.Command {
 					pmFlag(),
 					jsonFlag(),
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
+					&urfave.BoolFlag{Name: "yes", Usage: "Run non-interactively with accepted plan hashes"},
+					&urfave.StringSliceFlag{Name: "accept-plan", Usage: "Accept exact plan `HASH`; may be repeated"},
 					&urfave.BoolFlag{Name: "allow-dirty", Usage: "Allow manifest changes in a dirty Git repository."},
 					&urfave.BoolFlag{Name: "allow-unversioned", Usage: "Allow manifest changes outside a Git repository."},
 					&urfave.StringSliceFlag{Name: "include", Usage: "Include package (manager:name or globally unique name)"},
@@ -230,6 +232,12 @@ func (cli *Cli) packages() *urfave.Command {
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					if c.Bool("apply") && c.Bool("json") {
 						return errors.New("--json cannot be used with --apply")
+					}
+					if c.Bool("yes") && !c.Bool("apply") {
+						return errors.New("--yes requires --apply")
+					}
+					if len(c.StringSlice("accept-plan")) > 0 && !c.Bool("yes") {
+						return errors.New("--accept-plan requires --yes")
 					}
 
 					if c.Bool("apply") && !c.IsSet("global") && !c.IsSet("project") && !c.IsSet("profile") && !c.IsSet("profile-project") {
@@ -268,6 +276,11 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					plans = freshPlans
+					if c.Bool("yes") {
+						if err := validateAcceptedPlans(plans, c.StringSlice("accept-plan")); err != nil {
+							return err
+						}
+					}
 
 					log := newUpdateLog(plans)
 					logPath, err := writeUpdateLog(log)
@@ -290,6 +303,23 @@ func (cli *Cli) packages() *urfave.Command {
 			},
 		},
 	}
+}
+
+func validateAcceptedPlans(plans []packagemanager.UpdatePlan, accepted []string) error {
+	acceptedSet := make(map[string]struct{}, len(accepted))
+	for _, hash := range accepted {
+		acceptedSet[hash] = struct{}{}
+	}
+	for _, plan := range plans {
+		if _, ok := acceptedSet[plan.StateHash]; !ok {
+			return fmt.Errorf("plan %s is not accepted; rerun with --accept-plan %s", plan.StateHash, plan.StateHash)
+		}
+		delete(acceptedSet, plan.StateHash)
+	}
+	if len(acceptedSet) > 0 {
+		return errors.New("accepted plan hash is stale or not selected")
+	}
+	return nil
 }
 
 func filterProfilePackages(packages packagemanager.Packages, profile config.Profile) packagemanager.Packages {

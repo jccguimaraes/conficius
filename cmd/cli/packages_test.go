@@ -298,6 +298,28 @@ func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptedPlansRequiresExactHashes(t *testing.T) {
+	plans := []packagemanager.UpdatePlan{{StateHash: "first"}, {StateHash: "second"}}
+	if err := validateAcceptedPlans(plans, []string{"first", "second"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateAcceptedPlans(plans, []string{"first"}); err == nil || !strings.Contains(err.Error(), "second") {
+		t.Fatalf("missing hash error = %v", err)
+	}
+	if err := validateAcceptedPlans(plans, []string{"first", "second", "stale"}); err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("stale hash error = %v", err)
+	}
+}
+
+func TestPackagesUpdateYesRequiresApply(t *testing.T) {
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--yes"})
+	if err == nil || !strings.Contains(err.Error(), "--yes requires --apply") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestPackagesUpdateApplyRequiresExplicitScope(t *testing.T) {
 	var output bytes.Buffer
 	cli := New(&output, "test")
