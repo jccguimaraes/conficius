@@ -145,7 +145,7 @@ func (p NPM) listOutdated(ctx context.Context, scope Scope, executable string, o
 
 	var tools NPMOutdatedTools
 	if err := json.Unmarshal(output, &tools); err != nil {
-		return err
+		return parserError(err)
 	}
 
 	for toolName, tool := range tools {

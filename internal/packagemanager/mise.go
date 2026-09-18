@@ -130,7 +130,7 @@ func (p Mise) listOutdated(ctx context.Context, dir, executable string, options 
 
 	var tools MiseOutdatedTools
 	if err := json.Unmarshal(output, &tools); err != nil {
-		return err
+		return parserError(err)
 	}
 
 	for _, tool := range tools {

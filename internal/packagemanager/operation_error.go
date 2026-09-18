@@ -15,6 +15,7 @@ const (
 	ErrorNetwork        ErrorCategory = "network"
 	ErrorRateLimit      ErrorCategory = "rate_limit"
 	ErrorRegistry       ErrorCategory = "registry"
+	ErrorParser         ErrorCategory = "parser"
 	ErrorTimeout        ErrorCategory = "timeout"
 	ErrorCancelled      ErrorCategory = "cancelled"
 	ErrorCommand        ErrorCategory = "command"
@@ -27,6 +28,13 @@ type OperationError struct {
 
 func (e *OperationError) Error() string { return e.Err.Error() }
 func (e *OperationError) Unwrap() error { return e.Err }
+
+func parserError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &OperationError{Category: ErrorParser, Err: err}
+}
 
 func classifyOperationError(ctx context.Context, err error, stderr string) error {
 	if err == nil {

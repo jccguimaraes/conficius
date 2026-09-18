@@ -109,7 +109,7 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 		} `json:"dependencies"`
 	}
 	if err := json.Unmarshal(output, &document); err != nil {
-		return nil, fmt.Errorf("decode npm inventory: %w", err)
+		return nil, parserError(fmt.Errorf("decode npm inventory: %w", err))
 	}
 	packages := make([]InstalledPackage, 0, len(document.Dependencies))
 	for name, dependency := range document.Dependencies {
@@ -134,7 +134,7 @@ func installedMise(ctx context.Context, executable, dir string) ([]InstalledPack
 		Installed bool   `json:"installed"`
 	}
 	if err := json.Unmarshal(output, &document); err != nil {
-		return nil, fmt.Errorf("decode mise inventory: %w", err)
+		return nil, parserError(fmt.Errorf("decode mise inventory: %w", err))
 	}
 	var packages []InstalledPackage
 	for name, versions := range document {
@@ -165,7 +165,7 @@ func installedHomebrew(ctx context.Context, executable string) ([]InstalledPacka
 		} `json:"casks"`
 	}
 	if err := json.Unmarshal(output, &document); err != nil {
-		return nil, fmt.Errorf("decode Homebrew inventory: %w", err)
+		return nil, parserError(fmt.Errorf("decode Homebrew inventory: %w", err))
 	}
 	var packages []InstalledPackage
 	for _, formula := range document.Formulae {

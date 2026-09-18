@@ -197,4 +197,7 @@ func TestQueryInstalledReportsMalformedInventory(t *testing.T) {
 	if result.Managers[0].Status != StatusError {
 		t.Fatalf("status = %#v", result.Managers[0])
 	}
+	if got := result.Managers[0].Operations[0].Category; got != ErrorParser {
+		t.Fatalf("category = %q; want %q", got, ErrorParser)
+	}
 }

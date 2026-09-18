@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func TestParserError(t *testing.T) {
+	original := errors.New("invalid JSON")
+	err := parserError(original)
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorParser || !errors.Is(err, original) {
+		t.Fatalf("error = %#v", err)
+	}
+}
+
 func TestClassifyOperationError(t *testing.T) {
 	tests := []struct {
 		name     string
