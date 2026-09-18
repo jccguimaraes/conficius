@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,4 +74,127 @@ func TestMigrateRefusesSymlink(t *testing.T) {
 	if _, _, err := Migrate(path, true, time.Now()); err == nil || !strings.Contains(err.Error(), "resolved target") {
 		t.Fatalf("Migrate error = %v", err)
 	}
+}
+
+func TestWriteNewFileRemovesPartialFileAndJoinsCleanupError(t *testing.T) {
+	for _, failAt := range []string{"write", "sync", "close"} {
+		t.Run(failAt, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "backup")
+			operationErr := errors.New(failAt + " failed")
+			cleanupErr := errors.New("cleanup failed")
+			openFile := func(path string, flag int, mode os.FileMode) (syncWriteCloser, error) {
+				file, err := os.OpenFile(path, flag, mode)
+				if err != nil {
+					return nil, err
+				}
+				return &failingSyncWriteCloser{File: file, failAt: failAt, err: operationErr}, nil
+			}
+			remove := func(path string) error {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				return cleanupErr
+			}
+
+			err := writeNewFileWith(path, []byte("contents"), 0o600, openFile, remove)
+			if !errors.Is(err, operationErr) || !errors.Is(err, cleanupErr) {
+				t.Fatalf("writeNewFileWith error = %v", err)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatalf("partial backup remains: %v", err)
+			}
+		})
+	}
+}
+
+func TestApplyMigrationSyncsBackupDirectoryBeforeReplacement(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, FileName)
+	backup := path + ".backup"
+	var events []string
+	syncDirectory := func(dir string) error {
+		events = append(events, "sync "+dir)
+		return nil
+	}
+	replace := func(string, []byte, os.FileMode) error {
+		events = append(events, "replace")
+		return nil
+	}
+
+	_, returnedBackup, err := applyMigration(path, backup, []byte("new"), []byte("old"), 0o600, writeNewFile, syncDirectory, replace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if returnedBackup != backup {
+		t.Fatalf("backup = %q", returnedBackup)
+	}
+	want := []string{"sync " + root, "replace"}
+	if strings.Join(events, ",") != strings.Join(want, ",") {
+		t.Fatalf("events = %q, want %q", events, want)
+	}
+}
+
+func TestApplyMigrationPreservesRecoveryBackupOnReplacementFailure(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, FileName)
+	backup := path + ".backup"
+	replaceErr := errors.New("replace failed")
+	replace := func(string, []byte, os.FileMode) error { return replaceErr }
+
+	_, returnedBackup, err := applyMigration(path, backup, []byte("new"), []byte("old"), 0o600, writeNewFile, func(string) error { return nil }, replace)
+	if !errors.Is(err, replaceErr) || !strings.Contains(err.Error(), backup) {
+		t.Fatalf("applyMigration error = %v", err)
+	}
+	if returnedBackup != backup {
+		t.Fatalf("backup = %q", returnedBackup)
+	}
+	contents, readErr := os.ReadFile(backup)
+	if readErr != nil || string(contents) != "old" {
+		t.Fatalf("backup contents = %q, %v", contents, readErr)
+	}
+}
+
+func TestReplaceFileReportsCompletedReplacementWhenDirectorySyncFails(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, FileName)
+	mustWrite(t, path, "old")
+	syncErr := errors.New("sync failed")
+
+	err := replaceFileWithDirectorySync(path, []byte("new"), 0o600, func(string) error { return syncErr })
+	if !errors.Is(err, syncErr) || !strings.Contains(err.Error(), "replacement completed but durability sync failed") {
+		t.Fatalf("replaceFileWithDirectorySync error = %v", err)
+	}
+	contents, readErr := os.ReadFile(path)
+	if readErr != nil || string(contents) != "new" {
+		t.Fatalf("replacement contents = %q, %v", contents, readErr)
+	}
+}
+
+type failingSyncWriteCloser struct {
+	*os.File
+	failAt string
+	err    error
+}
+
+func (f *failingSyncWriteCloser) Write(contents []byte) (int, error) {
+	if f.failAt == "write" {
+		n, _ := f.File.Write(contents[:1])
+		return n, f.err
+	}
+	return f.File.Write(contents)
+}
+
+func (f *failingSyncWriteCloser) Sync() error {
+	if f.failAt == "sync" {
+		return f.err
+	}
+	return f.File.Sync()
+}
+
+func (f *failingSyncWriteCloser) Close() error {
+	err := f.File.Close()
+	if f.failAt == "close" {
+		return f.err
+	}
+	return err
 }
