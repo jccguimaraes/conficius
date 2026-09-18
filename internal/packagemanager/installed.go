@@ -49,13 +49,19 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 	}
 	result := InstalledResult{Managers: statuses}
 	var operations []readOperation[[]InstalledPackage]
-	for i, status := range result.Managers {
+	for i := range result.Managers {
+		status := &result.Managers[i]
 		if status.Status != StatusAvailable {
 			continue
 		}
+		adapter, adapterErr := adapterFor(status.Name)
+		if adapterErr != nil {
+			return InstalledResult{}, adapterErr
+		}
 		for _, executable := range status.Executables {
 			for _, scope := range scopes {
-				if status.Name == PM_BREW && scope.Kind == "project" {
+				if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalInventory, CapabilityProjectInventory)) {
+					status.Operations = append(status.Operations, unsupportedOperationStatus("inventory", executable, scope))
 					continue
 				}
 				manager, executable, scope := status.Name, executable, scope

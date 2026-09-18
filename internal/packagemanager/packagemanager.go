@@ -28,6 +28,7 @@ func registeredManagerNames() []string {
 const (
 	StatusAvailable   = "available"
 	StatusUnavailable = "unavailable"
+	StatusUnsupported = "unsupported"
 	StatusPartial     = "partial"
 	StatusError       = "error"
 )
@@ -205,12 +206,17 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 		if status.Status != StatusAvailable {
 			continue
 		}
+		adapter, adapterErr := adapterFor(status.Name)
+		if adapterErr != nil {
+			return QueryResult{}, adapterErr
+		}
 		for _, executable := range status.Executables {
 			if status.Name == PM_NPM && options.Managers[PM_NPM].ExpectedGlobalPrefix != "" {
 				status.Warnings = append(status.Warnings, npmPrefixWarnings(ctx, executable, options.Managers[PM_NPM].ExpectedGlobalPrefix)...)
 			}
 			for _, scope := range scopes {
-				if status.Name == PM_BREW && scope.Kind == "project" {
+				if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalOutdated, CapabilityProjectOutdated)) {
+					status.Operations = append(status.Operations, unsupportedOperationStatus("outdated", executable, scope))
 					continue
 				}
 				manager, executable, scope := status.Name, executable, scope
@@ -243,6 +249,10 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	return result, errors.Join(queryErrors...)
 }
 
+func unsupportedOperationStatus(operation, executable string, scope Scope) OperationStatus {
+	return OperationStatus{Operation: operation, Executable: executable, Scope: scope.Kind, Path: scope.Path, Status: StatusUnsupported}
+}
+
 func newOperationStatus[T any](operation string, result readOperation[T], err error) OperationStatus {
 	status := OperationStatus{Operation: operation, Executable: result.executable, Scope: result.scope.Kind, Path: result.scope.Path, Status: StatusAvailable}
 	if err == nil {
@@ -264,13 +274,17 @@ func finalizeManagerStatuses(statuses []ManagerStatus) {
 			continue
 		}
 		successes := 0
+		failures := 0
 		for _, operation := range status.Operations {
-			if operation.Status == StatusAvailable {
+			switch operation.Status {
+			case StatusAvailable:
 				successes++
+			case StatusError:
+				failures++
 			}
 		}
 		switch {
-		case successes == len(status.Operations):
+		case failures == 0:
 			status.Status = StatusAvailable
 			status.Error = ""
 		case successes > 0:

@@ -38,6 +38,12 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 	}
 }
 
+func TestScopeCapabilityTreatsWorkspaceAsProject(t *testing.T) {
+	if got := scopeCapability(Scope{Kind: "workspace"}, CapabilityGlobalInventory, CapabilityProjectInventory); got != CapabilityProjectInventory {
+		t.Fatalf("capability = %q", got)
+	}
+}
+
 func TestAdapterForRejectsUnknownManager(t *testing.T) {
 	if _, err := adapterFor("unknown"); err == nil {
 		t.Fatal("adapterFor unknown manager succeeded")

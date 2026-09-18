@@ -104,6 +104,21 @@ printf '{"formulae":[{"name":"wget","installed":[{"version":"1.2"}]}],"casks":[{
 	}
 }
 
+func TestQueryInstalledReportsUnsupportedProjectScope(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "brew"), "#!/bin/sh\nexit 99\n")
+	t.Setenv("PATH", dir)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_BREW}, []Scope{{Kind: "project", Path: t.TempDir()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := result.Managers[0]
+	if status.Status != StatusAvailable || len(status.Operations) != 1 || status.Operations[0].Status != StatusUnsupported {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
 func TestQueryInstalledScopesUsesOnlyProjectMiseTools(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

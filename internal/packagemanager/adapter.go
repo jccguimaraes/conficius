@@ -30,6 +30,22 @@ var adapters = []managerAdapter{
 	NPM{},
 }
 
+func hasCapability(adapter managerAdapter, capability Capability) bool {
+	for _, candidate := range adapter.capabilities() {
+		if candidate == capability {
+			return true
+		}
+	}
+	return false
+}
+
+func scopeCapability(scope Scope, global, project Capability) Capability {
+	if scope.Kind == "project" || scope.Kind == "workspace" {
+		return project
+	}
+	return global
+}
+
 func adapterFor(name string) (managerAdapter, error) {
 	for _, adapter := range adapters {
 		if adapter.name() == name {
