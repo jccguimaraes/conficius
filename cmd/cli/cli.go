@@ -22,6 +22,8 @@ const (
 type Cli struct {
 	Writer    io.Writer
 	ErrWriter io.Writer
+	Version   string
+	Now       func() time.Time
 	Command   *urfave.Command
 }
 
@@ -49,6 +51,8 @@ func NewWithWriters(writer, errWriter io.Writer, version string) *Cli {
 	cli := &Cli{
 		Writer:    writer,
 		ErrWriter: errWriter,
+		Version:   version,
+		Now:       time.Now,
 		Command: &urfave.Command{
 			Writer:      writer,
 			ErrWriter:   errWriter,

@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jccguimaraes/conficius/internal/security"
 )
@@ -233,10 +235,25 @@ func TestPrintVulnerabilityFindingsHidesAdvisorylessDiagnostics(t *testing.T) {
 	}
 }
 
+func TestPackageJSONIncludesSnapshotMetadata(t *testing.T) {
+	var output bytes.Buffer
+	cli := New(&output, "1.2.3")
+	cli.Now = func() time.Time { return time.Date(2026, 12, 15, 10, 30, 0, 0, time.FixedZone("test", 3600)) }
+	if err := cli.writePackageJSON([]string{"ok"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"timestamp": "2026-12-15T09:30:00Z"`, `"platform": "` + runtime.GOOS + `"`, `"arch": "` + runtime.GOARCH + `"`, `"cli_version": "1.2.3"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("output missing %s: %s", want, output.String())
+		}
+	}
+}
+
 func TestVulnerabilityJSONRetainsEvidenceDetails(t *testing.T) {
 	var output bytes.Buffer
 	item := security.Evidence{Source: security.SourceEUVD, SourceID: "EUVD-1", Aliases: []string{"CVE-2026-1"}, Rules: []string{">=20", "20.*"}, Reason: "test reason", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "not confirmed"}
-	if err := writePackageJSON(&output, vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
+	cli := New(&output, "test")
+	if err := cli.writePackageJSON(vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{`"source_id": "EUVD-1"`, `"aliases": [`, `"rules": [`, `"\u003e=20`, `20.*`, `"reason": "test reason"`, `"cve_link": "https://www.cve.org/CVERecord?id=CVE-2026-1"`, `"upgrade_note": "not confirmed"`} {
@@ -249,7 +266,8 @@ func TestVulnerabilityJSONRetainsEvidenceDetails(t *testing.T) {
 func TestVulnerabilityJSONOmitsRulesForConfirmedAffected(t *testing.T) {
 	var output bytes.Buffer
 	item := security.Evidence{Status: security.StatusVulnerable, Advisory: "CVE-1"}
-	if err := writePackageJSON(&output, vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
+	cli := New(&output, "test")
+	if err := cli.writePackageJSON(vulnerabilityOutput{Report: security.Report{Evidence: []security.Evidence{item}}}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(output.String(), `"rules"`) {

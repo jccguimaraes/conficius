@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	urfave "github.com/urfave/cli/v3"
 
@@ -24,9 +26,17 @@ import (
 
 const packageOutputSchemaVersion = 2
 
+type packageSnapshot struct {
+	Timestamp  string `json:"timestamp"`
+	Platform   string `json:"platform"`
+	Arch       string `json:"arch"`
+	CLIVersion string `json:"cli_version"`
+}
+
 type packageOutputEnvelope struct {
-	SchemaVersion int `json:"schema_version"`
-	Data          any `json:"data"`
+	SchemaVersion int             `json:"schema_version"`
+	Snapshot      packageSnapshot `json:"snapshot"`
+	Data          any             `json:"data"`
 }
 
 type outdatedOutput struct {
@@ -88,7 +98,7 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					if c.Bool("json") {
-						return writePackageJSON(cli.Writer, statuses)
+						return cli.writePackageJSON(statuses)
 					}
 					return printManagerStatuses(cli.Writer, statuses)
 				},
@@ -119,7 +129,7 @@ func (cli *Cli) packages() *urfave.Command {
 						return exists
 					})
 					if c.Bool("json") {
-						if err := writePackageJSON(cli.Writer, outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Drift: drift}); err != nil {
+						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Drift: drift}); err != nil {
 							return err
 						}
 					} else {
@@ -192,7 +202,7 @@ func (cli *Cli) packages() *urfave.Command {
 						EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
 					})
 					if c.Bool("json") {
-						writeErr := writePackageJSON(cli.Writer, vulnerabilityOutput{Scopes: scopes, Managers: inventory.Managers, Report: report})
+						writeErr := cli.writePackageJSON(vulnerabilityOutput{Scopes: scopes, Managers: inventory.Managers, Report: report})
 						return errors.Join(inventoryErr, outdatedErr, scanErr, writeErr)
 					}
 					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
@@ -236,7 +246,7 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					if c.Bool("json") {
-						return errors.Join(queryErr, writePackageJSON(cli.Writer, updateOutput{Managers: result.Managers, Updates: plans}))
+						return errors.Join(queryErr, cli.writePackageJSON(updateOutput{Managers: result.Managers, Updates: plans}))
 					}
 					if err := printManagerWarnings(cli.Writer, result.Managers); err != nil {
 						return err
@@ -380,10 +390,16 @@ func managerScopes(scopes []config.Scope) []packagemanager.Scope {
 	return result
 }
 
-func writePackageJSON(writer io.Writer, data any) error {
-	encoder := json.NewEncoder(writer)
+func (cli *Cli) writePackageJSON(data any) error {
+	encoder := json.NewEncoder(cli.Writer)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(packageOutputEnvelope{SchemaVersion: packageOutputSchemaVersion, Data: data})
+	return encoder.Encode(packageOutputEnvelope{
+		SchemaVersion: packageOutputSchemaVersion,
+		Snapshot: packageSnapshot{
+			Timestamp: cli.Now().UTC().Format(time.RFC3339), Platform: runtime.GOOS, Arch: runtime.GOARCH, CLIVersion: cli.Version,
+		},
+		Data: data,
+	})
 }
 
 func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerStatus) error {
