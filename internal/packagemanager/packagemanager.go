@@ -59,12 +59,13 @@ type scopedTool struct {
 }
 
 type ManagerStatus struct {
-	Name        string            `json:"name"`
-	Status      string            `json:"status"`
-	Executables []string          `json:"executables,omitempty"`
-	Warnings    []string          `json:"warnings,omitempty"`
-	Operations  []OperationStatus `json:"operations,omitempty"`
-	Error       string            `json:"error,omitempty"`
+	Name         string            `json:"name"`
+	Status       string            `json:"status"`
+	Capabilities []Capability      `json:"capabilities,omitempty"`
+	Executables  []string          `json:"executables,omitempty"`
+	Warnings     []string          `json:"warnings,omitempty"`
+	Operations   []OperationStatus `json:"operations,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 type ManagerOptions struct {
@@ -158,21 +159,26 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 
 	statuses := make([]ManagerStatus, 0, len(pms))
 	for _, pm := range pms {
+		adapter, err := adapterFor(pm)
+		if err != nil {
+			return nil, err
+		}
 		executables, err := LookPathAll(pm)
 		if errors.Is(err, exec.ErrNotFound) {
 			statuses = append(statuses, ManagerStatus{
-				Name:   pm,
-				Status: StatusUnavailable,
-				Error:  "executable not found",
+				Name:         pm,
+				Status:       StatusUnavailable,
+				Capabilities: adapter.capabilities(),
+				Error:        "executable not found",
 			})
 			continue
 		}
 		if err != nil {
-			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, Error: err.Error()})
+			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, Capabilities: adapter.capabilities(), Error: err.Error()})
 			continue
 		}
 
-		statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusAvailable, Executables: executables})
+		statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusAvailable, Capabilities: adapter.capabilities(), Executables: executables})
 	}
 
 	return statuses, nil

@@ -49,6 +49,10 @@ type HomebrewUpdateOpts struct{}
 
 func (Homebrew) name() string { return PM_BREW }
 
+func (Homebrew) capabilities() []Capability {
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
+}
+
 func (Homebrew) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
 	return installedHomebrew(ctx, executable)
 }

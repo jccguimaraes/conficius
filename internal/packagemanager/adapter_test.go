@@ -21,6 +21,23 @@ func TestRegisteredPackageManagersComeFromAdapters(t *testing.T) {
 	}
 }
 
+func TestAdaptersDeclareCapabilities(t *testing.T) {
+	want := map[string][]Capability{
+		PM_MISE: {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
+		PM_BREW: {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_NPM:  {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
+	}
+	for name, capabilities := range want {
+		adapter, err := adapterFor(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(adapter.capabilities(), capabilities) {
+			t.Fatalf("%s capabilities = %#v; want %#v", name, adapter.capabilities(), capabilities)
+		}
+	}
+}
+
 func TestAdapterForRejectsUnknownManager(t *testing.T) {
 	if _, err := adapterFor("unknown"); err == nil {
 		t.Fatal("adapterFor unknown manager succeeded")

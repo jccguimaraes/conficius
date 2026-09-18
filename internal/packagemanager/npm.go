@@ -45,6 +45,14 @@ type NPMOptsUpdate any
 
 func (NPM) name() string { return PM_NPM }
 
+func (NPM) capabilities() []Capability {
+	return []Capability{
+		CapabilityGlobalInventory, CapabilityProjectInventory,
+		CapabilityGlobalOutdated, CapabilityProjectOutdated,
+		CapabilityGlobalUpdate, CapabilityProjectUpdate,
+	}
+}
+
 func (NPM) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
 	return installedNPM(ctx, executable, scope)
 }

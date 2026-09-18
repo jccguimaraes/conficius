@@ -50,6 +50,14 @@ type MiseOpts struct {
 
 func (Mise) name() string { return PM_MISE }
 
+func (Mise) capabilities() []Capability {
+	return []Capability{
+		CapabilityGlobalInventory, CapabilityProjectInventory,
+		CapabilityGlobalOutdated, CapabilityProjectOutdated,
+		CapabilityGlobalUpdate, CapabilityProjectUpdate,
+	}
+}
+
 func (Mise) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
 	return installedMise(ctx, executable, scope.Path)
 }

@@ -5,8 +5,20 @@ import (
 	"fmt"
 )
 
+type Capability string
+
+const (
+	CapabilityGlobalInventory  Capability = "global_inventory"
+	CapabilityProjectInventory Capability = "project_inventory"
+	CapabilityGlobalOutdated   Capability = "global_outdated"
+	CapabilityProjectOutdated  Capability = "project_outdated"
+	CapabilityGlobalUpdate     Capability = "global_update"
+	CapabilityProjectUpdate    Capability = "project_update"
+)
+
 type managerAdapter interface {
 	name() string
+	capabilities() []Capability
 	listInstalled(context.Context, string, Scope) ([]InstalledPackage, error)
 	listOutdatedScope(context.Context, string, Scope, ManagerOptions, Packages) error
 	updateArgs([]Package) []string
