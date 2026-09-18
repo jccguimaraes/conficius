@@ -60,13 +60,15 @@ type scopedTool struct {
 }
 
 type ManagerStatus struct {
-	Name         string            `json:"name"`
-	Status       string            `json:"status"`
-	Capabilities []Capability      `json:"capabilities,omitempty"`
-	Executables  []string          `json:"executables,omitempty"`
-	Warnings     []string          `json:"warnings,omitempty"`
-	Operations   []OperationStatus `json:"operations,omitempty"`
-	Error        string            `json:"error,omitempty"`
+	Name           string            `json:"name"`
+	Status         string            `json:"status"`
+	AdapterVersion string            `json:"adapter_version"`
+	ManagerVersion string            `json:"manager_version,omitempty"`
+	Capabilities   []Capability      `json:"capabilities,omitempty"`
+	Executables    []string          `json:"executables,omitempty"`
+	Warnings       []string          `json:"warnings,omitempty"`
+	Operations     []OperationStatus `json:"operations,omitempty"`
+	Error          string            `json:"error,omitempty"`
 }
 
 type ManagerOptions struct {
@@ -167,19 +169,30 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		executables, err := LookPathAll(pm)
 		if errors.Is(err, exec.ErrNotFound) {
 			statuses = append(statuses, ManagerStatus{
-				Name:         pm,
-				Status:       StatusUnavailable,
-				Capabilities: adapter.capabilities(),
-				Error:        "executable not found",
+				Name:           pm,
+				Status:         StatusUnavailable,
+				AdapterVersion: adapterVersion,
+				Capabilities:   adapter.capabilities(),
+				Error:          "executable not found",
 			})
 			continue
 		}
 		if err != nil {
-			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, Capabilities: adapter.capabilities(), Error: err.Error()})
+			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, AdapterVersion: adapterVersion, Capabilities: adapter.capabilities(), Error: redactSensitive(err.Error())})
 			continue
 		}
 
-		statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusAvailable, Capabilities: adapter.capabilities(), Executables: executables})
+		status := ManagerStatus{Name: pm, Status: StatusAvailable, AdapterVersion: adapterVersion, Capabilities: adapter.capabilities(), Executables: executables}
+		output, versionErr := runOutput(context.Background(), executables[0], "--version")
+		if versionErr != nil {
+			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
+		} else {
+			status.ManagerVersion = firstVersion(string(output))
+			if status.ManagerVersion == "" {
+				status.Warnings = append(status.Warnings, "read manager version: no version in output")
+			}
+		}
+		statuses = append(statuses, status)
 	}
 
 	return statuses, nil

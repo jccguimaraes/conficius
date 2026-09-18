@@ -16,6 +16,8 @@ const (
 	CapabilityProjectUpdate    Capability = "project_update"
 )
 
+const adapterVersion = "1"
+
 type managerAdapter interface {
 	name() string
 	capabilities() []Capability

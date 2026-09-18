@@ -1,6 +1,7 @@
 package packagemanager
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -18,6 +19,20 @@ func TestRegisteredPackageManagersComeFromAdapters(t *testing.T) {
 		if adapter.name() != name {
 			t.Fatalf("adapterFor(%q).name() = %q", name, adapter.name())
 		}
+	}
+}
+
+func TestInspectReportsAdapterAndManagerVersions(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf 'npm 11.20.0\\n'\n")
+	t.Setenv("PATH", dir)
+
+	statuses, err := Inspect([]string{PM_NPM})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].AdapterVersion != adapterVersion || statuses[0].ManagerVersion != "11.20.0" {
+		t.Fatalf("statuses = %#v", statuses)
 	}
 }
 
