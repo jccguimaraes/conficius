@@ -456,11 +456,13 @@ func runOutputDir(ctx context.Context, dir, executable string, args ...string) (
 		return output, nil
 	}
 
+	var stderr string
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
-		return output, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+		stderr = strings.TrimSpace(string(exitErr.Stderr))
+		err = fmt.Errorf("%w: %s", err, stderr)
 	}
-	return output, err
+	return output, classifyOperationError(ctx, err, stderr)
 }
 
 func managerIndex(manager string) int {
