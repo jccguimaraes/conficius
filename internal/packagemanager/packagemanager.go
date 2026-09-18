@@ -2,6 +2,8 @@ package packagemanager
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -135,6 +137,7 @@ type UpdatePlan struct {
 	Directory  string         `json:"directory,omitempty"`
 	Scope      string         `json:"scope"`
 	Confidence PlanConfidence `json:"confidence"`
+	StateHash  string         `json:"state_hash"`
 	Args       []string       `json:"args"`
 	Packages   []Package      `json:"packages"`
 }
@@ -459,9 +462,30 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		plan := plansByKey[key]
 		sort.Slice(plan.Packages, func(i, j int) bool { return plan.Packages[i].Name < plan.Packages[j].Name })
 		plan.Args = updateArgs(plan.Manager, plan.Packages)
+		plan.StateHash = updatePlanHash(*plan)
 		plans = append(plans, *plan)
 	}
 	return plans, nil
+}
+
+func updatePlanHash(plan UpdatePlan) string {
+	hash := sha256.New()
+	writeHashValue := func(value string) {
+		_, _ = hash.Write([]byte(value))
+		_, _ = hash.Write([]byte{0})
+	}
+	for _, value := range []string{plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence)} {
+		writeHashValue(value)
+	}
+	for _, arg := range plan.Args {
+		writeHashValue(arg)
+	}
+	for _, pkg := range plan.Packages {
+		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path} {
+			writeHashValue(value)
+		}
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func resolveFilters(records []Package, filters []string) (map[string]struct{}, error) {

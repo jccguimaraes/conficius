@@ -466,7 +466,7 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 		return err
 	}
 	for _, plan := range plans {
-		if _, err := fmt.Fprintf(writer, "Confidence: %s\n", plan.Confidence); err != nil {
+		if _, err := fmt.Fprintf(writer, "Confidence: %s Plan: %s\n", plan.Confidence, plan.StateHash); err != nil {
 			return err
 		}
 		parts := append([]string{plan.Executable}, plan.Args...)

@@ -60,8 +60,26 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Packages:   []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Executable: "/bin/brew"}},
 		},
 	}
+	for i := range want {
+		want[i].StateHash = plans[i].StateHash
+		if want[i].StateHash == "" {
+			t.Fatal("plan state hash is empty")
+		}
+	}
 	if !reflect.DeepEqual(plans, want) {
 		t.Fatalf("plans = %#v; want %#v", plans, want)
+	}
+}
+
+func TestUpdatePlanHashChangesWithPackageState(t *testing.T) {
+	plan := UpdatePlan{Manager: PM_NPM, Executable: "/bin/npm", Scope: "global", Confidence: PlanConfidenceEstimated, Args: []string{"update", "typescript"}, Packages: []Package{{Manager: PM_NPM, Name: "typescript", Current: "5.0", Latest: "5.1"}}}
+	first := updatePlanHash(plan)
+	if first != updatePlanHash(plan) {
+		t.Fatal("same plan produced unstable hash")
+	}
+	plan.Packages[0].Latest = "6.0"
+	if first == updatePlanHash(plan) {
+		t.Fatal("changed package state produced same hash")
 	}
 }
 
