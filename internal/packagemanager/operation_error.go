@@ -26,7 +26,7 @@ type OperationError struct {
 	Err      error
 }
 
-func (e *OperationError) Error() string { return e.Err.Error() }
+func (e *OperationError) Error() string { return redactSensitive(e.Err.Error()) }
 func (e *OperationError) Unwrap() error { return e.Err }
 
 func parserError(err error) error {

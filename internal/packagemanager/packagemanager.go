@@ -234,7 +234,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 		operationStatus := newOperationStatus("outdated", operationResult.operation, operationResult.err)
 		status.Operations = append(status.Operations, operationStatus)
 		if operationResult.err != nil {
-			status.Error = operationResult.err.Error()
+			status.Error = redactSensitive(operationResult.err.Error())
 			queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
 			continue
 		}
@@ -259,7 +259,7 @@ func newOperationStatus[T any](operation string, result readOperation[T], err er
 		return status
 	}
 	status.Status = StatusError
-	status.Error = err.Error()
+	status.Error = redactSensitive(err.Error())
 	var operationErr *OperationError
 	if errors.As(err, &operationErr) {
 		status.Category = operationErr.Category

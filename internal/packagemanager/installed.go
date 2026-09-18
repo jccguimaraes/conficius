@@ -76,7 +76,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		status := &result.Managers[operationResult.operation.managerIndex]
 		status.Operations = append(status.Operations, newOperationStatus("inventory", operationResult.operation, operationResult.err))
 		if operationResult.err != nil {
-			status.Error = operationResult.err.Error()
+			status.Error = redactSensitive(operationResult.err.Error())
 			inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
 			continue
 		}
