@@ -67,15 +67,16 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 	}
 	var inventoryErrors []error
 	for _, operationResult := range runReadOperations(ctx, operations) {
+		status := &result.Managers[operationResult.operation.managerIndex]
+		status.Operations = append(status.Operations, newOperationStatus("inventory", operationResult.operation, operationResult.err))
 		if operationResult.err != nil {
-			status := &result.Managers[operationResult.operation.managerIndex]
-			status.Status = StatusError
 			status.Error = operationResult.err.Error()
 			inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
 			continue
 		}
 		result.Packages = append(result.Packages, operationResult.value...)
 	}
+	finalizeManagerStatuses(result.Managers)
 	result.Packages = dedupeInstalled(result.Packages)
 	return result, errors.Join(inventoryErrors...)
 }

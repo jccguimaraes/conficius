@@ -155,6 +155,37 @@ func TestProjectMiseOutdatedExcludesInactiveGlobalTools(t *testing.T) {
 	}
 }
 
+func TestQueryOutdatedReportsPartialManagerAndPreservesSuccessfulScope(t *testing.T) {
+	dir := t.TempDir()
+	goodProject := t.TempDir()
+	badProject := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$PWD" = "$BAD_PROJECT" ]; then
+  printf 'network connection refused' >&2
+  exit 1
+fi
+printf '{"typescript":{"current":"5.0","wanted":"5.1","latest":"5.1"}}'
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("BAD_PROJECT", badProject)
+
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: goodProject}, {Kind: "project", Path: badProject}})
+	if err == nil {
+		t.Fatal("query succeeded; want partial error")
+	}
+	status := result.Managers[0]
+	if status.Status != StatusPartial || len(status.Operations) != 2 {
+		t.Fatalf("status = %#v", status)
+	}
+	if status.Operations[1].Category != ErrorNetwork {
+		t.Fatalf("failed operation = %#v", status.Operations[1])
+	}
+	records := Records(result.Packages)
+	if len(records) != 1 || records[0].Path != goodProject {
+		t.Fatalf("packages = %#v", records)
+	}
+}
+
 func TestQueryOutdatedContinuesPastUnavailableManager(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh

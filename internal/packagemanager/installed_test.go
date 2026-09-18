@@ -157,6 +157,34 @@ func TestQueryInstalledContinuesPastUnavailableManager(t *testing.T) {
 	}
 }
 
+func TestQueryInstalledReportsPartialManagerAndPreservesSuccessfulScope(t *testing.T) {
+	dir := t.TempDir()
+	goodProject := t.TempDir()
+	badProject := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$PWD" = "$BAD_PROJECT" ]; then
+  printf 'registry unavailable' >&2
+  exit 1
+fi
+printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("BAD_PROJECT", badProject)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: goodProject}, {Kind: "project", Path: badProject}})
+	if err == nil {
+		t.Fatal("query succeeded; want partial error")
+	}
+	status := result.Managers[0]
+	if status.Status != StatusPartial || len(status.Operations) != 2 || status.Operations[1].Category != ErrorRegistry {
+		t.Fatalf("status = %#v", status)
+	}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Scope: "project", Path: goodProject}}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledReportsMalformedInventory(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf broken\n")

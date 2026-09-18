@@ -28,8 +28,19 @@ func registeredManagerNames() []string {
 const (
 	StatusAvailable   = "available"
 	StatusUnavailable = "unavailable"
+	StatusPartial     = "partial"
 	StatusError       = "error"
 )
+
+type OperationStatus struct {
+	Operation  string        `json:"operation"`
+	Executable string        `json:"executable"`
+	Scope      string        `json:"scope"`
+	Path       string        `json:"path,omitempty"`
+	Status     string        `json:"status"`
+	Category   ErrorCategory `json:"category,omitempty"`
+	Error      string        `json:"error,omitempty"`
+}
 
 type Tool interface {
 	GetPackageManager() string
@@ -48,11 +59,12 @@ type scopedTool struct {
 }
 
 type ManagerStatus struct {
-	Name        string   `json:"name"`
-	Status      string   `json:"status"`
-	Executables []string `json:"executables,omitempty"`
-	Warnings    []string `json:"warnings,omitempty"`
-	Error       string   `json:"error,omitempty"`
+	Name        string            `json:"name"`
+	Status      string            `json:"status"`
+	Executables []string          `json:"executables,omitempty"`
+	Warnings    []string          `json:"warnings,omitempty"`
+	Operations  []OperationStatus `json:"operations,omitempty"`
+	Error       string            `json:"error,omitempty"`
 }
 
 type ManagerOptions struct {
@@ -206,9 +218,10 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	}
 	var queryErrors []error
 	for _, operationResult := range runReadOperations(ctx, operations) {
+		status := &result.Managers[operationResult.operation.managerIndex]
+		operationStatus := newOperationStatus("outdated", operationResult.operation, operationResult.err)
+		status.Operations = append(status.Operations, operationStatus)
 		if operationResult.err != nil {
-			status := &result.Managers[operationResult.operation.managerIndex]
-			status.Status = StatusError
 			status.Error = operationResult.err.Error()
 			queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
 			continue
@@ -219,8 +232,47 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 			}
 		}
 	}
+	finalizeManagerStatuses(result.Managers)
 
 	return result, errors.Join(queryErrors...)
+}
+
+func newOperationStatus[T any](operation string, result readOperation[T], err error) OperationStatus {
+	status := OperationStatus{Operation: operation, Executable: result.executable, Scope: result.scope.Kind, Path: result.scope.Path, Status: StatusAvailable}
+	if err == nil {
+		return status
+	}
+	status.Status = StatusError
+	status.Error = err.Error()
+	var operationErr *OperationError
+	if errors.As(err, &operationErr) {
+		status.Category = operationErr.Category
+	}
+	return status
+}
+
+func finalizeManagerStatuses(statuses []ManagerStatus) {
+	for i := range statuses {
+		status := &statuses[i]
+		if len(status.Operations) == 0 {
+			continue
+		}
+		successes := 0
+		for _, operation := range status.Operations {
+			if operation.Status == StatusAvailable {
+				successes++
+			}
+		}
+		switch {
+		case successes == len(status.Operations):
+			status.Status = StatusAvailable
+			status.Error = ""
+		case successes > 0:
+			status.Status = StatusPartial
+		default:
+			status.Status = StatusError
+		}
+	}
 }
 
 func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, error) {
