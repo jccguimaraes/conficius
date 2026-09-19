@@ -223,6 +223,7 @@ func (cli *Cli) packages() *urfave.Command {
 					jsonFlag(),
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
 					&urfave.BoolFlag{Name: "yes", Usage: "Run non-interactively with accepted plan hashes"},
+					&urfave.BoolFlag{Name: "best-effort", Usage: "Continue with later plans after a failed plan"},
 					&urfave.StringSliceFlag{Name: "accept-plan", Usage: "Accept exact plan `HASH`; may be repeated"},
 					&urfave.BoolFlag{Name: "allow-dirty", Usage: "Allow manifest changes in a dirty Git repository."},
 					&urfave.BoolFlag{Name: "allow-unversioned", Usage: "Allow manifest changes outside a Git repository."},
@@ -235,6 +236,9 @@ func (cli *Cli) packages() *urfave.Command {
 					}
 					if c.Bool("yes") && !c.Bool("apply") {
 						return errors.New("--yes requires --apply")
+					}
+					if c.Bool("best-effort") && !c.Bool("apply") {
+						return errors.New("--best-effort requires --apply")
 					}
 					if len(c.StringSlice("accept-plan")) > 0 && !c.Bool("yes") {
 						return errors.New("--accept-plan requires --yes")
@@ -291,7 +295,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if stdin == nil {
 						stdin = os.Stdin
 					}
-					outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, plans, stdin, cli.Writer, cli.Writer)
+					outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, plans, c.Bool("best-effort"), stdin, cli.Writer, cli.Writer)
 					log.Outcomes = outcomes
 					log.Status = "completed"
 					if applyErr != nil {

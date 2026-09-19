@@ -562,11 +562,11 @@ type UpdateOutcome struct {
 }
 
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {
-	_, err := ApplyUpdatesWithOutcomes(ctx, plans, stdin, stdout, stderr)
+	_, err := ApplyUpdatesWithOutcomes(ctx, plans, false, stdin, stdout, stderr)
 	return err
 }
 
-func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
+func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
 	var updateErrors []error
 	for i, plan := range plans {
@@ -589,7 +589,7 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, stdin io.
 			wrapped := fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified)
 			updateErrors = append(updateErrors, wrapped)
 			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(wrapped.Error())})
-			if ctx.Err() != nil {
+			if ctx.Err() != nil || !bestEffort {
 				for _, skipped := range plans[i+1:] {
 					outcomes = append(outcomes, UpdateOutcome{StateHash: skipped.StateHash, Status: "skipped", Error: classified.Error()})
 				}

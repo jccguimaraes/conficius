@@ -281,13 +281,28 @@ func TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans(t *testing.T) {
 		{Manager: PM_NPM, StateHash: "failed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "fail"}},
 		{Manager: PM_NPM, StateHash: "completed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "ok"}},
 	}
-	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, true, nil, &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("updates succeeded; want first plan failure")
 	}
 	want := []UpdateOutcome{{StateHash: "failed", Status: "failed", Error: outcomes[0].Error}, {StateHash: "completed", Status: "completed"}}
 	if outcomes[0].Error == "" || !reflect.DeepEqual(outcomes, want) {
 		t.Fatalf("outcomes = %#v; want %#v", outcomes, want)
+	}
+}
+
+func TestApplyUpdatesWithOutcomesStopsAfterFailureByDefault(t *testing.T) {
+	if os.Getenv("GO_WANT_FAIL_FAST_HELPER") == "1" {
+		os.Exit(3)
+	}
+	t.Setenv("GO_WANT_FAIL_FAST_HELPER", "1")
+	plans := []UpdatePlan{
+		{Manager: PM_NPM, StateHash: "failed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesStopsAfterFailureByDefault"}},
+		{Manager: PM_NPM, StateHash: "skipped", Executable: "/must/not/run"},
+	}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || len(outcomes) != 2 || outcomes[0].Status != "failed" || outcomes[1].Status != "skipped" {
+		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
 	}
 }
 
@@ -311,7 +326,7 @@ func TestApplyUpdatesPreservesArgsAndContinuesFailures(t *testing.T) {
 		{Manager: PM_NPM, Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesPreservesArgsAndContinuesFailures", "--", "@scope/pkg"}},
 	}
 
-	err := ApplyUpdates(context.Background(), plans, bytes.NewBufferString("input"), &bytes.Buffer{}, &bytes.Buffer{})
+	_, err := ApplyUpdatesWithOutcomes(context.Background(), plans, true, bytes.NewBufferString("input"), &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), PM_MISE) {
 		t.Fatalf("error = %v", err)
 	}

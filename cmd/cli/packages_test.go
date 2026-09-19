@@ -320,6 +320,15 @@ func TestPackagesUpdateYesRequiresApply(t *testing.T) {
 	}
 }
 
+func TestPackagesUpdateBestEffortRequiresApply(t *testing.T) {
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--best-effort"})
+	if err == nil || !strings.Contains(err.Error(), "--best-effort requires --apply") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestPackagesUpdateApplyRequiresExplicitScope(t *testing.T) {
 	var output bytes.Buffer
 	cli := New(&output, "test")
