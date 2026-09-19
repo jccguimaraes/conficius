@@ -45,6 +45,8 @@ type NPMOptsUpdate any
 
 func (NPM) name() string { return PM_NPM }
 
+func (NPM) updateImpact(Scope) MutationImpact { return MutationImpact{} }
+
 func (NPM) capabilities() []Capability {
 	return []Capability{
 		CapabilityGlobalInventory, CapabilityProjectInventory,

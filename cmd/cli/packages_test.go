@@ -289,11 +289,11 @@ func TestPrintVulnerabilityFindingsShowsFirstRuleAndRemainingCount(t *testing.T)
 
 func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
 	var output bytes.Buffer
-	plans := []packagemanager.UpdatePlan{{Executable: "/bin/npm", Args: []string{"update"}, Confidence: packagemanager.PlanConfidenceEstimated, StateHash: "abc123"}}
+	plans := []packagemanager.UpdatePlan{{Executable: "/bin/npm", Args: []string{"update"}, Confidence: packagemanager.PlanConfidenceEstimated, StateHash: "abc123", Impact: packagemanager.MutationImpact{MayRestartServices: true}}}
 	if err := printUpdatePlans(&output, plans, true); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "Confidence: estimated Plan: abc123") {
+	if !strings.Contains(output.String(), "Confidence: estimated Plan: abc123") || !strings.Contains(output.String(), "restart-services=true") {
 		t.Fatalf("output = %q", output.String())
 	}
 }

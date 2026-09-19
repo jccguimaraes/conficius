@@ -56,6 +56,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Manager: PM_BREW, Executable: "/bin/brew",
 			Scope:      "",
 			Confidence: PlanConfidenceEstimated,
+			Impact:     MutationImpact{MayRestartServices: true},
 			Args:       []string{"upgrade", "--yes", "--greedy", "wget"},
 			Packages:   []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Executable: "/bin/brew"}},
 		},

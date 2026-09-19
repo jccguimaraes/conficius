@@ -49,6 +49,10 @@ type HomebrewUpdateOpts struct{}
 
 func (Homebrew) name() string { return PM_BREW }
 
+func (Homebrew) updateImpact(Scope) MutationImpact {
+	return MutationImpact{MayRestartServices: true}
+}
+
 func (Homebrew) capabilities() []Capability {
 	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }

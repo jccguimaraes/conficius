@@ -18,9 +18,17 @@ const (
 
 const adapterVersion = "1"
 
+type MutationImpact struct {
+	RequiresAdmin      bool `json:"requires_admin"`
+	MayRestartServices bool `json:"may_restart_services"`
+	MayReboot          bool `json:"may_reboot"`
+	Interactive        bool `json:"interactive"`
+}
+
 type managerAdapter interface {
 	name() string
 	capabilities() []Capability
+	updateImpact(Scope) MutationImpact
 	listInstalled(context.Context, string, Scope) ([]InstalledPackage, error)
 	listOutdatedScope(context.Context, string, Scope, ManagerOptions, Packages) error
 	updateArgs([]Package) []string

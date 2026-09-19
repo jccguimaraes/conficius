@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/config"
@@ -138,6 +139,7 @@ type UpdatePlan struct {
 	Scope      string         `json:"scope"`
 	Confidence PlanConfidence `json:"confidence"`
 	StateHash  string         `json:"state_hash"`
+	Impact     MutationImpact `json:"impact"`
 	Args       []string       `json:"args"`
 	Packages   []Package      `json:"packages"`
 }
@@ -462,6 +464,11 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		plan := plansByKey[key]
 		sort.Slice(plan.Packages, func(i, j int) bool { return plan.Packages[i].Name < plan.Packages[j].Name })
 		plan.Args = updateArgs(plan.Manager, plan.Packages)
+		adapter, err := adapterFor(plan.Manager)
+		if err != nil {
+			return nil, err
+		}
+		plan.Impact = adapter.updateImpact(Scope{Kind: plan.Scope, Path: plan.Directory})
 		plan.StateHash = updatePlanHash(*plan)
 		plans = append(plans, *plan)
 	}
@@ -474,7 +481,8 @@ func updatePlanHash(plan UpdatePlan) string {
 		_, _ = hash.Write([]byte(value))
 		_, _ = hash.Write([]byte{0})
 	}
-	for _, value := range []string{plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence)} {
+	for _, value := range []string{plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
+		strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
 		writeHashValue(value)
 	}
 	for _, arg := range plan.Args {

@@ -53,6 +53,25 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 	}
 }
 
+func TestAdaptersDeclareUpdateImpacts(t *testing.T) {
+	for _, name := range []string{PM_MISE, PM_NPM} {
+		adapter, err := adapterFor(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := adapter.updateImpact(Scope{Kind: "global"}); got != (MutationImpact{}) {
+			t.Fatalf("%s impact = %#v", name, got)
+		}
+	}
+	brew, err := adapterFor(PM_BREW)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !brew.updateImpact(Scope{Kind: "global"}).MayRestartServices {
+		t.Fatal("Homebrew impact does not report service restart risk")
+	}
+}
+
 func TestScopeCapabilityTreatsWorkspaceAsProject(t *testing.T) {
 	if got := scopeCapability(Scope{Kind: "workspace"}, CapabilityGlobalInventory, CapabilityProjectInventory); got != CapabilityProjectInventory {
 		t.Fatalf("capability = %q", got)

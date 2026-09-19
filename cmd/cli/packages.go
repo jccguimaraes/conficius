@@ -499,6 +499,11 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 		if _, err := fmt.Fprintf(writer, "Confidence: %s Plan: %s\n", plan.Confidence, plan.StateHash); err != nil {
 			return err
 		}
+		if plan.Impact.RequiresAdmin || plan.Impact.MayRestartServices || plan.Impact.MayReboot || plan.Impact.Interactive {
+			if _, err := fmt.Fprintf(writer, "Impact: admin=%t restart-services=%t reboot=%t interactive=%t\n", plan.Impact.RequiresAdmin, plan.Impact.MayRestartServices, plan.Impact.MayReboot, plan.Impact.Interactive); err != nil {
+				return err
+			}
+		}
 		parts := append([]string{plan.Executable}, plan.Args...)
 		for i, part := range parts {
 			parts[i] = strconv.Quote(part)

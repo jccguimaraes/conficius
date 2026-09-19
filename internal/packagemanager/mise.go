@@ -50,6 +50,8 @@ type MiseOpts struct {
 
 func (Mise) name() string { return PM_MISE }
 
+func (Mise) updateImpact(Scope) MutationImpact { return MutationImpact{} }
+
 func (Mise) capabilities() []Capability {
 	return []Capability{
 		CapabilityGlobalInventory, CapabilityProjectInventory,
