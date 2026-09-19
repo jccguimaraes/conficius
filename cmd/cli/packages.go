@@ -291,7 +291,8 @@ func (cli *Cli) packages() *urfave.Command {
 					if stdin == nil {
 						stdin = os.Stdin
 					}
-					applyErr := packagemanager.ApplyUpdates(ctx, plans, stdin, cli.Writer, cli.Writer)
+					outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, plans, stdin, cli.Writer, cli.Writer)
+					log.Outcomes = outcomes
 					log.Status = "completed"
 					if applyErr != nil {
 						log.Status = "failed"

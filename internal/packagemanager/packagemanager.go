@@ -555,11 +555,27 @@ func updateArgs(manager string, packages []Package) []string {
 	return adapter.updateArgs(packages)
 }
 
+type UpdateOutcome struct {
+	StateHash string `json:"state_hash"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+}
+
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {
+	_, err := ApplyUpdatesWithOutcomes(ctx, plans, stdin, stdout, stderr)
+	return err
+}
+
+func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
+	outcomes := make([]UpdateOutcome, 0, len(plans))
 	var updateErrors []error
-	for _, plan := range plans {
+	for i, plan := range plans {
 		if err := ctx.Err(); err != nil {
-			updateErrors = append(updateErrors, classifyOperationError(ctx, err, ""))
+			classified := classifyOperationError(ctx, err, "")
+			updateErrors = append(updateErrors, classified)
+			for _, skipped := range plans[i:] {
+				outcomes = append(outcomes, UpdateOutcome{StateHash: skipped.StateHash, Status: "skipped", Error: classified.Error()})
+			}
 			break
 		}
 		cmd := commandContext(ctx, plan.Executable, plan.Args...)
@@ -570,13 +586,20 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 		cmd.Stderr = stderr
 		if err := cmd.Run(); err != nil {
 			classified := classifyOperationError(ctx, err, "")
-			updateErrors = append(updateErrors, fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified))
+			wrapped := fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified)
+			updateErrors = append(updateErrors, wrapped)
+			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(wrapped.Error())})
 			if ctx.Err() != nil {
+				for _, skipped := range plans[i+1:] {
+					outcomes = append(outcomes, UpdateOutcome{StateHash: skipped.StateHash, Status: "skipped", Error: classified.Error()})
+				}
 				break
 			}
+			continue
 		}
+		outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "completed"})
 	}
-	return errors.Join(updateErrors...)
+	return outcomes, errors.Join(updateErrors...)
 }
 
 func runOutput(ctx context.Context, executable string, args ...string) ([]byte, error) {

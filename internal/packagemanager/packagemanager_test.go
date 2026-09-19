@@ -269,6 +269,28 @@ func TestApplyUpdatesStopsBeforeLaunchingCancelledWork(t *testing.T) {
 	}
 }
 
+func TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans(t *testing.T) {
+	if os.Getenv("GO_WANT_OUTCOME_HELPER") == "1" {
+		if os.Args[len(os.Args)-1] == "fail" {
+			os.Exit(3)
+		}
+		os.Exit(0)
+	}
+	t.Setenv("GO_WANT_OUTCOME_HELPER", "1")
+	plans := []UpdatePlan{
+		{Manager: PM_NPM, StateHash: "failed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "fail"}},
+		{Manager: PM_NPM, StateHash: "completed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "ok"}},
+	}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("updates succeeded; want first plan failure")
+	}
+	want := []UpdateOutcome{{StateHash: "failed", Status: "failed", Error: outcomes[0].Error}, {StateHash: "completed", Status: "completed"}}
+	if outcomes[0].Error == "" || !reflect.DeepEqual(outcomes, want) {
+		t.Fatalf("outcomes = %#v; want %#v", outcomes, want)
+	}
+}
+
 func TestApplyUpdatesPreservesArgsAndContinuesFailures(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" {
 		line := strings.Join(os.Args[1:], "|") + "\n"

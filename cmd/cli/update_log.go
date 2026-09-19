@@ -14,11 +14,12 @@ import (
 )
 
 type updateLog struct {
-	StartedAt   string                      `json:"started_at"`
-	CompletedAt string                      `json:"completed_at,omitempty"`
-	Status      string                      `json:"status"`
-	Plans       []packagemanager.UpdatePlan `json:"plans"`
-	Error       string                      `json:"error,omitempty"`
+	StartedAt   string                         `json:"started_at"`
+	CompletedAt string                         `json:"completed_at,omitempty"`
+	Status      string                         `json:"status"`
+	Plans       []packagemanager.UpdatePlan    `json:"plans"`
+	Outcomes    []packagemanager.UpdateOutcome `json:"outcomes,omitempty"`
+	Error       string                         `json:"error,omitempty"`
 }
 
 func writeUpdateLog(log updateLog) (string, error) {
