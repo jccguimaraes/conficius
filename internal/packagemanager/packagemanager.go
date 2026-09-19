@@ -568,8 +568,13 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
+	failedManagers := make(map[string]error)
 	var updateErrors []error
 	for i, plan := range plans {
+		if previousErr := failedManagers[plan.Manager]; previousErr != nil {
+			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "skipped", Error: previousErr.Error()})
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			classified := classifyOperationError(ctx, err, "")
 			updateErrors = append(updateErrors, classified)
@@ -588,6 +593,7 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			classified := classifyOperationError(ctx, err, "")
 			wrapped := fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified)
 			updateErrors = append(updateErrors, wrapped)
+			failedManagers[plan.Manager] = wrapped
 			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(wrapped.Error())})
 			if ctx.Err() != nil || !bestEffort {
 				for _, skipped := range plans[i+1:] {

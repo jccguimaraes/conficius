@@ -279,7 +279,7 @@ func TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans(t *testing.T) {
 	t.Setenv("GO_WANT_OUTCOME_HELPER", "1")
 	plans := []UpdatePlan{
 		{Manager: PM_NPM, StateHash: "failed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "fail"}},
-		{Manager: PM_NPM, StateHash: "completed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "ok"}},
+		{Manager: PM_BREW, StateHash: "completed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans", "--", "ok"}},
 	}
 	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, true, nil, &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil {
@@ -288,6 +288,25 @@ func TestApplyUpdatesWithOutcomesRecordsCompletedAndFailedPlans(t *testing.T) {
 	want := []UpdateOutcome{{StateHash: "failed", Status: "failed", Error: outcomes[0].Error}, {StateHash: "completed", Status: "completed"}}
 	if outcomes[0].Error == "" || !reflect.DeepEqual(outcomes, want) {
 		t.Fatalf("outcomes = %#v; want %#v", outcomes, want)
+	}
+}
+
+func TestApplyUpdatesWithOutcomesBestEffortStopsFailedManagerGroup(t *testing.T) {
+	if os.Getenv("GO_WANT_GROUP_HELPER") == "1" {
+		if os.Args[len(os.Args)-1] == "fail" {
+			os.Exit(3)
+		}
+		os.Exit(0)
+	}
+	t.Setenv("GO_WANT_GROUP_HELPER", "1")
+	plans := []UpdatePlan{
+		{Manager: PM_NPM, StateHash: "npm-failed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesBestEffortStopsFailedManagerGroup", "--", "fail"}},
+		{Manager: PM_NPM, StateHash: "npm-skipped", Executable: "/must/not/run"},
+		{Manager: PM_BREW, StateHash: "brew-completed", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesWithOutcomesBestEffortStopsFailedManagerGroup", "--", "ok"}},
+	}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, true, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || len(outcomes) != 3 || outcomes[0].Status != "failed" || outcomes[1].Status != "skipped" || outcomes[2].Status != "completed" {
+		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
 	}
 }
 
