@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -13,10 +14,11 @@ import (
 )
 
 type updateLog struct {
-	StartedAt string                      `json:"started_at"`
-	Status    string                      `json:"status"`
-	Plans     []packagemanager.UpdatePlan `json:"plans"`
-	Error     string                      `json:"error,omitempty"`
+	StartedAt   string                      `json:"started_at"`
+	CompletedAt string                      `json:"completed_at,omitempty"`
+	Status      string                      `json:"status"`
+	Plans       []packagemanager.UpdatePlan `json:"plans"`
+	Error       string                      `json:"error,omitempty"`
 }
 
 func writeUpdateLog(log updateLog) (string, error) {
@@ -40,6 +42,7 @@ func writeUpdateLog(log updateLog) (string, error) {
 	if err := json.Unmarshal(copyBytes, &redacted); err != nil {
 		return "", fmt.Errorf("copy update log: %w", err)
 	}
+	redacted.Error = redactLogError(strings.ReplaceAll(redacted.Error, home, "${HOME}"))
 	for i := range redacted.Plans {
 		redacted.Plans[i].Directory = redactHome(redacted.Plans[i].Directory, home)
 		for j := range redacted.Plans[i].Packages {
@@ -62,6 +65,10 @@ func writeUpdateLog(log updateLog) (string, error) {
 }
 
 func finishUpdateLog(path string, log updateLog) error {
+	if log.CompletedAt == "" {
+		log.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	log.Error = redactLogError(log.Error)
 	written, err := writeUpdateLog(log)
 	if err != nil {
 		return err
@@ -94,6 +101,12 @@ func rotateUpdateLogs(directory string, keep int) error {
 
 func newUpdateLog(plans []packagemanager.UpdatePlan) updateLog {
 	return updateLog{StartedAt: time.Now().UTC().Format(time.RFC3339Nano), Status: "planned", Plans: plans}
+}
+
+var logSecretPattern = regexp.MustCompile(`(?i)(token|password|passwd|secret|api[_-]?key)=\S+`)
+
+func redactLogError(value string) string {
+	return logSecretPattern.ReplaceAllString(value, `${1}=[REDACTED]`)
 }
 
 func redactHome(path, home string) string {

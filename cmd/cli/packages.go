@@ -295,6 +295,9 @@ func (cli *Cli) packages() *urfave.Command {
 					log.Status = "completed"
 					if applyErr != nil {
 						log.Status = "failed"
+						if ctx.Err() != nil {
+							log.Status = "interrupted"
+						}
 						log.Error = applyErr.Error()
 					}
 					logErr := finishUpdateLog(logPath, log)
