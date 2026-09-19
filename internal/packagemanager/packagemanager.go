@@ -558,6 +558,10 @@ func updateArgs(manager string, packages []Package) []string {
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {
 	var updateErrors []error
 	for _, plan := range plans {
+		if err := ctx.Err(); err != nil {
+			updateErrors = append(updateErrors, classifyOperationError(ctx, err, ""))
+			break
+		}
 		cmd := commandContext(ctx, plan.Executable, plan.Args...)
 		cmd.Dir = plan.Directory
 		cmd.Env = managerEnvironment(plan.Directory)
@@ -565,7 +569,11 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 		if err := cmd.Run(); err != nil {
-			updateErrors = append(updateErrors, fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, err))
+			classified := classifyOperationError(ctx, err, "")
+			updateErrors = append(updateErrors, fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified))
+			if ctx.Err() != nil {
+				break
+			}
 		}
 	}
 	return errors.Join(updateErrors...)

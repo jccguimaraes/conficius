@@ -3,6 +3,7 @@ package packagemanager
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -254,6 +255,17 @@ func TestManagerEnvironmentOverridesLocaleAndColorWithoutDroppingInheritedValues
 	}
 	if values["CONFICIUS_TEST_INHERITED"] != "kept" {
 		t.Fatalf("inherited environment dropped: %#v", values)
+	}
+}
+
+func TestApplyUpdatesStopsBeforeLaunchingCancelledWork(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	plans := []UpdatePlan{{Manager: PM_NPM, Executable: "/must/not/run", Args: []string{"update"}}}
+	err := ApplyUpdates(ctx, plans, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorCancelled {
+		t.Fatalf("error = %#v", err)
 	}
 }
 
