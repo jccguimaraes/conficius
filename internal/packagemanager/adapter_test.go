@@ -36,6 +36,20 @@ func TestInspectReportsAdapterAndManagerVersions(t *testing.T) {
 	}
 }
 
+func TestInspectWarnsForUntestedManagerVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf 'npm 12.0.0\\n'\n")
+	t.Setenv("PATH", dir)
+
+	statuses, err := Inspect([]string{PM_NPM})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statuses[0].VersionTested || len(statuses[0].Warnings) != 1 || statuses[0].Status != StatusAvailable {
+		t.Fatalf("status = %#v", statuses[0])
+	}
+}
+
 func TestAdaptersDeclareCapabilities(t *testing.T) {
 	want := map[string][]Capability{
 		PM_MISE: {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},

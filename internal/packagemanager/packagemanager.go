@@ -68,6 +68,8 @@ type ManagerStatus struct {
 	Status         string            `json:"status"`
 	AdapterVersion string            `json:"adapter_version"`
 	ManagerVersion string            `json:"manager_version,omitempty"`
+	TestedVersions VersionRange      `json:"tested_versions"`
+	VersionTested  bool              `json:"version_tested"`
 	Capabilities   []Capability      `json:"capabilities,omitempty"`
 	Executables    []string          `json:"executables,omitempty"`
 	Warnings       []string          `json:"warnings,omitempty"`
@@ -193,17 +195,18 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 				Name:           pm,
 				Status:         StatusUnavailable,
 				AdapterVersion: adapterVersion,
+				TestedVersions: adapter.testedVersions(),
 				Capabilities:   adapter.capabilities(),
 				Error:          "executable not found",
 			})
 			continue
 		}
 		if err != nil {
-			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, AdapterVersion: adapterVersion, Capabilities: adapter.capabilities(), Error: redactSensitive(err.Error())})
+			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusError, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Error: redactSensitive(err.Error())})
 			continue
 		}
 
-		status := ManagerStatus{Name: pm, Status: StatusAvailable, AdapterVersion: adapterVersion, Capabilities: adapter.capabilities(), Executables: executables}
+		status := ManagerStatus{Name: pm, Status: StatusAvailable, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
 		output, versionErr := runOutput(context.Background(), executables[0], "--version")
 		if versionErr != nil {
 			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
@@ -211,6 +214,11 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 			status.ManagerVersion = firstVersion(string(output))
 			if status.ManagerVersion == "" {
 				status.Warnings = append(status.Warnings, "read manager version: no version in output")
+			} else {
+				status.VersionTested = versionInRange(status.ManagerVersion, status.TestedVersions)
+				if !status.VersionTested {
+					status.Warnings = append(status.Warnings, fmt.Sprintf("manager version %s is outside tested major range %d-%d", status.ManagerVersion, status.TestedVersions.MinimumMajor, status.TestedVersions.MaximumMajor))
+				}
 			}
 		}
 		statuses = append(statuses, status)

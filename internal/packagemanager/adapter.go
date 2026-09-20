@@ -25,9 +25,15 @@ type MutationImpact struct {
 	Interactive        bool `json:"interactive"`
 }
 
+type VersionRange struct {
+	MinimumMajor int `json:"minimum_major"`
+	MaximumMajor int `json:"maximum_major"`
+}
+
 type managerAdapter interface {
 	name() string
 	capabilities() []Capability
+	testedVersions() VersionRange
 	updateImpact(Scope) MutationImpact
 	recoveryArgs(Scope, []Package) [][]string
 	projectFiles() []string

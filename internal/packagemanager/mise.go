@@ -50,6 +50,10 @@ type MiseOpts struct {
 
 func (Mise) name() string { return PM_MISE }
 
+func (Mise) testedVersions() VersionRange {
+	return VersionRange{MinimumMajor: 2024, MaximumMajor: 2026}
+}
+
 func (Mise) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
 func (Mise) projectFiles() []string { return []string{"mise.toml", ".mise.toml", "mise.lock"} }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -264,6 +265,12 @@ func npmManagedByOtherTool(ctx context.Context, npmExecutable string, statuses [
 		}
 	}
 	return false
+}
+
+func versionInRange(version string, tested VersionRange) bool {
+	majorText, _, _ := strings.Cut(version, ".")
+	major, err := strconv.Atoi(majorText)
+	return err == nil && major >= tested.MinimumMajor && major <= tested.MaximumMajor
 }
 
 func firstVersion(output string) string {

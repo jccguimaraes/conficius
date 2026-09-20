@@ -45,6 +45,8 @@ type NPMOptsUpdate any
 
 func (NPM) name() string { return PM_NPM }
 
+func (NPM) testedVersions() VersionRange { return VersionRange{MinimumMajor: 9, MaximumMajor: 11} }
+
 func (NPM) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
 func (NPM) projectFiles() []string { return []string{"package.json", "package-lock.json"} }

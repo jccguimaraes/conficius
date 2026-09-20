@@ -49,6 +49,8 @@ type HomebrewUpdateOpts struct{}
 
 func (Homebrew) name() string { return PM_BREW }
 
+func (Homebrew) testedVersions() VersionRange { return VersionRange{MinimumMajor: 4, MaximumMajor: 7} }
+
 func (Homebrew) updateImpact(Scope) MutationImpact {
 	return MutationImpact{MayRestartServices: true}
 }
