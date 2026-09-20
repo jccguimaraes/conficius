@@ -109,7 +109,10 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "outdated",
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"}}, scopeFlags()...),
+				Flags: append([]urfave.Flag{pmFlag(), jsonFlag(),
+					&urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"},
+					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates or drift exist"},
+				}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
@@ -126,6 +129,9 @@ func (cli *Cli) packages() *urfave.Command {
 						}
 						if _, err := fmt.Fprintf(cli.Writer, "Offline inventory: %d packages; freshness unknown.\n", len(inventory.Packages)); err != nil {
 							return err
+						}
+						if queryErr != nil && c.Bool("check") {
+							return urfave.Exit(queryErr, 2)
 						}
 						return queryErr
 					}
@@ -156,6 +162,11 @@ func (cli *Cli) packages() *urfave.Command {
 							return err
 						}
 						if err := printPackageDrift(cli.Writer, drift); err != nil {
+							return err
+						}
+					}
+					if c.Bool("check") {
+						if err := packageCheckError(queryErr, len(packagemanager.Records(result.Packages)), len(drift)); err != nil {
 							return err
 						}
 					}
@@ -333,6 +344,16 @@ func (cli *Cli) packages() *urfave.Command {
 			},
 		},
 	}
+}
+
+func packageCheckError(queryErr error, updates, drift int) error {
+	if queryErr != nil {
+		return urfave.Exit(queryErr, 2)
+	}
+	if updates > 0 || drift > 0 {
+		return urfave.Exit("package updates or drift found", 1)
+	}
+	return nil
 }
 
 func validateManagerVersions(statuses []packagemanager.ManagerStatus, allowUntested bool) error {

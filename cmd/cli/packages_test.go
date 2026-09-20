@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	urfave "github.com/urfave/cli/v3"
+
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 )
@@ -21,6 +24,31 @@ import (
 func writeFakeManager(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPackageCheckErrorReturnsDocumentedExitCodes(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		err     error
+		updates int
+		drift   int
+		code    int
+	}{
+		{name: "updates", updates: 1, code: 1},
+		{name: "drift", drift: 1, code: 1},
+		{name: "inspection error", err: errors.New("failed"), code: 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var exitErr urfave.ExitCoder
+			err := packageCheckError(test.err, test.updates, test.drift)
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != test.code {
+				t.Fatalf("error = %#v", err)
+			}
+		})
+	}
+	if err := packageCheckError(nil, 0, 0); err != nil {
 		t.Fatal(err)
 	}
 }
