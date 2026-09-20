@@ -52,6 +52,8 @@ func (Mise) name() string { return PM_MISE }
 
 func (Mise) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
+func (Mise) projectFiles() []string { return []string{"mise.toml", ".mise.toml", "mise.lock"} }
+
 func (Mise) recoveryArgs(_ Scope, packages []Package) [][]string {
 	commands := make([][]string, 0, len(packages))
 	for _, pkg := range packages {

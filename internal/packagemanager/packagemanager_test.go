@@ -293,6 +293,26 @@ func TestManagerEnvironmentOverridesLocaleAndColorWithoutDroppingInheritedValues
 	}
 }
 
+func TestApplyUpdatesRecordsChangedProjectFiles(t *testing.T) {
+	if os.Getenv("GO_WANT_CHANGED_FILES_HELPER") == "1" {
+		if err := os.WriteFile(filepath.Join(os.Getenv("PROJECT_DIR"), "package-lock.json"), []byte("after"), 0o600); err != nil {
+			os.Exit(2)
+		}
+		os.Exit(0)
+	}
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package-lock.json"), []byte("before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GO_WANT_CHANGED_FILES_HELPER", "1")
+	t.Setenv("PROJECT_DIR", project)
+	plans := []UpdatePlan{{Manager: PM_NPM, Scope: "project", Directory: project, StateHash: "plan", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesRecordsChangedProjectFiles"}}}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil || len(outcomes) != 1 || !reflect.DeepEqual(outcomes[0].ChangedFiles, []string{"package-lock.json"}) {
+		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
+	}
+}
+
 func TestApplyUpdatesTimesOutPlanAndSkipsLaterWork(t *testing.T) {
 	if os.Getenv("GO_WANT_TIMEOUT_HELPER") == "1" {
 		time.Sleep(time.Hour)

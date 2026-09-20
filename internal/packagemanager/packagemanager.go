@@ -1,6 +1,7 @@
 package packagemanager
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -572,9 +573,10 @@ func updateArgs(manager string, packages []Package) []string {
 }
 
 type UpdateOutcome struct {
-	StateHash string `json:"state_hash"`
-	Status    string `json:"status"`
-	Error     string `json:"error,omitempty"`
+	StateHash    string   `json:"state_hash"`
+	Status       string   `json:"status"`
+	ChangedFiles []string `json:"changed_files,omitempty"`
+	Error        string   `json:"error,omitempty"`
 }
 
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {
@@ -599,6 +601,7 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 			break
 		}
+		beforeFiles := snapshotProjectFiles(plan)
 		planContext, cancel := context.WithTimeout(ctx, mutationTimeout)
 		cmd := commandContext(planContext, plan.Executable, plan.Args...)
 		cmd.Dir = plan.Directory
@@ -625,9 +628,48 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 			continue
 		}
-		outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "completed"})
+		outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "completed", ChangedFiles: changedProjectFiles(plan, beforeFiles)})
 	}
 	return outcomes, errors.Join(updateErrors...)
+}
+
+func snapshotProjectFiles(plan UpdatePlan) map[string][]byte {
+	if plan.Scope != "project" && plan.Scope != "workspace" {
+		return nil
+	}
+	adapter, err := adapterFor(plan.Manager)
+	if err != nil {
+		return nil
+	}
+	files := make(map[string][]byte)
+	for _, name := range adapter.projectFiles() {
+		contents, err := os.ReadFile(filepath.Join(plan.Directory, name))
+		if err == nil {
+			files[name] = contents
+		}
+	}
+	return files
+}
+
+func changedProjectFiles(plan UpdatePlan, before map[string][]byte) []string {
+	if before == nil {
+		return nil
+	}
+	adapter, err := adapterFor(plan.Manager)
+	if err != nil {
+		return nil
+	}
+	var changed []string
+	for _, name := range adapter.projectFiles() {
+		contents, err := os.ReadFile(filepath.Join(plan.Directory, name))
+		previous, existed := before[name]
+		if err == nil && (!existed || !bytes.Equal(previous, contents)) {
+			changed = append(changed, name)
+		} else if err != nil && existed {
+			changed = append(changed, name)
+		}
+	}
+	return changed
 }
 
 func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []UpdateOutcome, options QueryOptions) ([]UpdateOutcome, error) {

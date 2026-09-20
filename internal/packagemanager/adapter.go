@@ -30,6 +30,7 @@ type managerAdapter interface {
 	capabilities() []Capability
 	updateImpact(Scope) MutationImpact
 	recoveryArgs(Scope, []Package) [][]string
+	projectFiles() []string
 	listInstalled(context.Context, string, Scope) ([]InstalledPackage, error)
 	listOutdatedScope(context.Context, string, Scope, ManagerOptions, Packages) error
 	updateArgs([]Package) []string

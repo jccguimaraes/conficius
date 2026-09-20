@@ -47,6 +47,8 @@ func (NPM) name() string { return PM_NPM }
 
 func (NPM) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
+func (NPM) projectFiles() []string { return []string{"package.json", "package-lock.json"} }
+
 func (NPM) recoveryArgs(scope Scope, packages []Package) [][]string {
 	commands := make([][]string, 0, len(packages))
 	for _, pkg := range packages {

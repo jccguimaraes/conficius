@@ -54,6 +54,7 @@ func (Homebrew) updateImpact(Scope) MutationImpact {
 }
 
 func (Homebrew) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (Homebrew) projectFiles() []string                   { return nil }
 
 func (Homebrew) capabilities() []Capability {
 	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
