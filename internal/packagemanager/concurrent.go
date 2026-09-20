@@ -10,7 +10,10 @@ const (
 	readTimeout     = 5 * time.Minute
 )
 
-var operationTimeout = readTimeout
+var (
+	operationTimeout = readTimeout
+	mutationTimeout  = 30 * time.Minute
+)
 
 type readOperation[T any] struct {
 	managerIndex int

@@ -599,14 +599,20 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 			break
 		}
-		cmd := commandContext(ctx, plan.Executable, plan.Args...)
+		planContext, cancel := context.WithTimeout(ctx, mutationTimeout)
+		cmd := commandContext(planContext, plan.Executable, plan.Args...)
 		cmd.Dir = plan.Directory
 		cmd.Env = managerEnvironment(plan.Directory)
 		cmd.Stdin = stdin
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
-		if err := cmd.Run(); err != nil {
-			classified := classifyOperationError(ctx, err, "")
+		err := cmd.Run()
+		var classified error
+		if err != nil {
+			classified = classifyOperationError(planContext, err, "")
+		}
+		cancel()
+		if err != nil {
 			wrapped := fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified)
 			updateErrors = append(updateErrors, wrapped)
 			failedManagers[plan.Manager] = wrapped

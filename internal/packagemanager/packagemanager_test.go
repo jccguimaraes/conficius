@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jccguimaraes/conficius/internal/config"
 )
@@ -267,6 +268,26 @@ func TestManagerEnvironmentOverridesLocaleAndColorWithoutDroppingInheritedValues
 	}
 	if values["CONFICIUS_TEST_INHERITED"] != "kept" {
 		t.Fatalf("inherited environment dropped: %#v", values)
+	}
+}
+
+func TestApplyUpdatesTimesOutPlanAndSkipsLaterWork(t *testing.T) {
+	if os.Getenv("GO_WANT_TIMEOUT_HELPER") == "1" {
+		time.Sleep(time.Hour)
+		os.Exit(0)
+	}
+	originalTimeout := mutationTimeout
+	mutationTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { mutationTimeout = originalTimeout })
+	t.Setenv("GO_WANT_TIMEOUT_HELPER", "1")
+	plans := []UpdatePlan{
+		{Manager: PM_NPM, StateHash: "timed-out", Executable: os.Args[0], Args: []string{"-test.run=TestApplyUpdatesTimesOutPlanAndSkipsLaterWork"}},
+		{Manager: PM_BREW, StateHash: "skipped", Executable: "/must/not/run"},
+	}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorTimeout || len(outcomes) != 2 || outcomes[1].Status != "skipped" {
+		t.Fatalf("outcomes = %#v; error = %#v", outcomes, err)
 	}
 }
 
