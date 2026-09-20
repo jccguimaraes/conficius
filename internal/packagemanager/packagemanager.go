@@ -358,12 +358,39 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 			continue
 		}
 		if executable := options.Executables[statuses[i].Name]; executable != "" {
-			statuses[i].Status = StatusAvailable
-			statuses[i].Executables = []string{executable}
-			statuses[i].Error = ""
+			adapter, adapterErr := adapterFor(statuses[i].Name)
+			if adapterErr != nil {
+				return nil, adapterErr
+			}
+			statuses[i] = inspectExecutable(statuses[i].Name, executable, adapter)
 		}
 	}
 	return statuses, nil
+}
+
+func inspectExecutable(manager, executable string, adapter managerAdapter) ManagerStatus {
+	status := ManagerStatus{Name: manager, Status: StatusAvailable, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
+	info, err := os.Stat(executable)
+	if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
+		status.Status = StatusUnavailable
+		status.Error = "configured executable is unavailable"
+		return status
+	}
+	output, err := runOutput(context.Background(), executable, "--version")
+	if err != nil {
+		status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(err.Error()))
+		return status
+	}
+	status.ManagerVersion = firstVersion(string(output))
+	if status.ManagerVersion == "" {
+		status.Warnings = append(status.Warnings, "read manager version: no version in output")
+		return status
+	}
+	status.VersionTested = versionInRange(status.ManagerVersion, status.TestedVersions)
+	if !status.VersionTested {
+		status.Warnings = append(status.Warnings, fmt.Sprintf("manager version %s is outside tested major range %d-%d", status.ManagerVersion, status.TestedVersions.MinimumMajor, status.TestedVersions.MaximumMajor))
+	}
+	return status
 }
 
 func listOutdatedScope(ctx context.Context, pm, executable string, scope Scope, options ManagerOptions, packages Packages) error {

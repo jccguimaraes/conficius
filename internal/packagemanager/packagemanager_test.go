@@ -28,6 +28,31 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestInspectWithOptionsUsesConfiguredExecutableVersion(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "custom-npm")
+	writeExecutable(t, executable, "#!/bin/sh\nprintf '11.4.0'\n")
+	t.Setenv("PATH", "")
+	statuses, err := inspectWithOptions([]string{PM_NPM}, QueryOptions{Executables: map[string]string{PM_NPM: executable}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].Status != StatusAvailable || statuses[0].ManagerVersion != "11.4.0" || !reflect.DeepEqual(statuses[0].Executables, []string{executable}) {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
+func TestInspectWithOptionsRejectsMissingConfiguredExecutable(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), "missing-npm")
+	statuses, err := inspectWithOptions([]string{PM_NPM}, QueryOptions{Executables: map[string]string{PM_NPM: executable}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].Status != StatusUnavailable || statuses[0].Error != "configured executable is unavailable" {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
 func TestQueryOptionsFromProfile(t *testing.T) {
 	disabled := false
 	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{
