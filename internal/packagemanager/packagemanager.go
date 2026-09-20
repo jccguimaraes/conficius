@@ -33,6 +33,7 @@ const (
 	StatusAvailable   = "available"
 	StatusUnavailable = "unavailable"
 	StatusUnsupported = "unsupported"
+	StatusDisabled    = "disabled"
 	StatusPartial     = "partial"
 	StatusError       = "error"
 )
@@ -346,17 +347,16 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	if err := Supported(pms); err != nil {
 		return nil, err
 	}
-	var enabled []string
-	for _, manager := range pms {
-		if !options.Disabled[manager] {
-			enabled = append(enabled, manager)
-		}
-	}
-	statuses, err := Inspect(enabled)
+	statuses, err := Inspect(pms)
 	if err != nil {
 		return nil, err
 	}
 	for i := range statuses {
+		if options.Disabled[statuses[i].Name] {
+			statuses[i].Status = StatusDisabled
+			statuses[i].Error = ""
+			continue
+		}
 		if executable := options.Executables[statuses[i].Name]; executable != "" {
 			statuses[i].Status = StatusAvailable
 			statuses[i].Executables = []string{executable}

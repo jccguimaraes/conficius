@@ -14,6 +14,20 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 )
 
+func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, PM_NPM)
+	writeExecutable(t, executable, "#!/bin/sh\nprintf '11.0.0'\n")
+	t.Setenv("PATH", dir)
+	statuses, err := inspectWithOptions([]string{PM_NPM}, QueryOptions{Disabled: map[string]bool{PM_NPM: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].Status != StatusDisabled || !reflect.DeepEqual(statuses[0].Executables, []string{executable}) {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
 func TestQueryOptionsFromProfile(t *testing.T) {
 	disabled := false
 	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{
