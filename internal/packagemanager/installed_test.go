@@ -159,6 +159,23 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 	}
 }
 
+func TestQueryInstalledPreservesWorkspaceScope(t *testing.T) {
+	dir := t.TempDir()
+	workspace := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"dependencies":{"workspace-package":{"version":"1.0.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "workspace", Path: workspace}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "workspace-package", Version: "1.0.0", Role: RoleLibrary, Scope: "workspace", Path: workspace}}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledScopesRunsProjectNPMInProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

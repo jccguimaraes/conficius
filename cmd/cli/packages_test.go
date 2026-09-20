@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 
+	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 )
@@ -25,6 +27,14 @@ func writeFakeManager(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestManagerScopesExpandsWorkspaces(t *testing.T) {
+	scopes := managerScopes([]config.Scope{{Kind: "project", Path: "/repo", Workspaces: []string{"/repo/apps/a", "/repo/apps/b"}}})
+	want := []packagemanager.Scope{{Kind: "project", Path: "/repo"}, {Kind: "workspace", Path: "/repo/apps/a"}, {Kind: "workspace", Path: "/repo/apps/b"}}
+	if !reflect.DeepEqual(scopes, want) {
+		t.Fatalf("scopes = %#v; want %#v", scopes, want)
 	}
 }
 

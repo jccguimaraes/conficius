@@ -478,9 +478,12 @@ func includesGlobalScope(scopes []config.Scope) bool {
 }
 
 func managerScopes(scopes []config.Scope) []packagemanager.Scope {
-	result := make([]packagemanager.Scope, len(scopes))
-	for i, scope := range scopes {
-		result[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
+	result := make([]packagemanager.Scope, 0, len(scopes))
+	for _, scope := range scopes {
+		result = append(result, packagemanager.Scope{Kind: scope.Kind, Path: scope.Path})
+		for _, workspace := range scope.Workspaces {
+			result = append(result, packagemanager.Scope{Kind: "workspace", Path: workspace})
+		}
 	}
 	return result
 }
