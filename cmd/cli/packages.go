@@ -40,10 +40,12 @@ type packageOutputEnvelope struct {
 }
 
 type outdatedOutput struct {
-	Scopes   []config.Scope                 `json:"scopes"`
-	Managers []packagemanager.ManagerStatus `json:"managers"`
-	Packages []packagemanager.Package       `json:"packages"`
-	Drift    []config.PackageState          `json:"drift"`
+	Scopes    []config.Scope                    `json:"scopes"`
+	Managers  []packagemanager.ManagerStatus    `json:"managers"`
+	Packages  []packagemanager.Package          `json:"packages"`
+	Installed []packagemanager.InstalledPackage `json:"installed,omitempty"`
+	Freshness string                            `json:"freshness"`
+	Drift     []config.PackageState             `json:"drift"`
 }
 
 type updateOutput struct {
@@ -107,13 +109,27 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "outdated",
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"}}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
 						return err
 					}
-					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					options := packagemanager.QueryOptionsFromProfile(resolved.Profile)
+					if c.Bool("offline") {
+						inventory, queryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
+						if c.Bool("json") {
+							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown"}))
+						}
+						if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
+							return err
+						}
+						if _, err := fmt.Fprintf(cli.Writer, "Offline inventory: %d packages; freshness unknown.\n", len(inventory.Packages)); err != nil {
+							return err
+						}
+						return queryErr
+					}
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 					records := packagemanager.Records(result.Packages)
 					installed := make([]config.InstalledVersion, len(records))
 					for i, record := range records {
@@ -129,7 +145,7 @@ func (cli *Cli) packages() *urfave.Command {
 						return exists
 					})
 					if c.Bool("json") {
-						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Drift: drift}); err != nil {
+						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Freshness: "fresh", Drift: drift}); err != nil {
 							return err
 						}
 					} else {

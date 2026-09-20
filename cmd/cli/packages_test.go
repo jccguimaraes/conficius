@@ -25,6 +25,26 @@ func writeFakeManager(t *testing.T, path, contents string) {
 	}
 }
 
+func TestPackagesOutdatedOfflineReportsInventoryAndUnknownFreshness(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$*" = "--version" ]; then printf '11.0.0'; exit 0; fi
+if echo "$*" | grep -q outdated; then exit 99; fi
+printf '{"dependencies":{"typescript":{"version":"5.0.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "outdated", "--global", "--pm", "npm", "--offline", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"freshness": "unknown"`, `"name": "typescript"`, `"version": "5.0.0"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("output missing %s: %s", want, output.String())
+		}
+	}
+}
+
 func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
