@@ -245,6 +245,7 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
+	options = requireManifestManagers(options, scopes)
 	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return QueryResult{}, err
@@ -298,6 +299,23 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	finalizeManagerStatuses(result.Managers)
 
 	return result, errors.Join(queryErrors...)
+}
+
+func requireManifestManagers(options QueryOptions, scopes []Scope) QueryOptions {
+	if options.Required == nil {
+		options.Required = make(map[string]bool)
+	}
+	for _, scope := range scopes {
+		if scope.Path == "" {
+			continue
+		}
+		for manifest, manager := range map[string]string{"package.json": PM_NPM, "mise.toml": PM_MISE, ".mise.toml": PM_MISE, "Brewfile": PM_BREW} {
+			if info, err := os.Stat(filepath.Join(scope.Path, manifest)); err == nil && !info.IsDir() {
+				options.Required[manager] = true
+			}
+		}
+	}
+	return options
 }
 
 func requiredManagerErrors(statuses []ManagerStatus) []error {

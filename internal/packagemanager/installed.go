@@ -55,6 +55,7 @@ func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (In
 }
 
 func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (InstalledResult, error) {
+	options = requireManifestManagers(options, scopes)
 	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return InstalledResult{}, err

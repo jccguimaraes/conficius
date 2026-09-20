@@ -28,6 +28,24 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestProjectManifestRequiresItsManager(t *testing.T) {
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", "")
+	result, err := QueryOutdatedScopesWithOptions(context.Background(), nil, []Scope{{Kind: "project", Path: project}}, QueryOptions{})
+	if err == nil || !strings.Contains(err.Error(), "npm: required manager is unavailable") {
+		t.Fatalf("err = %v", err)
+	}
+	for _, status := range result.Managers {
+		if status.Name == PM_NPM && status.Status == StatusError {
+			return
+		}
+	}
+	t.Fatalf("managers = %#v", result.Managers)
+}
+
 func TestRequiredManagerUnavailableReturnsInspectionError(t *testing.T) {
 	t.Setenv("PATH", "")
 	result, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "global"}}, QueryOptions{Required: map[string]bool{PM_NPM: true}})
