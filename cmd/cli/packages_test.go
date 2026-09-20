@@ -298,6 +298,16 @@ func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
 	}
 }
 
+func TestValidateManagerVersionsBlocksUntestedMutations(t *testing.T) {
+	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusAvailable, ManagerVersion: "12.0.0", VersionTested: false}}
+	if err := validateManagerVersions(statuses, false); err == nil || !strings.Contains(err.Error(), "--allow-untested-manager") {
+		t.Fatalf("error = %v", err)
+	}
+	if err := validateManagerVersions(statuses, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestValidateAcceptedPlansRequiresExactHashes(t *testing.T) {
 	plans := []packagemanager.UpdatePlan{{StateHash: "first"}, {StateHash: "second"}}
 	if err := validateAcceptedPlans(plans, []string{"first", "second"}); err != nil {

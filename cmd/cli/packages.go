@@ -227,6 +227,7 @@ func (cli *Cli) packages() *urfave.Command {
 					&urfave.StringSliceFlag{Name: "accept-plan", Usage: "Accept exact plan `HASH`; may be repeated"},
 					&urfave.BoolFlag{Name: "allow-dirty", Usage: "Allow manifest changes in a dirty Git repository."},
 					&urfave.BoolFlag{Name: "allow-unversioned", Usage: "Allow manifest changes outside a Git repository."},
+					&urfave.BoolFlag{Name: "allow-untested-manager", Usage: "Allow updates using manager versions outside tested ranges."},
 					&urfave.StringSliceFlag{Name: "include", Usage: "Include package (manager:name or globally unique name)"},
 					&urfave.StringSliceFlag{Name: "exclude", Usage: "Exclude package (manager:name or globally unique name)"},
 				}, scopeFlags()...),
@@ -270,6 +271,9 @@ func (cli *Cli) packages() *urfave.Command {
 						return queryErr
 					}
 
+					if err := validateManagerVersions(result.Managers, c.Bool("allow-untested-manager")); err != nil {
+						return err
+					}
 					if err := validateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
 						return err
 					}
@@ -313,6 +317,18 @@ func (cli *Cli) packages() *urfave.Command {
 			},
 		},
 	}
+}
+
+func validateManagerVersions(statuses []packagemanager.ManagerStatus, allowUntested bool) error {
+	if allowUntested {
+		return nil
+	}
+	for _, status := range statuses {
+		if status.Status == packagemanager.StatusAvailable && status.ManagerVersion != "" && !status.VersionTested {
+			return fmt.Errorf("%s version %s is outside tested range; use --allow-untested-manager", status.Name, status.ManagerVersion)
+		}
+	}
+	return nil
 }
 
 func validateAcceptedPlans(plans []packagemanager.UpdatePlan, accepted []string) error {
