@@ -28,6 +28,17 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestRequiredManagerUnavailableReturnsInspectionError(t *testing.T) {
+	t.Setenv("PATH", "")
+	result, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "global"}}, QueryOptions{Required: map[string]bool{PM_NPM: true}})
+	if err == nil || !strings.Contains(err.Error(), "npm: required manager is unavailable") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(result.Managers) != 1 || result.Managers[0].Status != StatusError {
+		t.Fatalf("managers = %#v", result.Managers)
+	}
+}
+
 func TestInspectWithOptionsUsesConfiguredExecutableVersion(t *testing.T) {
 	dir := t.TempDir()
 	executable := filepath.Join(dir, "custom-npm")
@@ -54,12 +65,13 @@ func TestInspectWithOptionsRejectsMissingConfiguredExecutable(t *testing.T) {
 }
 
 func TestQueryOptionsFromProfile(t *testing.T) {
-	disabled := false
+	disabled, enabled := false, true
 	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{
 		"npm":  {Enabled: &disabled, Executable: "/tools/npm", ExpectedGlobalPrefix: "/prefix"},
+		"mise": {Enabled: &enabled},
 		"brew": {IncludeGreedy: true},
 	}})
-	if !options.Disabled["npm"] || options.Executables["npm"] != "/tools/npm" {
+	if !options.Disabled["npm"] || !options.Required["mise"] || options.Executables["npm"] != "/tools/npm" {
 		t.Fatalf("options = %#v", options)
 	}
 	if options.Managers["npm"].ExpectedGlobalPrefix != "/prefix" || !options.Managers["brew"].IncludeGreedy {

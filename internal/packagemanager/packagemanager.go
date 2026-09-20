@@ -88,6 +88,7 @@ type QueryOptions struct {
 	Managers          map[string]ManagerOptions
 	Executables       map[string]string
 	Disabled          map[string]bool
+	Required          map[string]bool
 	IncludeTransitive bool
 }
 
@@ -96,10 +97,15 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 		Managers:    make(map[string]ManagerOptions, len(profile.Managers)),
 		Executables: make(map[string]string),
 		Disabled:    make(map[string]bool),
+		Required:    make(map[string]bool),
 	}
 	for manager, settings := range profile.Managers {
-		if settings.Enabled != nil && !*settings.Enabled {
-			options.Disabled[manager] = true
+		if settings.Enabled != nil {
+			if *settings.Enabled {
+				options.Required[manager] = true
+			} else {
+				options.Disabled[manager] = true
+			}
 		}
 		if settings.Executable != "" {
 			options.Executables[manager] = settings.Executable
@@ -273,7 +279,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 			}
 		}
 	}
-	var queryErrors []error
+	queryErrors := requiredManagerErrors(result.Managers)
 	for _, operationResult := range runReadOperations(ctx, operations) {
 		status := &result.Managers[operationResult.operation.managerIndex]
 		operationStatus := newOperationStatus("outdated", operationResult.operation, operationResult.err)
@@ -292,6 +298,16 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	finalizeManagerStatuses(result.Managers)
 
 	return result, errors.Join(queryErrors...)
+}
+
+func requiredManagerErrors(statuses []ManagerStatus) []error {
+	var errs []error
+	for _, status := range statuses {
+		if status.Status == StatusError && status.Error == "required manager is unavailable" {
+			errs = append(errs, fmt.Errorf("%s: %s", status.Name, status.Error))
+		}
+	}
+	return errs
 }
 
 func unsupportedOperationStatus(operation, executable string, scope Scope) OperationStatus {
@@ -363,6 +379,10 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 				return nil, adapterErr
 			}
 			statuses[i] = inspectExecutable(statuses[i].Name, executable, adapter)
+		}
+		if options.Required[statuses[i].Name] && statuses[i].Status != StatusAvailable {
+			statuses[i].Status = StatusError
+			statuses[i].Error = "required manager is unavailable"
 		}
 	}
 	return statuses, nil
