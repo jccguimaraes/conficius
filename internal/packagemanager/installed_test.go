@@ -24,9 +24,9 @@ func TestManagerPackagesReadsManagerVersionsAndOSVIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []InstalledPackage{
-		{Manager: "manager", Name: PM_MISE, Version: "2026.9.6", Scope: "global", OSVEcosystem: "crates.io", OSVName: "mise"},
-		{Manager: "manager", Name: PM_BREW, Version: "7.0.1", Scope: "global"},
-		{Manager: "manager", Name: PM_NPM, Version: "11.19.1", Scope: "global", OSVEcosystem: "npm", OSVName: "npm"},
+		{Manager: "manager", Name: PM_MISE, Version: "2026.9.6", Role: RolePackageManager, Scope: "global", OSVEcosystem: "crates.io", OSVName: "mise"},
+		{Manager: "manager", Name: PM_BREW, Version: "7.0.1", Role: RolePackageManager, Scope: "global"},
+		{Manager: "manager", Name: PM_NPM, Version: "11.19.1", Role: RolePackageManager, Scope: "global", OSVEcosystem: "npm", OSVName: "npm"},
 	}
 	if !reflect.DeepEqual(packages, want) {
 		t.Fatalf("packages = %#v; want %#v", packages, want)
@@ -94,10 +94,10 @@ printf '{"formulae":[{"name":"wget","installed":[{"version":"1.2"}]}],"casks":[{
 		t.Fatal(err)
 	}
 	want := []InstalledPackage{
-		{Manager: PM_MISE, Name: "node", Version: "22.1.0"},
-		{Manager: PM_BREW, Name: "app", Version: "3.0"},
-		{Manager: PM_BREW, Name: "wget", Version: "1.2"},
-		{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0"},
+		{Manager: PM_MISE, Name: "node", Version: "22.1.0", Role: RoleRuntime},
+		{Manager: PM_BREW, Name: "app", Version: "3.0", Role: RoleApplication},
+		{Manager: PM_BREW, Name: "wget", Version: "1.2", Role: RoleLibrary},
+		{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary},
 	}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
@@ -134,7 +134,7 @@ printf '{"node":[{"version":"22.1.0","installed":true}]}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "22.1.0", Scope: "project", Path: project}}
+	want := []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "22.1.0", Role: RoleRuntime, Scope: "project", Path: project}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -151,8 +151,8 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 		t.Fatal(err)
 	}
 	want := []InstalledPackage{
-		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Scope: "global", Transitive: true},
-		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Scope: "global"},
+		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Role: RoleLibrary, Scope: "global", Transitive: true},
+		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Role: RoleLibrary, Scope: "global"},
 	}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
@@ -171,7 +171,7 @@ printf '{"dependencies":{"project-package":{"version":"2.0.0"}}}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Scope: "project", Path: project}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -213,7 +213,7 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	if status.Status != StatusPartial || len(status.Operations) != 2 || status.Operations[1].Category != ErrorRegistry {
 		t.Fatalf("status = %#v", status)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Scope: "project", Path: goodProject}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary, Scope: "project", Path: goodProject}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}

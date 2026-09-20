@@ -52,7 +52,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Scope:      "",
 			Confidence: PlanConfidenceEstimated,
 			Args:       []string{"upgrade", "--bump", "--yes", "node"},
-			Packages:   []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: "22", Executable: "/bin/mise"}},
+			Packages:   []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: "22", Role: RoleRuntime, Executable: "/bin/mise"}},
 		},
 		{
 			Manager: PM_BREW, Executable: "/bin/brew",
@@ -60,7 +60,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Confidence: PlanConfidenceEstimated,
 			Impact:     MutationImpact{MayRestartServices: true},
 			Args:       []string{"upgrade", "--yes", "--greedy", "wget"},
-			Packages:   []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Executable: "/bin/brew"}},
+			Packages:   []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Role: RoleLibrary, Executable: "/bin/brew"}},
 		},
 	}
 	want[0].Recovery = []RecoveryCommand{{Executable: "/bin/mise", Args: []string{"use", "node@20"}}}

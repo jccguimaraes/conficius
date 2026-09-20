@@ -118,14 +118,15 @@ type QueryResult struct {
 }
 
 type Package struct {
-	Manager    string `json:"manager"`
-	Name       string `json:"name"`
-	Current    string `json:"current"`
-	Latest     string `json:"latest"`
-	Requested  string `json:"requested,omitempty"`
-	Executable string `json:"executable"`
-	Scope      string `json:"scope,omitempty"`
-	Path       string `json:"path,omitempty"`
+	Manager    string      `json:"manager"`
+	Name       string      `json:"name"`
+	Current    string      `json:"current"`
+	Latest     string      `json:"latest"`
+	Requested  string      `json:"requested,omitempty"`
+	Role       PackageRole `json:"role"`
+	Executable string      `json:"executable"`
+	Scope      string      `json:"scope,omitempty"`
+	Path       string      `json:"path,omitempty"`
 }
 
 type PlanConfidence string
@@ -385,13 +386,26 @@ func Filter(packages Packages, keep func(Package) bool) Packages {
 	for name, tools := range packages {
 		for _, tool := range tools {
 			scope := toolScope(tool)
-			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
+			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager()), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
 			if keep(record) {
 				filtered[name] = append(filtered[name], tool)
 			}
 		}
 	}
 	return filtered
+}
+
+func packageRole(manager string) PackageRole {
+	switch manager {
+	case PM_MISE:
+		return RoleRuntime
+	case PM_NPM:
+		return RoleLibrary
+	case PM_BREW:
+		return RoleLibrary
+	default:
+		return RoleLibrary
+	}
 }
 
 func MergePackages(target, source Packages) {
@@ -410,6 +424,7 @@ func Records(packages Packages) []Package {
 				Current:    tool.GetCurrentVersion(),
 				Latest:     tool.GetLatestVersion(),
 				Requested:  tool.GetRequestedVersion(),
+				Role:       packageRole(tool.GetPackageManager()),
 				Executable: tool.GetExecutable(),
 				Scope:      toolScope(tool).Kind,
 				Path:       toolScope(tool).Path,

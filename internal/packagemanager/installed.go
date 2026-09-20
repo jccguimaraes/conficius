@@ -10,16 +10,26 @@ import (
 	"strings"
 )
 
+type PackageRole string
+
+const (
+	RoleRuntime        PackageRole = "runtime"
+	RoleLibrary        PackageRole = "library"
+	RoleApplication    PackageRole = "application"
+	RolePackageManager PackageRole = "package-manager"
+)
+
 type InstalledPackage struct {
-	Manager      string `json:"manager"`
-	Name         string `json:"name"`
-	Version      string `json:"version"`
-	Scope        string `json:"scope,omitempty"`
-	Path         string `json:"path,omitempty"`
-	Workspace    string `json:"workspace,omitempty"`
-	OSVEcosystem string `json:"osv_ecosystem,omitempty"`
-	OSVName      string `json:"osv_name,omitempty"`
-	Transitive   bool   `json:"transitive,omitempty"`
+	Manager      string      `json:"manager"`
+	Name         string      `json:"name"`
+	Version      string      `json:"version"`
+	Role         PackageRole `json:"role"`
+	Scope        string      `json:"scope,omitempty"`
+	Path         string      `json:"path,omitempty"`
+	Workspace    string      `json:"workspace,omitempty"`
+	OSVEcosystem string      `json:"osv_ecosystem,omitempty"`
+	OSVName      string      `json:"osv_name,omitempty"`
+	Transitive   bool        `json:"transitive,omitempty"`
 }
 
 type Scope struct {
@@ -129,7 +139,7 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	packages := make([]InstalledPackage, 0, len(document.Dependencies))
 	for name, dependency := range document.Dependencies {
 		if dependency.Version != "" {
-			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version})
+			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: RoleLibrary})
 		}
 	}
 	return packages, nil
@@ -163,7 +173,7 @@ type npmDependency struct {
 func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, transitive bool) {
 	for name, dependency := range dependencies {
 		if dependency.Version != "" {
-			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Transitive: transitive})
+			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: RoleLibrary, Transitive: transitive})
 		}
 		appendNPMDependencies(packages, dependency.Dependencies, true)
 	}
@@ -189,7 +199,7 @@ func installedMise(ctx context.Context, executable, dir string) ([]InstalledPack
 	for name, versions := range document {
 		for _, version := range versions {
 			if version.Installed && version.Version != "" {
-				packages = append(packages, InstalledPackage{Manager: PM_MISE, Name: name, Version: version.Version})
+				packages = append(packages, InstalledPackage{Manager: PM_MISE, Name: name, Version: version.Version, Role: RoleRuntime})
 			}
 		}
 	}
@@ -220,13 +230,13 @@ func installedHomebrew(ctx context.Context, executable string) ([]InstalledPacka
 	for _, formula := range document.Formulae {
 		for _, installed := range formula.Installed {
 			if installed.Version != "" {
-				packages = append(packages, InstalledPackage{Manager: PM_BREW, Name: formula.Name, Version: installed.Version})
+				packages = append(packages, InstalledPackage{Manager: PM_BREW, Name: formula.Name, Version: installed.Version, Role: RoleLibrary})
 			}
 		}
 	}
 	for _, cask := range document.Casks {
 		if cask.Installed != "" {
-			packages = append(packages, InstalledPackage{Manager: PM_BREW, Name: cask.Token, Version: cask.Installed})
+			packages = append(packages, InstalledPackage{Manager: PM_BREW, Name: cask.Token, Version: cask.Installed, Role: RoleApplication})
 		}
 	}
 	return packages, nil
@@ -249,7 +259,7 @@ func ManagerPackages(ctx context.Context, statuses []ManagerStatus) ([]Installed
 			versionErrors = append(versionErrors, fmt.Errorf("read %s version: no version in output", status.Name))
 			continue
 		}
-		pkg := InstalledPackage{Manager: "manager", Name: status.Name, Version: version, Scope: "global"}
+		pkg := InstalledPackage{Manager: "manager", Name: status.Name, Version: version, Role: RolePackageManager, Scope: "global"}
 		switch status.Name {
 		case PM_MISE:
 			pkg.OSVEcosystem, pkg.OSVName = "crates.io", "mise"
