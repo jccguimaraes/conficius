@@ -28,6 +28,18 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestDisabledManifestManagerReturnsConfigurationConflict(t *testing.T) {
+	project := t.TempDir()
+	manifest := filepath.Join(project, "package.json")
+	if err := os.WriteFile(manifest, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := QueryOutdatedScopesWithOptions(context.Background(), nil, []Scope{{Kind: "project", Path: project}}, QueryOptions{Disabled: map[string]bool{PM_NPM: true}})
+	if err == nil || !strings.Contains(err.Error(), "manager npm is disabled but required by "+manifest) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestProjectManifestRequiresItsManager(t *testing.T) {
 	project := t.TempDir()
 	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte("{}"), 0o600); err != nil {

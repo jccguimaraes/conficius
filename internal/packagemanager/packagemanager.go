@@ -245,7 +245,11 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
-	options = requireManifestManagers(options, scopes)
+	var err error
+	options, err = requireManifestManagers(options, scopes)
+	if err != nil {
+		return QueryResult{}, err
+	}
 	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return QueryResult{}, err
@@ -301,7 +305,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	return result, errors.Join(queryErrors...)
 }
 
-func requireManifestManagers(options QueryOptions, scopes []Scope) QueryOptions {
+func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {
 	if options.Required == nil {
 		options.Required = make(map[string]bool)
 	}
@@ -311,11 +315,14 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) QueryOptions 
 		}
 		for manifest, manager := range map[string]string{"package.json": PM_NPM, "mise.toml": PM_MISE, ".mise.toml": PM_MISE, "Brewfile": PM_BREW} {
 			if info, err := os.Stat(filepath.Join(scope.Path, manifest)); err == nil && !info.IsDir() {
+				if options.Disabled[manager] {
+					return options, fmt.Errorf("manager %s is disabled but required by %s", manager, filepath.Join(scope.Path, manifest))
+				}
 				options.Required[manager] = true
 			}
 		}
 	}
-	return options
+	return options, nil
 }
 
 func requiredManagerErrors(statuses []ManagerStatus) []error {
