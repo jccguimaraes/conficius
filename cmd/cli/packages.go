@@ -177,7 +177,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "vulnerabilities",
 				Description: "Check installed packages against OSV using exact package versions.",
 				Usage:       "Show known vulnerabilities and unsupported package mappings.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
@@ -193,7 +193,9 @@ func (cli *Cli) packages() *urfave.Command {
 						osvMappings = project.Vulnerabilities.Mappings
 						euvdMappings = project.Vulnerabilities.EUVD
 					}
-					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					queryOptions := packagemanager.QueryOptionsFromProfile(resolved.Profile)
+					queryOptions.IncludeTransitive = c.Bool("transitive")
+					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), queryOptions)
 					var managerPackages []packagemanager.InstalledPackage
 					if includesGlobalScope(scopes) {
 						var managerErr error

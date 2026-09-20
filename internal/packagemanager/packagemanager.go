@@ -84,9 +84,10 @@ type ManagerOptions struct {
 }
 
 type QueryOptions struct {
-	Managers    map[string]ManagerOptions
-	Executables map[string]string
-	Disabled    map[string]bool
+	Managers          map[string]ManagerOptions
+	Executables       map[string]string
+	Disabled          map[string]bool
+	IncludeTransitive bool
 }
 
 func QueryOptionsFromProfile(profile config.Profile) QueryOptions {

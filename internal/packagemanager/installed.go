@@ -19,6 +19,7 @@ type InstalledPackage struct {
 	Workspace    string `json:"workspace,omitempty"`
 	OSVEcosystem string `json:"osv_ecosystem,omitempty"`
 	OSVName      string `json:"osv_name,omitempty"`
+	Transitive   bool   `json:"transitive,omitempty"`
 }
 
 type Scope struct {
@@ -67,7 +68,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 				}
 				manager, executable, scope := status.Name, executable, scope
 				operations = append(operations, readOperation[[]InstalledPackage]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) ([]InstalledPackage, error) {
-					return listInstalledScope(ctx, manager, executable, scope)
+					return listInstalledScope(ctx, manager, executable, scope, options)
 				}})
 			}
 		}
@@ -88,10 +89,17 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 	return result, errors.Join(inventoryErrors...)
 }
 
-func listInstalledScope(ctx context.Context, manager, executable string, scope Scope) ([]InstalledPackage, error) {
+func listInstalledScope(ctx context.Context, manager, executable string, scope Scope, options QueryOptions) ([]InstalledPackage, error) {
 	adapter, err := adapterFor(manager)
 	if err != nil {
 		return nil, err
+	}
+	if manager == PM_NPM && options.IncludeTransitive {
+		packages, err := installedNPMTransitive(ctx, executable, scope)
+		for i := range packages {
+			packages[i].Scope, packages[i].Path = scope.Kind, scope.Path
+		}
+		return packages, err
 	}
 	packages, err := adapter.listInstalled(ctx, executable, scope)
 	for i := range packages {
@@ -125,6 +133,40 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 		}
 	}
 	return packages, nil
+}
+
+func installedNPMTransitive(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	args := []string{"ls", "--all", NPMFlagJSON}
+	if scope.Kind == "global" {
+		args = []string{"ls", NPMFlagGlobal, "--all", NPMFlagJSON}
+	}
+	output, err := runOutputDir(ctx, scope.Path, executable, args...)
+	if err != nil {
+		return nil, err
+	}
+	var document struct {
+		Dependencies map[string]npmDependency `json:"dependencies"`
+	}
+	if err := json.Unmarshal(output, &document); err != nil {
+		return nil, parserError(fmt.Errorf("decode npm transitive inventory: %w", err))
+	}
+	var packages []InstalledPackage
+	appendNPMDependencies(&packages, document.Dependencies, false)
+	return packages, nil
+}
+
+type npmDependency struct {
+	Version      string                   `json:"version"`
+	Dependencies map[string]npmDependency `json:"dependencies"`
+}
+
+func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, transitive bool) {
+	for name, dependency := range dependencies {
+		if dependency.Version != "" {
+			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Transitive: transitive})
+		}
+		appendNPMDependencies(packages, dependency.Dependencies, true)
+	}
 }
 
 func installedMise(ctx context.Context, executable, dir string) ([]InstalledPackage, error) {

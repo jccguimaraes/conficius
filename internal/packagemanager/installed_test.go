@@ -140,6 +140,25 @@ printf '{"node":[{"version":"22.1.0","installed":true}]}'
 	}
 }
 
+func TestQueryInstalledIncludesNPMTransitivePackagesWhenRequested(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"version":"2.0.0"}}}}}'
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "global"}}, QueryOptions{IncludeTransitive: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{
+		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Scope: "global", Transitive: true},
+		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Scope: "global"},
+	}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledScopesRunsProjectNPMInProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
