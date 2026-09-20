@@ -630,6 +630,40 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 	return outcomes, errors.Join(updateErrors...)
 }
 
+func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []UpdateOutcome, options QueryOptions) ([]UpdateOutcome, error) {
+	plansByHash := make(map[string]UpdatePlan, len(plans))
+	for _, plan := range plans {
+		plansByHash[plan.StateHash] = plan
+	}
+	var verificationErrors []error
+	for i := range outcomes {
+		outcome := &outcomes[i]
+		if outcome.Status != "completed" {
+			continue
+		}
+		plan, ok := plansByHash[outcome.StateHash]
+		if !ok {
+			continue
+		}
+		remaining := make(Packages)
+		err := listOutdatedScope(ctx, plan.Manager, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory}, options.Managers[plan.Manager], remaining)
+		if err == nil {
+			for _, pkg := range plan.Packages {
+				if hasPackage(Records(remaining), pkg.Manager, pkg.Name) {
+					err = fmt.Errorf("%s:%s remains outdated", pkg.Manager, pkg.Name)
+					break
+				}
+			}
+		}
+		if err != nil {
+			outcome.Status = "verification-failed"
+			outcome.Error = redactSensitive(err.Error())
+			verificationErrors = append(verificationErrors, fmt.Errorf("verify plan %s: %w", plan.StateHash, err))
+		}
+	}
+	return outcomes, errors.Join(verificationErrors...)
+}
+
 func runOutput(ctx context.Context, executable string, args ...string) ([]byte, error) {
 	return runOutputDir(ctx, "", executable, args...)
 }

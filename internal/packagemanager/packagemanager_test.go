@@ -251,6 +251,28 @@ func TestPlanUpdatesInstallsNPMManagerVersionGlobally(t *testing.T) {
 	}
 }
 
+func TestVerifyUpdateOutcomesMarksPackageStillOutdated(t *testing.T) {
+	dir := t.TempDir()
+	npm := filepath.Join(dir, "npm")
+	writeExecutable(t, npm, "#!/bin/sh\nprintf '{\"typescript\":{\"current\":\"5.0\",\"wanted\":\"5.1\",\"latest\":\"5.1\"}}'\n")
+	plans := []UpdatePlan{{Manager: PM_NPM, Executable: npm, Scope: "global", StateHash: "plan", Packages: []Package{{Manager: PM_NPM, Name: "typescript"}}}}
+	outcomes, err := VerifyUpdateOutcomes(context.Background(), plans, []UpdateOutcome{{StateHash: "plan", Status: "completed"}}, QueryOptions{})
+	if err == nil || len(outcomes) != 1 || outcomes[0].Status != "verification-failed" || !strings.Contains(outcomes[0].Error, "remains outdated") {
+		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
+	}
+}
+
+func TestVerifyUpdateOutcomesKeepsCompletedWhenTargetCurrent(t *testing.T) {
+	dir := t.TempDir()
+	npm := filepath.Join(dir, "npm")
+	writeExecutable(t, npm, "#!/bin/sh\nprintf '{}'\n")
+	plans := []UpdatePlan{{Manager: PM_NPM, Executable: npm, Scope: "global", StateHash: "plan", Packages: []Package{{Manager: PM_NPM, Name: "typescript"}}}}
+	outcomes, err := VerifyUpdateOutcomes(context.Background(), plans, []UpdateOutcome{{StateHash: "plan", Status: "completed"}}, QueryOptions{})
+	if err != nil || outcomes[0].Status != "completed" {
+		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
+	}
+}
+
 func TestManagerEnvironmentOverridesLocaleAndColorWithoutDroppingInheritedValues(t *testing.T) {
 	t.Setenv("NO_COLOR", "0")
 	t.Setenv("CLICOLOR", "1")

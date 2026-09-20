@@ -296,17 +296,19 @@ func (cli *Cli) packages() *urfave.Command {
 						stdin = os.Stdin
 					}
 					outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, plans, c.Bool("best-effort"), stdin, cli.Writer, cli.Writer)
+					var verifyErr error
+					outcomes, verifyErr = packagemanager.VerifyUpdateOutcomes(ctx, plans, outcomes, packagemanager.QueryOptionsFromProfile(resolved.Profile))
 					log.Outcomes = outcomes
 					log.Status = "completed"
-					if applyErr != nil {
+					if applyErr != nil || verifyErr != nil {
 						log.Status = "failed"
 						if ctx.Err() != nil {
 							log.Status = "interrupted"
 						}
-						log.Error = applyErr.Error()
+						log.Error = errors.Join(applyErr, verifyErr).Error()
 					}
 					logErr := finishUpdateLog(logPath, log)
-					return errors.Join(queryErr, applyErr, logErr)
+					return errors.Join(queryErr, applyErr, verifyErr, logErr)
 				},
 			},
 		},
