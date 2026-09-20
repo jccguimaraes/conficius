@@ -132,16 +132,22 @@ const (
 	PlanConfidenceUnknown   PlanConfidence = "unknown"
 )
 
+type RecoveryCommand struct {
+	Executable string   `json:"executable"`
+	Args       []string `json:"args"`
+}
+
 type UpdatePlan struct {
-	Manager    string         `json:"manager"`
-	Executable string         `json:"executable"`
-	Directory  string         `json:"directory,omitempty"`
-	Scope      string         `json:"scope"`
-	Confidence PlanConfidence `json:"confidence"`
-	StateHash  string         `json:"state_hash"`
-	Impact     MutationImpact `json:"impact"`
-	Args       []string       `json:"args"`
-	Packages   []Package      `json:"packages"`
+	Manager    string            `json:"manager"`
+	Executable string            `json:"executable"`
+	Directory  string            `json:"directory,omitempty"`
+	Scope      string            `json:"scope"`
+	Confidence PlanConfidence    `json:"confidence"`
+	StateHash  string            `json:"state_hash"`
+	Impact     MutationImpact    `json:"impact"`
+	Args       []string          `json:"args"`
+	Recovery   []RecoveryCommand `json:"recovery,omitempty"`
+	Packages   []Package         `json:"packages"`
 }
 
 var commandContext = exec.CommandContext
@@ -468,7 +474,11 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if err != nil {
 			return nil, err
 		}
-		plan.Impact = adapter.updateImpact(Scope{Kind: plan.Scope, Path: plan.Directory})
+		scope := Scope{Kind: plan.Scope, Path: plan.Directory}
+		plan.Impact = adapter.updateImpact(scope)
+		for _, args := range adapter.recoveryArgs(scope, plan.Packages) {
+			plan.Recovery = append(plan.Recovery, RecoveryCommand{Executable: plan.Executable, Args: args})
+		}
 		plan.StateHash = updatePlanHash(*plan)
 		plans = append(plans, *plan)
 	}
@@ -487,6 +497,12 @@ func updatePlanHash(plan UpdatePlan) string {
 	}
 	for _, arg := range plan.Args {
 		writeHashValue(arg)
+	}
+	for _, command := range plan.Recovery {
+		writeHashValue(command.Executable)
+		for _, arg := range command.Args {
+			writeHashValue(arg)
+		}
 	}
 	for _, pkg := range plan.Packages {
 		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path} {

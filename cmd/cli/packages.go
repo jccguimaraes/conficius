@@ -512,6 +512,15 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 				return err
 			}
 		}
+		for _, recovery := range plan.Recovery {
+			parts := append([]string{recovery.Executable}, recovery.Args...)
+			for i, part := range parts {
+				parts[i] = strconv.Quote(part)
+			}
+			if _, err := fmt.Fprintf(writer, "Recovery: %s\n", strings.Join(parts, " ")); err != nil {
+				return err
+			}
+		}
 		parts := append([]string{plan.Executable}, plan.Args...)
 		for i, part := range parts {
 			parts[i] = strconv.Quote(part)

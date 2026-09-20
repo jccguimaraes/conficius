@@ -53,6 +53,8 @@ func (Homebrew) updateImpact(Scope) MutationImpact {
 	return MutationImpact{MayRestartServices: true}
 }
 
+func (Homebrew) recoveryArgs(Scope, []Package) [][]string { return nil }
+
 func (Homebrew) capabilities() []Capability {
 	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }

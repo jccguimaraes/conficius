@@ -52,6 +52,16 @@ func (Mise) name() string { return PM_MISE }
 
 func (Mise) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
+func (Mise) recoveryArgs(_ Scope, packages []Package) [][]string {
+	commands := make([][]string, 0, len(packages))
+	for _, pkg := range packages {
+		if pkg.Current != "" {
+			commands = append(commands, []string{"use", pkg.Name + "@" + pkg.Current})
+		}
+	}
+	return commands
+}
+
 func (Mise) capabilities() []Capability {
 	return []Capability{
 		CapabilityGlobalInventory, CapabilityProjectInventory,

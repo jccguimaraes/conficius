@@ -62,6 +62,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Packages:   []Package{{Manager: PM_BREW, Name: "wget", Current: "1", Latest: "2", Executable: "/bin/brew"}},
 		},
 	}
+	want[0].Recovery = []RecoveryCommand{{Executable: "/bin/mise", Args: []string{"use", "node@20"}}}
 	for i := range want {
 		want[i].StateHash = plans[i].StateHash
 		if want[i].StateHash == "" {
@@ -70,6 +71,17 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 	}
 	if !reflect.DeepEqual(plans, want) {
 		t.Fatalf("plans = %#v; want %#v", plans, want)
+	}
+}
+
+func TestNPMRecoveryArgsRespectScope(t *testing.T) {
+	adapter := NPM{}
+	packages := []Package{{Name: "typescript", Current: "5.0"}}
+	if got := adapter.recoveryArgs(Scope{Kind: "global"}, packages); !reflect.DeepEqual(got, [][]string{{"install", "--global", "typescript@5.0"}}) {
+		t.Fatalf("global recovery = %#v", got)
+	}
+	if got := adapter.recoveryArgs(Scope{Kind: "project"}, packages); !reflect.DeepEqual(got, [][]string{{"install", "typescript@5.0"}}) {
+		t.Fatalf("project recovery = %#v", got)
 	}
 }
 

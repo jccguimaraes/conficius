@@ -47,6 +47,21 @@ func (NPM) name() string { return PM_NPM }
 
 func (NPM) updateImpact(Scope) MutationImpact { return MutationImpact{} }
 
+func (NPM) recoveryArgs(scope Scope, packages []Package) [][]string {
+	commands := make([][]string, 0, len(packages))
+	for _, pkg := range packages {
+		if pkg.Current == "" {
+			continue
+		}
+		args := []string{"install"}
+		if scope.Kind != "project" && scope.Kind != "workspace" {
+			args = append(args, NPMFlagGlobal)
+		}
+		commands = append(commands, append(args, pkg.Name+"@"+pkg.Current))
+	}
+	return commands
+}
+
 func (NPM) capabilities() []Capability {
 	return []Capability{
 		CapabilityGlobalInventory, CapabilityProjectInventory,
