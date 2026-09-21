@@ -28,6 +28,17 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestNormalizeScopesUsesAbsolutePathsAndRemovesDuplicates(t *testing.T) {
+	project := t.TempDir()
+	scopes, err := normalizeScopes([]Scope{{Kind: "project", Path: project}, {Kind: "project", Path: filepath.Join(project, ".")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scopes) != 1 || scopes[0].Path != project {
+		t.Fatalf("scopes = %#v", scopes)
+	}
+}
+
 func TestQueriesRejectInvalidScopes(t *testing.T) {
 	tests := []struct {
 		scope Scope

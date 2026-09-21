@@ -55,10 +55,11 @@ func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (In
 }
 
 func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (InstalledResult, error) {
-	if err := validateScopes(scopes); err != nil {
+	var err error
+	scopes, err = normalizeScopes(scopes)
+	if err != nil {
 		return InstalledResult{}, err
 	}
-	var err error
 	options, err = requireManifestManagers(options, scopes)
 	if err != nil {
 		return InstalledResult{}, err

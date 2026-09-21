@@ -245,10 +245,11 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
-	if err := validateScopes(scopes); err != nil {
+	var err error
+	scopes, err = normalizeScopes(scopes)
+	if err != nil {
 		return QueryResult{}, err
 	}
-	var err error
 	options, err = requireManifestManagers(options, scopes)
 	if err != nil {
 		return QueryResult{}, err
@@ -308,8 +309,10 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	return result, errors.Join(queryErrors...)
 }
 
-func validateScopes(scopes []Scope) error {
+func normalizeScopes(scopes []Scope) ([]Scope, error) {
 	var errs []error
+	result := make([]Scope, 0, len(scopes))
+	seen := make(map[string]struct{}, len(scopes))
 	for _, scope := range scopes {
 		switch scope.Kind {
 		case "system", "user", "global-config", "global":
@@ -319,12 +322,26 @@ func validateScopes(scopes []Scope) error {
 		case "project", "workspace":
 			if scope.Path == "" {
 				errs = append(errs, fmt.Errorf("%s scope requires a path", scope.Kind))
+				continue
 			}
+			absolute, err := filepath.Abs(filepath.Clean(scope.Path))
+			if err != nil {
+				errs = append(errs, fmt.Errorf("resolve %s scope path %q: %w", scope.Kind, scope.Path, err))
+				continue
+			}
+			scope.Path = absolute
 		default:
 			errs = append(errs, fmt.Errorf("unsupported scope %q", scope.Kind))
+			continue
 		}
+		key := scope.Kind + "\x00" + scope.Path
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, scope)
 	}
-	return errors.Join(errs...)
+	return result, errors.Join(errs...)
 }
 
 func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {
