@@ -110,7 +110,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		}
 		for _, pkg := range operationResult.value {
 			classes := options.DependencyClasses[pkg.Path]
-			if pkg.Manager == PM_NPM && len(classes) > 0 && !classes[pkg.DependencyClass] {
+			if pkg.Manager == PM_NPM && !options.IncludeTransitive && len(classes) > 0 && !classes[pkg.DependencyClass] {
 				continue
 			}
 			result.Packages = append(result.Packages, pkg)
