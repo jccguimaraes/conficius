@@ -61,7 +61,8 @@ type Packages map[string][]Tool
 
 type scopedTool struct {
 	Tool
-	scope Scope
+	scope           Scope
+	dependencyClass string
 }
 
 type ManagerStatus struct {
@@ -137,17 +138,18 @@ type QueryResult struct {
 }
 
 type Package struct {
-	Manager    string      `json:"manager"`
-	Name       string      `json:"name"`
-	Current    string      `json:"current"`
-	Latest     string      `json:"latest"`
-	Requested  string      `json:"requested,omitempty"`
-	Role       PackageRole `json:"role"`
-	Manifest   string      `json:"manifest,omitempty"`
-	Config     string      `json:"config,omitempty"`
-	Executable string      `json:"executable"`
-	Scope      string      `json:"scope,omitempty"`
-	Path       string      `json:"path,omitempty"`
+	Manager         string      `json:"manager"`
+	Name            string      `json:"name"`
+	Current         string      `json:"current"`
+	Latest          string      `json:"latest"`
+	Requested       string      `json:"requested,omitempty"`
+	Role            PackageRole `json:"role"`
+	DependencyClass string      `json:"dependency_class,omitempty"`
+	Manifest        string      `json:"manifest,omitempty"`
+	Config          string      `json:"config,omitempty"`
+	Executable      string      `json:"executable"`
+	Scope           string      `json:"scope,omitempty"`
+	Path            string      `json:"path,omitempty"`
 }
 
 type PlanConfidence string
@@ -324,7 +326,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 				continue
 			}
 			for _, tool := range tools {
-				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope})
+				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope, dependencyClass: dependencyClasses[name]})
 			}
 		}
 	}
@@ -574,12 +576,20 @@ func toolScope(tool Tool) Scope {
 	return Scope{}
 }
 
+func toolDependencyClass(tool Tool) string {
+	if scoped, ok := tool.(scopedTool); ok {
+		return scoped.dependencyClass
+	}
+	return ""
+}
+
 func Filter(packages Packages, keep func(Package) bool) Packages {
 	filtered := make(Packages)
 	for name, tools := range packages {
 		for _, tool := range tools {
 			scope := toolScope(tool)
-			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager()), Manifest: packageManifest(tool.GetPackageManager(), scope), Config: packageConfig(tool.GetPackageManager(), scope), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
+			class := toolDependencyClass(tool)
+			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager(), class), DependencyClass: class, Manifest: packageManifest(tool.GetPackageManager(), scope), Config: packageConfig(tool.GetPackageManager(), scope), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
 			if keep(record) {
 				filtered[name] = append(filtered[name], tool)
 			}
@@ -602,7 +612,10 @@ func packageConfig(manager string, scope Scope) string {
 	return ""
 }
 
-func packageRole(manager string) PackageRole {
+func packageRole(manager, dependencyClass string) PackageRole {
+	if manager == PM_NPM && dependencyClass == "development" {
+		return RoleDevelopmentTool
+	}
 	switch manager {
 	case PM_MISE:
 		return RoleRuntime
@@ -626,17 +639,18 @@ func Records(packages Packages) []Package {
 	for _, tools := range packages {
 		for _, tool := range tools {
 			records = append(records, Package{
-				Manager:    tool.GetPackageManager(),
-				Name:       tool.GetName(),
-				Current:    tool.GetCurrentVersion(),
-				Latest:     tool.GetLatestVersion(),
-				Requested:  tool.GetRequestedVersion(),
-				Role:       packageRole(tool.GetPackageManager()),
-				Manifest:   packageManifest(tool.GetPackageManager(), toolScope(tool)),
-				Config:     packageConfig(tool.GetPackageManager(), toolScope(tool)),
-				Executable: tool.GetExecutable(),
-				Scope:      toolScope(tool).Kind,
-				Path:       toolScope(tool).Path,
+				Manager:         tool.GetPackageManager(),
+				Name:            tool.GetName(),
+				Current:         tool.GetCurrentVersion(),
+				Latest:          tool.GetLatestVersion(),
+				Requested:       tool.GetRequestedVersion(),
+				Role:            packageRole(tool.GetPackageManager(), toolDependencyClass(tool)),
+				DependencyClass: toolDependencyClass(tool),
+				Manifest:        packageManifest(tool.GetPackageManager(), toolScope(tool)),
+				Config:          packageConfig(tool.GetPackageManager(), toolScope(tool)),
+				Executable:      tool.GetExecutable(),
+				Scope:           toolScope(tool).Kind,
+				Path:            toolScope(tool).Path,
 			})
 		}
 	}

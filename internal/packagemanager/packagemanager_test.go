@@ -414,7 +414,7 @@ func TestQueryOutdatedFiltersConfiguredNPMDependencyClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 	records := Records(result.Packages)
-	if len(records) != 1 || records[0].Name != "typescript" {
+	if len(records) != 1 || records[0].Name != "typescript" || records[0].DependencyClass != "development" || records[0].Role != RoleDevelopmentTool {
 		t.Fatalf("records = %#v", records)
 	}
 }
