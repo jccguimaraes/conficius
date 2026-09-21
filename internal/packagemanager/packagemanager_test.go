@@ -28,6 +28,18 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestNormalizeScopesPrefersWorkspaceForSamePhysicalRoot(t *testing.T) {
+	root := t.TempDir()
+	scopes, err := normalizeScopes([]Scope{{Kind: "project", Path: root}, {Kind: "workspace", Path: root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Scope{{Kind: "workspace", Path: root}}
+	if !reflect.DeepEqual(scopes, want) {
+		t.Fatalf("scopes = %#v; want %#v", scopes, want)
+	}
+}
+
 func TestNormalizeScopesResolvesSymlinksAndRemovesDuplicates(t *testing.T) {
 	project := t.TempDir()
 	link := filepath.Join(t.TempDir(), "project")

@@ -313,6 +313,7 @@ func normalizeScopes(scopes []Scope) ([]Scope, error) {
 	var errs []error
 	result := make([]Scope, 0, len(scopes))
 	seen := make(map[string]struct{}, len(scopes))
+	localRoots := make(map[string]int, len(scopes))
 	for _, scope := range scopes {
 		switch scope.Kind {
 		case "system", "user", "global-config", "global":
@@ -335,11 +336,13 @@ func normalizeScopes(scopes []Scope) ([]Scope, error) {
 				continue
 			}
 			scope.Path = absolute
-			key := scope.Kind + "\x00" + resolved
-			if _, exists := seen[key]; exists {
+			if index, exists := localRoots[resolved]; exists {
+				if result[index].Kind == "project" && scope.Kind == "workspace" {
+					result[index] = scope
+				}
 				continue
 			}
-			seen[key] = struct{}{}
+			localRoots[resolved] = len(result)
 			result = append(result, scope)
 			continue
 		default:
