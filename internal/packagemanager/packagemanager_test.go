@@ -28,6 +28,21 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestNormalizeScopesResolvesSymlinksAndRemovesDuplicates(t *testing.T) {
+	project := t.TempDir()
+	link := filepath.Join(t.TempDir(), "project")
+	if err := os.Symlink(project, link); err != nil {
+		t.Fatal(err)
+	}
+	scopes, err := normalizeScopes([]Scope{{Kind: "project", Path: project}, {Kind: "project", Path: link}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scopes) != 1 || scopes[0].Path != project {
+		t.Fatalf("scopes = %#v", scopes)
+	}
+}
+
 func TestNormalizeScopesUsesAbsolutePathsAndRemovesDuplicates(t *testing.T) {
 	project := t.TempDir()
 	scopes, err := normalizeScopes([]Scope{{Kind: "project", Path: project}, {Kind: "project", Path: filepath.Join(project, ".")}})

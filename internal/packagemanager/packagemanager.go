@@ -329,7 +329,19 @@ func normalizeScopes(scopes []Scope) ([]Scope, error) {
 				errs = append(errs, fmt.Errorf("resolve %s scope path %q: %w", scope.Kind, scope.Path, err))
 				continue
 			}
+			resolved, err := filepath.EvalSymlinks(absolute)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("resolve %s scope root %q: %w", scope.Kind, scope.Path, err))
+				continue
+			}
 			scope.Path = absolute
+			key := scope.Kind + "\x00" + resolved
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			result = append(result, scope)
+			continue
 		default:
 			errs = append(errs, fmt.Errorf("unsupported scope %q", scope.Kind))
 			continue
