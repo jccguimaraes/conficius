@@ -24,18 +24,19 @@ const (
 )
 
 type InstalledPackage struct {
-	Manager      string      `json:"manager"`
-	Name         string      `json:"name"`
-	Version      string      `json:"version"`
-	Role         PackageRole `json:"role"`
-	Scope        string      `json:"scope,omitempty"`
-	Path         string      `json:"path,omitempty"`
-	Workspace    string      `json:"workspace,omitempty"`
-	Manifest     string      `json:"manifest,omitempty"`
-	Config       string      `json:"config,omitempty"`
-	OSVEcosystem string      `json:"osv_ecosystem,omitempty"`
-	OSVName      string      `json:"osv_name,omitempty"`
-	Transitive   bool        `json:"transitive,omitempty"`
+	Manager         string      `json:"manager"`
+	Name            string      `json:"name"`
+	Version         string      `json:"version"`
+	Role            PackageRole `json:"role"`
+	Scope           string      `json:"scope,omitempty"`
+	Path            string      `json:"path,omitempty"`
+	Workspace       string      `json:"workspace,omitempty"`
+	Manifest        string      `json:"manifest,omitempty"`
+	Config          string      `json:"config,omitempty"`
+	DependencyClass string      `json:"dependency_class,omitempty"`
+	OSVEcosystem    string      `json:"osv_ecosystem,omitempty"`
+	OSVName         string      `json:"osv_name,omitempty"`
+	Transitive      bool        `json:"transitive,omitempty"`
 }
 
 type Scope struct {
@@ -170,7 +171,7 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	if err := json.Unmarshal(output, &document); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm inventory: %w", err))
 	}
-	development, err := npmDevelopmentDependencies(scope)
+	classes, err := npmDependencyClasses(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -178,17 +179,17 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	for name, dependency := range document.Dependencies {
 		if dependency.Version != "" {
 			role := RoleLibrary
-			if development[name] {
+			if classes[name] == "development" {
 				role = RoleDevelopmentTool
 			}
-			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role})
+			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, DependencyClass: classes[name]})
 		}
 	}
 	return packages, nil
 }
 
-func npmDevelopmentDependencies(scope Scope) (map[string]bool, error) {
-	result := make(map[string]bool)
+func npmDependencyClasses(scope Scope) (map[string]string, error) {
+	result := make(map[string]string)
 	if scope.Kind != "project" && scope.Kind != "workspace" {
 		return result, nil
 	}
@@ -200,13 +201,17 @@ func npmDevelopmentDependencies(scope Scope) (map[string]bool, error) {
 		return nil, fmt.Errorf("read npm manifest: %w", err)
 	}
 	var manifest struct {
+		Dependencies    map[string]string `json:"dependencies"`
 		DevDependencies map[string]string `json:"devDependencies"`
 	}
 	if err := json.Unmarshal(contents, &manifest); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm manifest: %w", err))
 	}
+	for name := range manifest.Dependencies {
+		result[name] = "runtime"
+	}
 	for name := range manifest.DevDependencies {
-		result[name] = true
+		result[name] = "development"
 	}
 	return result, nil
 }
@@ -226,12 +231,12 @@ func installedNPMTransitive(ctx context.Context, executable string, scope Scope)
 	if err := json.Unmarshal(output, &document); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm transitive inventory: %w", err))
 	}
-	development, err := npmDevelopmentDependencies(scope)
+	classes, err := npmDependencyClasses(scope)
 	if err != nil {
 		return nil, err
 	}
 	var packages []InstalledPackage
-	appendNPMDependencies(&packages, document.Dependencies, development, false)
+	appendNPMDependencies(&packages, document.Dependencies, classes, false)
 	return packages, nil
 }
 
@@ -240,16 +245,20 @@ type npmDependency struct {
 	Dependencies map[string]npmDependency `json:"dependencies"`
 }
 
-func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, development map[string]bool, transitive bool) {
+func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, classes map[string]string, transitive bool) {
 	for name, dependency := range dependencies {
 		if dependency.Version != "" {
 			role := RoleLibrary
-			if !transitive && development[name] {
+			if !transitive && classes[name] == "development" {
 				role = RoleDevelopmentTool
 			}
-			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, Transitive: transitive})
+			dependencyClass := "transitive"
+			if !transitive {
+				dependencyClass = classes[name]
+			}
+			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, DependencyClass: dependencyClass, Transitive: transitive})
 		}
-		appendNPMDependencies(packages, dependency.Dependencies, development, true)
+		appendNPMDependencies(packages, dependency.Dependencies, classes, true)
 	}
 }
 

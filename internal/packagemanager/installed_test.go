@@ -158,8 +158,8 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 		t.Fatal(err)
 	}
 	want := []InstalledPackage{
-		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), Transitive: true},
-		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")},
+		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), DependencyClass: "transitive", Transitive: true},
+		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), DependencyClass: "development"},
 	}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
@@ -169,7 +169,7 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 func TestQueryInstalledClassifiesNPMDevelopmentDependencies(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
-	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"devDependencies":{"typescript":"^5.0.0"}}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"react":"^19.0.0"},"devDependencies":{"typescript":"^5.0.0"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
@@ -180,7 +180,7 @@ printf '{"dependencies":{"react":{"version":"19.0.0"},"typescript":{"version":"5
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "react", Version: "19.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}, {Manager: PM_NPM, Name: "typescript", Version: "5.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "react", Version: "19.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), DependencyClass: "runtime"}, {Manager: PM_NPM, Name: "typescript", Version: "5.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), DependencyClass: "development"}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
