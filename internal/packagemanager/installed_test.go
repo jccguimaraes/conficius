@@ -166,6 +166,23 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 	}
 }
 
+func TestQueryInstalledIncludesTransitiveNPMClassFromConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"parent":"1"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"dependencies\":{\"parent\":{\"version\":\"1\",\"dependencies\":{\"child\":{\"version\":\"2\"}}}}}'\n")
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}}, QueryOptions{DependencyClasses: map[string]map[string]bool{project: {"transitive": true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != 1 || result.Packages[0].Name != "child" || !result.Packages[0].Transitive {
+		t.Fatalf("packages = %#v", result.Packages)
+	}
+}
+
 func TestQueryInstalledFiltersConfiguredNPMDependencyClasses(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

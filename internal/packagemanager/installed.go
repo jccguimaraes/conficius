@@ -126,7 +126,8 @@ func listInstalledScope(ctx context.Context, manager, executable string, scope S
 	if err != nil {
 		return nil, err
 	}
-	if manager == PM_NPM && options.IncludeTransitive {
+	classes := options.DependencyClasses[scope.Path]
+	if manager == PM_NPM && (options.IncludeTransitive || classes["transitive"]) {
 		packages, err := installedNPMTransitive(ctx, executable, scope)
 		for i := range packages {
 			packages[i].Scope, packages[i].Path = scope.Kind, scope.Path
