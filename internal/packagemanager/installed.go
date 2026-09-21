@@ -32,6 +32,7 @@ type InstalledPackage struct {
 	Path         string      `json:"path,omitempty"`
 	Workspace    string      `json:"workspace,omitempty"`
 	Manifest     string      `json:"manifest,omitempty"`
+	Config       string      `json:"config,omitempty"`
 	OSVEcosystem string      `json:"osv_ecosystem,omitempty"`
 	OSVName      string      `json:"osv_name,omitempty"`
 	Transitive   bool        `json:"transitive,omitempty"`
@@ -135,8 +136,21 @@ func listInstalledScope(ctx context.Context, manager, executable string, scope S
 		if manager == PM_NPM && (scope.Kind == "project" || scope.Kind == "workspace") {
 			packages[i].Manifest = filepath.Join(scope.Path, "package.json")
 		}
+		if manager == PM_MISE && (scope.Kind == "project" || scope.Kind == "workspace") {
+			packages[i].Config = miseConfigPath(scope.Path)
+		}
 	}
 	return packages, err
+}
+
+func miseConfigPath(root string) string {
+	for _, name := range []string{"mise.toml", ".mise.toml"} {
+		path := filepath.Join(root, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
+		}
+	}
+	return ""
 }
 
 func installedNPM(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {

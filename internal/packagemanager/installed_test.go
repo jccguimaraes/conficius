@@ -122,6 +122,9 @@ func TestQueryInstalledReportsUnsupportedProjectScope(t *testing.T) {
 func TestQueryInstalledScopesUsesOnlyProjectMiseTools(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "mise.toml"), []byte("[tools]\nnode = '22'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	writeExecutable(t, filepath.Join(dir, "mise"), `#!/bin/sh
 [ "$PWD" = "$PROJECT" ] || { printf 'wrong directory: %s' "$PWD" >&2; exit 1; }
 [ "$*" = "ls --current --installed --json --local" ] || { printf 'unexpected args: %s' "$*" >&2; exit 1; }
@@ -134,7 +137,7 @@ printf '{"node":[{"version":"22.1.0","installed":true}]}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "22.1.0", Role: RoleRuntime, Scope: "project", Path: project}}
+	want := []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "22.1.0", Role: RoleRuntime, Scope: "project", Path: project, Config: filepath.Join(project, "mise.toml")}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
