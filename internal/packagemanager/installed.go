@@ -205,8 +205,12 @@ func installedNPMTransitive(ctx context.Context, executable string, scope Scope)
 	if err := json.Unmarshal(output, &document); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm transitive inventory: %w", err))
 	}
+	development, err := npmDevelopmentDependencies(scope)
+	if err != nil {
+		return nil, err
+	}
 	var packages []InstalledPackage
-	appendNPMDependencies(&packages, document.Dependencies, false)
+	appendNPMDependencies(&packages, document.Dependencies, development, false)
 	return packages, nil
 }
 
@@ -215,12 +219,16 @@ type npmDependency struct {
 	Dependencies map[string]npmDependency `json:"dependencies"`
 }
 
-func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, transitive bool) {
+func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string]npmDependency, development map[string]bool, transitive bool) {
 	for name, dependency := range dependencies {
 		if dependency.Version != "" {
-			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: RoleLibrary, Transitive: transitive})
+			role := RoleLibrary
+			if !transitive && development[name] {
+				role = RoleDevelopmentTool
+			}
+			*packages = append(*packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, Transitive: transitive})
 		}
-		appendNPMDependencies(packages, dependency.Dependencies, true)
+		appendNPMDependencies(packages, dependency.Dependencies, development, true)
 	}
 }
 
