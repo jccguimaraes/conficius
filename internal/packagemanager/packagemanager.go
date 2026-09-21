@@ -309,20 +309,27 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions
 	if options.Required == nil {
 		options.Required = make(map[string]bool)
 	}
+	manifests := []struct {
+		name    string
+		manager string
+	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}}
+	var conflicts []error
 	for _, scope := range scopes {
 		if scope.Path == "" {
 			continue
 		}
-		for manifest, manager := range map[string]string{"package.json": PM_NPM, "mise.toml": PM_MISE, ".mise.toml": PM_MISE, "Brewfile": PM_BREW} {
-			if info, err := os.Stat(filepath.Join(scope.Path, manifest)); err == nil && !info.IsDir() {
-				if options.Disabled[manager] {
-					return options, fmt.Errorf("manager %s is disabled but required by %s", manager, filepath.Join(scope.Path, manifest))
+		for _, manifest := range manifests {
+			path := filepath.Join(scope.Path, manifest.name)
+			if info, err := os.Stat(path); err == nil && !info.IsDir() {
+				if options.Disabled[manifest.manager] {
+					conflicts = append(conflicts, fmt.Errorf("manager %s is disabled but required by %s", manifest.manager, path))
+					continue
 				}
-				options.Required[manager] = true
+				options.Required[manifest.manager] = true
 			}
 		}
 	}
-	return options, nil
+	return options, errors.Join(conflicts...)
 }
 
 func requiredManagerErrors(statuses []ManagerStatus) []error {
