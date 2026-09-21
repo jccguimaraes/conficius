@@ -39,6 +39,18 @@ func TestManagerFilterCannotExcludeManifestManager(t *testing.T) {
 	}
 }
 
+func TestManifestInspectionErrorsAreReturned(t *testing.T) {
+	project := t.TempDir()
+	manifest := filepath.Join(project, "package.json")
+	if err := os.Symlink(filepath.Join(project, "missing"), manifest); err != nil {
+		t.Fatal(err)
+	}
+	_, err := requireManifestManagers(QueryOptions{}, []Scope{{Kind: "project", Path: project}})
+	if err == nil || !strings.Contains(err.Error(), "inspect manager manifest "+manifest) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestDisabledManifestManagersReturnAllConfigurationConflicts(t *testing.T) {
 	project := t.TempDir()
 	for _, manifest := range []string{"Brewfile", "package.json"} {

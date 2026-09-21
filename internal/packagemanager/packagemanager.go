@@ -320,13 +320,28 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions
 		}
 		for _, manifest := range manifests {
 			path := filepath.Join(scope.Path, manifest.name)
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				if options.Disabled[manifest.manager] {
-					conflicts = append(conflicts, fmt.Errorf("manager %s is disabled but required by %s", manifest.manager, path))
+			info, err := os.Lstat(path)
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					conflicts = append(conflicts, fmt.Errorf("inspect manager manifest %s: %w", path, err))
+				}
+				continue
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				info, err = os.Stat(path)
+				if err != nil {
+					conflicts = append(conflicts, fmt.Errorf("inspect manager manifest %s: %w", path, err))
 					continue
 				}
-				options.Required[manifest.manager] = true
 			}
+			if info.IsDir() {
+				continue
+			}
+			if options.Disabled[manifest.manager] {
+				conflicts = append(conflicts, fmt.Errorf("manager %s is disabled but required by %s", manifest.manager, path))
+				continue
+			}
+			options.Required[manifest.manager] = true
 		}
 	}
 	return options, errors.Join(conflicts...)
