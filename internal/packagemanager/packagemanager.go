@@ -314,12 +314,22 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions
 		manager string
 	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}}
 	var conflicts []error
+	seen := make(map[string]struct{})
 	for _, scope := range scopes {
 		if scope.Path == "" {
 			continue
 		}
+		root, err := filepath.Abs(filepath.Clean(scope.Path))
+		if err != nil {
+			conflicts = append(conflicts, fmt.Errorf("resolve manager manifest root %s: %w", scope.Path, err))
+			continue
+		}
 		for _, manifest := range manifests {
-			path := filepath.Join(scope.Path, manifest.name)
+			path := filepath.Join(root, manifest.name)
+			if _, exists := seen[path]; exists {
+				continue
+			}
+			seen[path] = struct{}{}
 			info, err := os.Lstat(path)
 			if err != nil {
 				if !errors.Is(err, os.ErrNotExist) {

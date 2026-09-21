@@ -39,6 +39,18 @@ func TestManagerFilterCannotExcludeManifestManager(t *testing.T) {
 	}
 }
 
+func TestManifestConflictsAreDeduplicatedAcrossEquivalentScopes(t *testing.T) {
+	project := t.TempDir()
+	manifest := filepath.Join(project, "package.json")
+	if err := os.WriteFile(manifest, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := requireManifestManagers(QueryOptions{Disabled: map[string]bool{PM_NPM: true}}, []Scope{{Kind: "project", Path: project}, {Kind: "workspace", Path: filepath.Join(project, ".")}})
+	if err == nil || strings.Count(err.Error(), "manager npm is disabled") != 1 {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestManifestInspectionErrorsAreReturned(t *testing.T) {
 	project := t.TempDir()
 	manifest := filepath.Join(project, "package.json")
