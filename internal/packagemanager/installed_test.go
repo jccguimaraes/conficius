@@ -166,6 +166,22 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 	}
 }
 
+func TestNPMDependencyClassesUseDeterministicPrecedence(t *testing.T) {
+	project := t.TempDir()
+	contents := `{"dependencies":{"runtime":"1","shared":"1"},"peerDependencies":{"peer":"1","shared":"1"},"optionalDependencies":{"optional":"1","shared":"1"},"devDependencies":{"development":"1","shared":"1"}}`
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	classes, err := npmDependencyClasses(Scope{Kind: "project", Path: project})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"runtime": "runtime", "peer": "peer", "optional": "optional", "development": "development", "shared": "development"}
+	if !reflect.DeepEqual(classes, want) {
+		t.Fatalf("classes = %#v; want %#v", classes, want)
+	}
+}
+
 func TestQueryInstalledClassifiesNPMDevelopmentDependencies(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

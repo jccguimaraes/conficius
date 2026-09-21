@@ -201,14 +201,22 @@ func npmDependencyClasses(scope Scope) (map[string]string, error) {
 		return nil, fmt.Errorf("read npm manifest: %w", err)
 	}
 	var manifest struct {
-		Dependencies    map[string]string `json:"dependencies"`
-		DevDependencies map[string]string `json:"devDependencies"`
+		Dependencies         map[string]string `json:"dependencies"`
+		DevDependencies      map[string]string `json:"devDependencies"`
+		OptionalDependencies map[string]string `json:"optionalDependencies"`
+		PeerDependencies     map[string]string `json:"peerDependencies"`
 	}
 	if err := json.Unmarshal(contents, &manifest); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm manifest: %w", err))
 	}
 	for name := range manifest.Dependencies {
 		result[name] = "runtime"
+	}
+	for name := range manifest.PeerDependencies {
+		result[name] = "peer"
+	}
+	for name := range manifest.OptionalDependencies {
+		result[name] = "optional"
 	}
 	for name := range manifest.DevDependencies {
 		result[name] = "development"
