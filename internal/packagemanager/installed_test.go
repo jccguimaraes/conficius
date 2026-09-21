@@ -233,6 +233,23 @@ func TestNPMDependencyClassesUseDeterministicPrecedence(t *testing.T) {
 	}
 }
 
+func TestQueryInstalledClassifiesUnlistedNPMDependencyAsExtraneous(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"dependencies\":{\"left-pad\":{\"version\":\"1.3.0\"}}}'\n")
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != 1 || result.Packages[0].DependencyClass != "extraneous" {
+		t.Fatalf("packages = %#v", result.Packages)
+	}
+}
+
 func TestQueryInstalledClassifiesNPMDevelopmentDependencies(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
@@ -264,7 +281,7 @@ printf '{"dependencies":{"workspace-package":{"version":"1.0.0"}}}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "workspace-package", Version: "1.0.0", Role: RoleLibrary, Scope: "workspace", Path: workspace, Manifest: filepath.Join(workspace, "package.json")}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "workspace-package", Version: "1.0.0", Role: RoleLibrary, Scope: "workspace", Path: workspace, Manifest: filepath.Join(workspace, "package.json"), DependencyClass: "extraneous"}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -282,7 +299,7 @@ printf '{"dependencies":{"project-package":{"version":"2.0.0"}}}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), DependencyClass: "extraneous"}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -324,7 +341,7 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	if status.Status != StatusPartial || len(status.Operations) != 2 || status.Operations[1].Category != ErrorRegistry {
 		t.Fatalf("status = %#v", status)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary, Scope: "project", Path: goodProject, Manifest: filepath.Join(goodProject, "package.json")}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary, Scope: "project", Path: goodProject, Manifest: filepath.Join(goodProject, "package.json"), DependencyClass: "extraneous"}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}

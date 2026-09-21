@@ -185,11 +185,15 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	packages := make([]InstalledPackage, 0, len(document.Dependencies))
 	for name, dependency := range document.Dependencies {
 		if dependency.Version != "" {
+			class := classes[name]
+			if class == "" && (scope.Kind == "project" || scope.Kind == "workspace") {
+				class = "extraneous"
+			}
 			role := RoleLibrary
-			if classes[name] == "development" {
+			if class == "development" {
 				role = RoleDevelopmentTool
 			}
-			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, DependencyClass: classes[name]})
+			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role, DependencyClass: class})
 		}
 	}
 	return packages, nil

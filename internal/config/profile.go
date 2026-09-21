@@ -194,7 +194,7 @@ func normalizeProfile(profile *Profile, root string) error {
 		seenClasses := make(map[string]struct{}, len(project.NPMDependencyClasses))
 		for classIndex, class := range project.NPMDependencyClasses {
 			class = strings.ToLower(strings.TrimSpace(class))
-			if class != "runtime" && class != "development" && class != "optional" && class != "peer" && class != "transitive" {
+			if class != "runtime" && class != "development" && class != "optional" && class != "peer" && class != "transitive" && class != "extraneous" {
 				return fmt.Errorf("project %q has unsupported npm_dependency_classes value %q", project.Name, class)
 			}
 			if _, exists := seenClasses[class]; exists {
