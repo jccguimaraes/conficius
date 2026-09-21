@@ -89,15 +89,27 @@ type QueryOptions struct {
 	Executables       map[string]string
 	Disabled          map[string]bool
 	Required          map[string]bool
+	DependencyClasses map[string]map[string]bool
 	IncludeTransitive bool
 }
 
 func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 	options := QueryOptions{
-		Managers:    make(map[string]ManagerOptions, len(profile.Managers)),
-		Executables: make(map[string]string),
-		Disabled:    make(map[string]bool),
-		Required:    make(map[string]bool),
+		Managers:          make(map[string]ManagerOptions, len(profile.Managers)),
+		Executables:       make(map[string]string),
+		Disabled:          make(map[string]bool),
+		Required:          make(map[string]bool),
+		DependencyClasses: make(map[string]map[string]bool),
+	}
+	for _, project := range profile.Projects {
+		if len(project.NPMDependencyClasses) == 0 {
+			continue
+		}
+		classes := make(map[string]bool, len(project.NPMDependencyClasses))
+		for _, class := range project.NPMDependencyClasses {
+			classes[class] = true
+		}
+		options.DependencyClasses[project.ResolvedPath] = classes
 	}
 	for manager, settings := range profile.Managers {
 		if settings.Enabled != nil {

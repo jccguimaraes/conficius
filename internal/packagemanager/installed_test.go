@@ -166,6 +166,23 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 	}
 }
 
+func TestQueryInstalledFiltersConfiguredNPMDependencyClasses(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"react":"1"},"devDependencies":{"typescript":"1"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"dependencies\":{\"react\":{\"version\":\"1\"},\"typescript\":{\"version\":\"1\"}}}'\n")
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}}, QueryOptions{DependencyClasses: map[string]map[string]bool{project: {"development": true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != 1 || result.Packages[0].Name != "typescript" {
+		t.Fatalf("packages = %#v", result.Packages)
+	}
+}
+
 func TestNPMDependencyClassesUseDeterministicPrecedence(t *testing.T) {
 	project := t.TempDir()
 	contents := `{"dependencies":{"runtime":"1","shared":"1"},"peerDependencies":{"peer":"1","shared":"1"},"optionalDependencies":{"optional":"1","shared":"1"},"devDependencies":{"development":"1","shared":"1"}}`

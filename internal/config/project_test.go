@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -245,6 +246,7 @@ desired_version = "5.9.2"
 name = "web"
 path = "./web"
 mode = "allowlist"
+npm_dependency_classes = [" Runtime ", "development"]
 `)
 	project, err := Load(path)
 	if err != nil {
@@ -262,6 +264,9 @@ mode = "allowlist"
 	}
 	if got := resolved.Profile.Projects[0].Path; got != filepath.Join(root, "web") {
 		t.Fatalf("project path = %q", got)
+	}
+	if got := resolved.Profile.Projects[0].NPMDependencyClasses; !reflect.DeepEqual(got, []string{"runtime", "development"}) {
+		t.Fatalf("npm dependency classes = %#v", got)
 	}
 }
 
