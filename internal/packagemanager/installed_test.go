@@ -155,8 +155,8 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 		t.Fatal(err)
 	}
 	want := []InstalledPackage{
-		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Transitive: true},
-		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project},
+		{Manager: PM_NPM, Name: "child", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json"), Transitive: true},
+		{Manager: PM_NPM, Name: "parent", Version: "1.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")},
 	}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
@@ -177,7 +177,7 @@ printf '{"dependencies":{"react":{"version":"19.0.0"},"typescript":{"version":"5
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "react", Version: "19.0.0", Role: RoleLibrary, Scope: "project", Path: project}, {Manager: PM_NPM, Name: "typescript", Version: "5.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "react", Version: "19.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}, {Manager: PM_NPM, Name: "typescript", Version: "5.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -194,7 +194,7 @@ printf '{"dependencies":{"workspace-package":{"version":"1.0.0"}}}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "workspace-package", Version: "1.0.0", Role: RoleLibrary, Scope: "workspace", Path: workspace}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "workspace-package", Version: "1.0.0", Role: RoleLibrary, Scope: "workspace", Path: workspace, Manifest: filepath.Join(workspace, "package.json")}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -212,7 +212,7 @@ printf '{"dependencies":{"project-package":{"version":"2.0.0"}}}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "project-package", Version: "2.0.0", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "package.json")}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
@@ -254,7 +254,7 @@ printf '{"dependencies":{"left-pad":{"version":"1.3.0"}}}'
 	if status.Status != StatusPartial || len(status.Operations) != 2 || status.Operations[1].Category != ErrorRegistry {
 		t.Fatalf("status = %#v", status)
 	}
-	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary, Scope: "project", Path: goodProject}}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "left-pad", Version: "1.3.0", Role: RoleLibrary, Scope: "project", Path: goodProject, Manifest: filepath.Join(goodProject, "package.json")}}
 	if !reflect.DeepEqual(result.Packages, want) {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}

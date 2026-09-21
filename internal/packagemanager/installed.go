@@ -31,6 +31,7 @@ type InstalledPackage struct {
 	Scope        string      `json:"scope,omitempty"`
 	Path         string      `json:"path,omitempty"`
 	Workspace    string      `json:"workspace,omitempty"`
+	Manifest     string      `json:"manifest,omitempty"`
 	OSVEcosystem string      `json:"osv_ecosystem,omitempty"`
 	OSVName      string      `json:"osv_name,omitempty"`
 	Transitive   bool        `json:"transitive,omitempty"`
@@ -121,6 +122,9 @@ func listInstalledScope(ctx context.Context, manager, executable string, scope S
 		packages, err := installedNPMTransitive(ctx, executable, scope)
 		for i := range packages {
 			packages[i].Scope, packages[i].Path = scope.Kind, scope.Path
+			if scope.Kind == "project" || scope.Kind == "workspace" {
+				packages[i].Manifest = filepath.Join(scope.Path, "package.json")
+			}
 		}
 		return packages, err
 	}
@@ -128,6 +132,9 @@ func listInstalledScope(ctx context.Context, manager, executable string, scope S
 	for i := range packages {
 		packages[i].Scope = scope.Kind
 		packages[i].Path = scope.Path
+		if manager == PM_NPM && (scope.Kind == "project" || scope.Kind == "workspace") {
+			packages[i].Manifest = filepath.Join(scope.Path, "package.json")
+		}
 	}
 	return packages, err
 }
