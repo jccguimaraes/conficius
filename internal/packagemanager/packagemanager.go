@@ -388,6 +388,17 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	if err := Supported(pms); err != nil {
 		return nil, err
 	}
+	if len(pms) > 0 {
+		selected := make(map[string]struct{}, len(pms))
+		for _, manager := range pms {
+			selected[manager] = struct{}{}
+		}
+		for manager := range options.Required {
+			if _, exists := selected[manager]; !exists {
+				return nil, fmt.Errorf("required manager %s is excluded by manager filter", manager)
+			}
+		}
+	}
 	statuses, err := Inspect(pms)
 	if err != nil {
 		return nil, err

@@ -28,6 +28,17 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestManagerFilterCannotExcludeManifestManager(t *testing.T) {
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_MISE}, []Scope{{Kind: "project", Path: project}}, QueryOptions{})
+	if err == nil || err.Error() != "required manager npm is excluded by manager filter" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestDisabledManifestManagerReturnsConfigurationConflict(t *testing.T) {
 	project := t.TempDir()
 	manifest := filepath.Join(project, "package.json")
