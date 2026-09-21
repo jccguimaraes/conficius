@@ -28,6 +28,19 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestQueriesRejectInvalidScopes(t *testing.T) {
+	tests := []struct {
+		scope Scope
+		want  string
+	}{{Scope{Kind: "project"}, "project scope requires a path"}, {Scope{Kind: "global", Path: "/tmp"}, "global scope must not have a path"}, {Scope{Kind: "mystery"}, `unsupported scope "mystery"`}}
+	for _, test := range tests {
+		_, err := QueryOutdatedScopesWithOptions(context.Background(), nil, []Scope{test.scope}, QueryOptions{})
+		if err == nil || err.Error() != test.want {
+			t.Errorf("scope %#v: err = %v; want %q", test.scope, err, test.want)
+		}
+	}
+}
+
 func TestManagerFilterCannotExcludeManifestManager(t *testing.T) {
 	project := t.TempDir()
 	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte("{}"), 0o600); err != nil {

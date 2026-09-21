@@ -245,6 +245,9 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
+	if err := validateScopes(scopes); err != nil {
+		return QueryResult{}, err
+	}
 	var err error
 	options, err = requireManifestManagers(options, scopes)
 	if err != nil {
@@ -303,6 +306,25 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 	finalizeManagerStatuses(result.Managers)
 
 	return result, errors.Join(queryErrors...)
+}
+
+func validateScopes(scopes []Scope) error {
+	var errs []error
+	for _, scope := range scopes {
+		switch scope.Kind {
+		case "system", "user", "global-config", "global":
+			if scope.Path != "" {
+				errs = append(errs, fmt.Errorf("%s scope must not have a path", scope.Kind))
+			}
+		case "project", "workspace":
+			if scope.Path == "" {
+				errs = append(errs, fmt.Errorf("%s scope requires a path", scope.Kind))
+			}
+		default:
+			errs = append(errs, fmt.Errorf("unsupported scope %q", scope.Kind))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {
