@@ -312,7 +312,17 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 			queryErrors = append(queryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
 			continue
 		}
+		classes := options.DependencyClasses[operationResult.operation.scope.Path]
+		dependencyClasses, classErr := npmDependencyClasses(operationResult.operation.scope)
+		if operationResult.operation.manager == PM_NPM && len(classes) > 0 && classErr != nil {
+			status.Error = redactSensitive(classErr.Error())
+			queryErrors = append(queryErrors, classErr)
+			continue
+		}
 		for name, tools := range operationResult.value {
+			if operationResult.operation.manager == PM_NPM && len(classes) > 0 && !classes[dependencyClasses[name]] {
+				continue
+			}
 			for _, tool := range tools {
 				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope})
 			}

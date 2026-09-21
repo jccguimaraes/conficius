@@ -401,6 +401,24 @@ printf '{"typescript":{"current":"5.0","wanted":"5.1","latest":"5.1"}}'
 	}
 }
 
+func TestQueryOutdatedFiltersConfiguredNPMDependencyClasses(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"react":"1"},"devDependencies":{"typescript":"1"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"react\":{\"current\":\"1\",\"wanted\":\"2\",\"latest\":\"2\"},\"typescript\":{\"current\":\"1\",\"wanted\":\"2\",\"latest\":\"2\"}}'\n")
+	t.Setenv("PATH", dir)
+	result, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}}, QueryOptions{DependencyClasses: map[string]map[string]bool{project: {"development": true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := Records(result.Packages)
+	if len(records) != 1 || records[0].Name != "typescript" {
+		t.Fatalf("records = %#v", records)
+	}
+}
+
 func TestQueryOutdatedContinuesPastUnavailableManager(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
