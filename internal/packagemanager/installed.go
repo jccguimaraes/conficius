@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,10 +15,12 @@ import (
 type PackageRole string
 
 const (
-	RoleRuntime        PackageRole = "runtime"
-	RoleLibrary        PackageRole = "library"
-	RoleApplication    PackageRole = "application"
-	RolePackageManager PackageRole = "package-manager"
+	RoleRuntime         PackageRole = "runtime"
+	RoleLibrary         PackageRole = "library"
+	RoleDevelopmentTool PackageRole = "development-tool"
+	RoleApplication     PackageRole = "application"
+	RolePackageManager  PackageRole = "package-manager"
+	RolePlugin          PackageRole = "plugin"
 )
 
 type InstalledPackage struct {
@@ -145,13 +149,45 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	if err := json.Unmarshal(output, &document); err != nil {
 		return nil, parserError(fmt.Errorf("decode npm inventory: %w", err))
 	}
+	development, err := npmDevelopmentDependencies(scope)
+	if err != nil {
+		return nil, err
+	}
 	packages := make([]InstalledPackage, 0, len(document.Dependencies))
 	for name, dependency := range document.Dependencies {
 		if dependency.Version != "" {
-			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: RoleLibrary})
+			role := RoleLibrary
+			if development[name] {
+				role = RoleDevelopmentTool
+			}
+			packages = append(packages, InstalledPackage{Manager: PM_NPM, Name: name, Version: dependency.Version, Role: role})
 		}
 	}
 	return packages, nil
+}
+
+func npmDevelopmentDependencies(scope Scope) (map[string]bool, error) {
+	result := make(map[string]bool)
+	if scope.Kind != "project" && scope.Kind != "workspace" {
+		return result, nil
+	}
+	contents, err := os.ReadFile(filepath.Join(scope.Path, "package.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return result, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read npm manifest: %w", err)
+	}
+	var manifest struct {
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal(contents, &manifest); err != nil {
+		return nil, parserError(fmt.Errorf("decode npm manifest: %w", err))
+	}
+	for name := range manifest.DevDependencies {
+		result[name] = true
+	}
+	return result, nil
 }
 
 func installedNPMTransitive(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {

@@ -159,6 +159,26 @@ printf '{"dependencies":{"parent":{"version":"1.0.0","dependencies":{"child":{"v
 	}
 }
 
+func TestQueryInstalledClassifiesNPMDevelopmentDependencies(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"devDependencies":{"typescript":"^5.0.0"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"dependencies":{"react":{"version":"19.0.0"},"typescript":{"version":"5.0.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{{Manager: PM_NPM, Name: "react", Version: "19.0.0", Role: RoleLibrary, Scope: "project", Path: project}, {Manager: PM_NPM, Name: "typescript", Version: "5.0.0", Role: RoleDevelopmentTool, Scope: "project", Path: project}}
+	if !reflect.DeepEqual(result.Packages, want) {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestQueryInstalledPreservesWorkspaceScope(t *testing.T) {
 	dir := t.TempDir()
 	workspace := t.TempDir()
