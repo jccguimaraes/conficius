@@ -396,7 +396,7 @@ printf '{"typescript":{"current":"5.0","wanted":"5.1","latest":"5.1"}}'
 		t.Fatalf("failed operation = %#v", status.Operations[1])
 	}
 	records := Records(result.Packages)
-	if len(records) != 1 || records[0].Path != goodProject {
+	if len(records) != 1 || records[0].Path != goodProject || records[0].Manifest != filepath.Join(goodProject, "package.json") {
 		t.Fatalf("packages = %#v", records)
 	}
 }

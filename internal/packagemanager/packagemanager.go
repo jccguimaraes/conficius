@@ -131,6 +131,8 @@ type Package struct {
 	Latest     string      `json:"latest"`
 	Requested  string      `json:"requested,omitempty"`
 	Role       PackageRole `json:"role"`
+	Manifest   string      `json:"manifest,omitempty"`
+	Config     string      `json:"config,omitempty"`
 	Executable string      `json:"executable"`
 	Scope      string      `json:"scope,omitempty"`
 	Path       string      `json:"path,omitempty"`
@@ -555,13 +557,27 @@ func Filter(packages Packages, keep func(Package) bool) Packages {
 	for name, tools := range packages {
 		for _, tool := range tools {
 			scope := toolScope(tool)
-			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager()), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
+			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager()), Manifest: packageManifest(tool.GetPackageManager(), scope), Config: packageConfig(tool.GetPackageManager(), scope), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
 			if keep(record) {
 				filtered[name] = append(filtered[name], tool)
 			}
 		}
 	}
 	return filtered
+}
+
+func packageManifest(manager string, scope Scope) string {
+	if manager == PM_NPM && (scope.Kind == "project" || scope.Kind == "workspace") {
+		return filepath.Join(scope.Path, "package.json")
+	}
+	return ""
+}
+
+func packageConfig(manager string, scope Scope) string {
+	if manager == PM_MISE && (scope.Kind == "project" || scope.Kind == "workspace") {
+		return miseConfigPath(scope.Path)
+	}
+	return ""
 }
 
 func packageRole(manager string) PackageRole {
@@ -594,6 +610,8 @@ func Records(packages Packages) []Package {
 				Latest:     tool.GetLatestVersion(),
 				Requested:  tool.GetRequestedVersion(),
 				Role:       packageRole(tool.GetPackageManager()),
+				Manifest:   packageManifest(tool.GetPackageManager(), toolScope(tool)),
+				Config:     packageConfig(tool.GetPackageManager(), toolScope(tool)),
 				Executable: tool.GetExecutable(),
 				Scope:      toolScope(tool).Kind,
 				Path:       toolScope(tool).Path,
