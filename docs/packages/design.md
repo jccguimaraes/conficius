@@ -44,7 +44,7 @@ Manager status reports executable evidence separately from global profile-config
 | `Brewfile` | Homebrew |
 | `package.json` | npm |
 
-Manifest evidence makes manager required. Missing required manager is error. Optional manager without executable is unavailable warning. Explicitly disabled manager remains visible as disabled. Disabled manager required by manifest is configuration error.
+Manifest evidence makes manager required. Missing required manager is error. Optional manager without executable is unavailable warning. Global profile config does not make manager required, and warning identifies config evidence. Explicitly disabled manager remains visible as disabled. Disabled manager required by manifest is configuration error.
 
 Configured executable paths override `PATH` discovery. Path must exist, be regular executable file, and return manager version when possible.
 

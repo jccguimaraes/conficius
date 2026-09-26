@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`e332f17 feat(packages): show npm class filters`
+`73513e7 fix(packages): explain missing configured managers`
 
 Package subsystem checks passed after that commit:
 
@@ -27,13 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish manager discovery semantics. Define behavior for global profile config when manager executable is missing. Keep change small.
+Finish manager discovery semantics. Report disabled detected managers consistently in CLI and TUI. Keep change small.
 
 ## Working tree guard
 
-Before this documentation update, unrelated user changes existed:
-
-- `.gitignore` modified
-- `docs/adr/0001-package-profiles-and-shared-core.md` deleted
-
-Do not stage or restore them without user instruction.
+Working tree was clean after `73513e7`.

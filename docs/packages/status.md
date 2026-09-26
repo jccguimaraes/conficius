@@ -20,6 +20,7 @@
 - Configured executable overrides.
 - Disabled, optional, required, and unavailable manager states.
 - Separate executable and global profile-config evidence in manager status.
+- Missing optional manager with global profile config remains unavailable and reports both facts.
 - Manifest evidence from mise config, Brewfile, and package.json.
 
 ### Inspection
