@@ -540,6 +540,12 @@ func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerSta
 			}
 			continue
 		}
+		if status.Error == "" {
+			if _, err := fmt.Fprintf(writer, "warning: %s %s\n", status.Name, status.Status); err != nil {
+				return err
+			}
+			continue
+		}
 		if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
 			return err
 		}
@@ -550,7 +556,11 @@ func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerSta
 func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerStatus) error {
 	for _, status := range statuses {
 		if status.Status != packagemanager.StatusAvailable {
-			if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
+			if status.Error == "" {
+				if _, err := fmt.Fprintf(writer, "warning: %s %s\n", status.Name, status.Status); err != nil {
+					return err
+				}
+			} else if _, err := fmt.Fprintf(writer, "warning: %s %s: %s\n", status.Name, status.Status, status.Error); err != nil {
 				return err
 			}
 		}

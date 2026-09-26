@@ -81,6 +81,13 @@ func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
 	}
 }
 
+func TestAppendManagerStatusReportsDisabledDetectedManager(t *testing.T) {
+	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}}}
+	if got, want := appendManagerStatus("0 outdated", statuses), "0 outdated; managers: npm disabled"; got != want {
+		t.Fatalf("summary = %q; want %q", got, want)
+	}
+}
+
 func TestSeverityColorUsesCVSSBands(t *testing.T) {
 	for _, test := range []struct {
 		score float64

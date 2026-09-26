@@ -238,6 +238,17 @@ func TestPackagesOutdatedMissingManagerWarnsAndExitZero(t *testing.T) {
 	}
 }
 
+func TestPrintManagerWarningsReportsDisabledManagerWithoutEmptyError(t *testing.T) {
+	var output bytes.Buffer
+	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}}}
+	if err := printManagerWarnings(&output, statuses); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := output.String(), "warning: npm disabled\n"; got != want {
+		t.Fatalf("output = %q; want %q", got, want)
+	}
+}
+
 func TestPackagesOutdatedWarnsWhenGlobalConfigHasNoManagerExecutable(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	configPath := filepath.Join(t.TempDir(), "conficius.toml")

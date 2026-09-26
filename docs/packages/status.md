@@ -57,6 +57,7 @@
 
 - CLI supports manager status, outdated, offline inventory, vulnerability checks, and updates.
 - TUI provides read-only profile, scope, outdated, drift, and vulnerability views.
+- CLI and TUI summaries report disabled detected managers.
 
 ## Verification state
 

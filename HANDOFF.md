@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`73513e7 fix(packages): explain missing configured managers`
+Pending commit: consistent disabled-manager reporting in CLI and TUI.
 
 Package subsystem checks passed after that commit:
 
@@ -27,7 +27,7 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish manager discovery semantics. Report disabled detected managers consistently in CLI and TUI. Keep change small.
+Add ownership and collision reporting. Start with canonical package identity and exposed-command modeling. Keep change small.
 
 ## Working tree guard
 

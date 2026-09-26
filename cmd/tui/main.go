@@ -418,7 +418,7 @@ func refresh(data *model, app *glyph.App) {
 			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
 			data.rows = outdatedRows(packages, data.selected, data.failed)
 			data.drift = drift
-			data.status = refreshStatus(len(packages), len(drift), upgraded, unchanged, failed)
+			data.status = appendManagerStatus(refreshStatus(len(packages), len(drift), upgraded, unchanged, failed), result.Managers)
 			if err != nil {
 				data.status = err.Error()
 			}
@@ -435,7 +435,7 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = vulnerabilitySummary(len(packages), len(drift), report.Summary)
+			data.status = appendManagerStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), result.Managers)
 		})
 	}()
 }
@@ -475,6 +475,25 @@ func driftStatusColor(status string) glyph.Color {
 func vulnerabilitySummary(outdated, drift int, summary security.Summary) string {
 	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unmapped, %d unknown, %d errors", outdated, drift,
 		summary.Vulnerable, summary.Unmapped, summary.Unknown, summary.Errors)
+}
+
+func managerStatusSummary(statuses []packagemanager.ManagerStatus) string {
+	var summaries []string
+	for _, status := range statuses {
+		if status.Status == packagemanager.StatusAvailable {
+			continue
+		}
+		summaries = append(summaries, status.Name+" "+status.Status)
+	}
+	return strings.Join(summaries, ", ")
+}
+
+func appendManagerStatus(summary string, statuses []packagemanager.ManagerStatus) string {
+	managerSummary := managerStatusSummary(statuses)
+	if managerSummary == "" {
+		return summary
+	}
+	return summary + "; managers: " + managerSummary
 }
 
 func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
