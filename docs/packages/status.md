@@ -19,6 +19,7 @@
 - Adapter and tested manager version reporting.
 - Configured executable overrides.
 - Disabled, optional, required, and unavailable manager states.
+- Separate executable and global profile-config evidence in manager status.
 - Manifest evidence from mise config, Brewfile, and package.json.
 
 ### Inspection

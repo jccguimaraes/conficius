@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-Pending commit: npm dependency-class filter visibility in CLI output.
+`e332f17 feat(packages): show npm class filters`
 
 Package subsystem checks passed after that commit:
 
@@ -27,7 +27,7 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish manager discovery semantics. Start by separating executable evidence from global config evidence. Keep change small.
+Finish manager discovery semantics. Define behavior for global profile config when manager executable is missing. Keep change small.
 
 ## Working tree guard
 

@@ -23,7 +23,7 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(statuses) != 1 || statuses[0].Status != StatusDisabled || !reflect.DeepEqual(statuses[0].Executables, []string{executable}) {
+	if len(statuses) != 1 || statuses[0].Status != StatusDisabled || !statuses[0].Evidence.Executable || !reflect.DeepEqual(statuses[0].Executables, []string{executable}) {
 		t.Fatalf("statuses = %#v", statuses)
 	}
 }
@@ -168,6 +168,17 @@ func TestRequiredManagerUnavailableReturnsInspectionError(t *testing.T) {
 	}
 }
 
+func TestInspectWithOptionsSeparatesGlobalConfigFromExecutableEvidence(t *testing.T) {
+	t.Setenv("PATH", "")
+	statuses, err := inspectWithOptions([]string{PM_NPM}, QueryOptions{GlobalConfig: map[string]bool{PM_NPM: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].Status != StatusUnavailable || statuses[0].Evidence.Executable || !statuses[0].Evidence.GlobalConfig {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
 func TestInspectWithOptionsUsesConfiguredExecutableVersion(t *testing.T) {
 	dir := t.TempDir()
 	executable := filepath.Join(dir, "custom-npm")
@@ -200,7 +211,7 @@ func TestQueryOptionsFromProfile(t *testing.T) {
 		"mise": {Enabled: &enabled},
 		"brew": {IncludeGreedy: true},
 	}})
-	if !options.Disabled["npm"] || !options.Required["mise"] || options.Executables["npm"] != "/tools/npm" {
+	if !options.Disabled["npm"] || !options.Required["mise"] || options.Executables["npm"] != "/tools/npm" || !options.GlobalConfig["npm"] || !options.GlobalConfig["mise"] || !options.GlobalConfig["brew"] {
 		t.Fatalf("options = %#v", options)
 	}
 	if options.Managers["npm"].ExpectedGlobalPrefix != "/prefix" || !options.Managers["brew"].IncludeGreedy {

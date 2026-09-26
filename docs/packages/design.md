@@ -36,7 +36,7 @@ CLI presents machine-owned scopes as global where distinction does not affect be
 
 ## Manager discovery
 
-Manager evidence comes from executable availability and configuration files:
+Manager status reports executable evidence separately from global profile-config evidence. Project manifest evidence comes from these files:
 
 | Evidence | Manager |
 |---|---|

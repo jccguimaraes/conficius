@@ -65,9 +65,15 @@ type scopedTool struct {
 	dependencyClass string
 }
 
+type ManagerEvidence struct {
+	Executable   bool `json:"executable"`
+	GlobalConfig bool `json:"global_config"`
+}
+
 type ManagerStatus struct {
 	Name           string            `json:"name"`
 	Status         string            `json:"status"`
+	Evidence       ManagerEvidence   `json:"evidence"`
 	AdapterVersion string            `json:"adapter_version"`
 	ManagerVersion string            `json:"manager_version,omitempty"`
 	TestedVersions VersionRange      `json:"tested_versions"`
@@ -88,6 +94,7 @@ type ManagerOptions struct {
 type QueryOptions struct {
 	Managers          map[string]ManagerOptions
 	Executables       map[string]string
+	GlobalConfig      map[string]bool
 	Disabled          map[string]bool
 	Required          map[string]bool
 	DependencyClasses map[string]map[string]bool
@@ -98,6 +105,7 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 	options := QueryOptions{
 		Managers:          make(map[string]ManagerOptions, len(profile.Managers)),
 		Executables:       make(map[string]string),
+		GlobalConfig:      make(map[string]bool),
 		Disabled:          make(map[string]bool),
 		Required:          make(map[string]bool),
 		DependencyClasses: make(map[string]map[string]bool),
@@ -113,6 +121,7 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 		options.DependencyClasses[project.ResolvedPath] = classes
 	}
 	for manager, settings := range profile.Managers {
+		options.GlobalConfig[manager] = true
 		if settings.Enabled != nil {
 			if *settings.Enabled {
 				options.Required[manager] = true
@@ -231,7 +240,7 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 			continue
 		}
 
-		status := ManagerStatus{Name: pm, Status: StatusAvailable, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
+		status := ManagerStatus{Name: pm, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
 		output, versionErr := runOutput(context.Background(), executables[0], "--version")
 		if versionErr != nil {
 			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
@@ -520,6 +529,7 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 		return nil, err
 	}
 	for i := range statuses {
+		statuses[i].Evidence.GlobalConfig = options.GlobalConfig[statuses[i].Name]
 		if options.Disabled[statuses[i].Name] {
 			statuses[i].Status = StatusDisabled
 			statuses[i].Error = ""
@@ -531,6 +541,7 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 				return nil, adapterErr
 			}
 			statuses[i] = inspectExecutable(statuses[i].Name, executable, adapter)
+			statuses[i].Evidence.GlobalConfig = options.GlobalConfig[statuses[i].Name]
 		}
 		if options.Required[statuses[i].Name] && statuses[i].Status != StatusAvailable {
 			statuses[i].Status = StatusError
@@ -541,10 +552,11 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 }
 
 func inspectExecutable(manager, executable string, adapter managerAdapter) ManagerStatus {
-	status := ManagerStatus{Name: manager, Status: StatusAvailable, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
+	status := ManagerStatus{Name: manager, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
 	info, err := os.Stat(executable)
 	if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
 		status.Status = StatusUnavailable
+		status.Evidence.Executable = false
 		status.Error = "configured executable is unavailable"
 		return status
 	}
