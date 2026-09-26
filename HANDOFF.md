@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-Pending commit: consistent disabled-manager reporting in CLI and TUI.
+`93089eb feat(packages): report disabled managers`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Start with canonical package identity and exposed-command modeling. Keep change small.
+Add ownership and collision reporting. Model exposed command names without resolving command paths yet. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `73513e7`.
+Working tree was clean after `93089eb`.

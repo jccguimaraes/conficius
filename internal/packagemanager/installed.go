@@ -23,6 +23,15 @@ const (
 	RolePlugin          PackageRole = "plugin"
 )
 
+type PackageIdentity struct {
+	Manager string `json:"manager"`
+	Name    string `json:"name"`
+}
+
+func (identity PackageIdentity) CanonicalID() string {
+	return identity.Manager + ":" + identity.Name
+}
+
 type InstalledPackage struct {
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`

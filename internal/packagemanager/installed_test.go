@@ -200,6 +200,14 @@ func TestQueryInstalledIncludesTransitiveNPMClassFromConfiguration(t *testing.T)
 	}
 }
 
+func TestPackageIdentityCanonicalIDIncludesManager(t *testing.T) {
+	npm := PackageIdentity{Manager: PM_NPM, Name: "typescript"}
+	brew := PackageIdentity{Manager: PM_BREW, Name: "typescript"}
+	if npm.CanonicalID() != "npm:typescript" || npm == brew || npm.CanonicalID() == brew.CanonicalID() {
+		t.Fatalf("npm = %#v, brew = %#v", npm, brew)
+	}
+}
+
 func TestQueryInstalledFiltersConfiguredNPMDependencyClasses(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

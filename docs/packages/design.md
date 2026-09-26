@@ -52,7 +52,7 @@ Configured executable paths override `PATH` discovery. Path must exist, be regul
 
 Each normalized package can carry:
 
-- canonical manager and package name
+- canonical identity composed from manager and native package name
 - installed, requested, allowed, and latest versions when known
 - role
 - scope and canonical path
