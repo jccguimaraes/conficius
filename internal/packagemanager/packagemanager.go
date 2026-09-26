@@ -530,6 +530,9 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	}
 	for i := range statuses {
 		statuses[i].Evidence.GlobalConfig = options.GlobalConfig[statuses[i].Name]
+		if statuses[i].Evidence.GlobalConfig && statuses[i].Status == StatusUnavailable && statuses[i].Error == "executable not found" {
+			statuses[i].Error = "executable not found; global config detected"
+		}
 		if options.Disabled[statuses[i].Name] {
 			statuses[i].Status = StatusDisabled
 			statuses[i].Error = ""

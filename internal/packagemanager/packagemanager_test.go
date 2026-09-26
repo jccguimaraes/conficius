@@ -174,7 +174,7 @@ func TestInspectWithOptionsSeparatesGlobalConfigFromExecutableEvidence(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(statuses) != 1 || statuses[0].Status != StatusUnavailable || statuses[0].Evidence.Executable || !statuses[0].Evidence.GlobalConfig {
+	if len(statuses) != 1 || statuses[0].Status != StatusUnavailable || statuses[0].Evidence.Executable || !statuses[0].Evidence.GlobalConfig || statuses[0].Error != "executable not found; global config detected" {
 		t.Fatalf("statuses = %#v", statuses)
 	}
 }

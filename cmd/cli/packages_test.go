@@ -238,6 +238,23 @@ func TestPackagesOutdatedMissingManagerWarnsAndExitZero(t *testing.T) {
 	}
 }
 
+func TestPackagesOutdatedWarnsWhenGlobalConfigHasNoManagerExecutable(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	configPath := filepath.Join(t.TempDir(), "conficius.toml")
+	if err := os.WriteFile(configPath, []byte("version = 2\n[profiles.work.managers.npm]\ninclude_bump_candidates = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	cli := New(&output, "test")
+
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "--config", configPath, "packages", "outdated", "--profile", "work", "--pm", "npm"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := output.String(); !strings.Contains(got, "warning: npm unavailable: executable not found; global config detected") || !strings.Contains(got, "Total number of packages found: 0") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
 func TestPackagesVulnerabilitiesQueriesExactInstalledNPMVersion(t *testing.T) {
 	dir := t.TempDir()
 	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
