@@ -8,21 +8,23 @@ const (
 )
 
 type PackageState struct {
-	Manager        string `json:"manager"`
-	Name           string `json:"name"`
-	Scope          string `json:"scope"`
-	Path           string `json:"path,omitempty"`
-	Installed      string `json:"installed,omitempty"`
-	DesiredVersion string `json:"desired_version,omitempty"`
-	Status         string `json:"status"`
+	Manager         string `json:"manager"`
+	Name            string `json:"name"`
+	Scope           string `json:"scope"`
+	Path            string `json:"path,omitempty"`
+	Installed       string `json:"installed,omitempty"`
+	DesiredVersion  string `json:"desired_version,omitempty"`
+	DependencyClass string `json:"dependency_class,omitempty"`
+	Status          string `json:"status"`
 }
 
 type InstalledVersion struct {
-	Manager string
-	Name    string
-	Scope   string
-	Path    string
-	Version string
+	Manager         string
+	Name            string
+	Scope           string
+	Path            string
+	Version         string
+	DependencyClass string
 }
 
 func EvaluatePackages(profile Profile, installed []InstalledVersion) ([]InstalledVersion, []PackageState) {
@@ -30,6 +32,9 @@ func EvaluatePackages(profile Profile, installed []InstalledVersion) ([]Installe
 	states := make([]PackageState, 0)
 	seen := make(map[string]struct{})
 	for _, pkg := range installed {
+		if !dependencyClassSelected(profile, pkg) {
+			continue
+		}
 		rules, mode := rulesForScope(profile, pkg.Path)
 		rule, matched := matchingRule(rules, pkg.Manager, pkg.Name)
 		include := mode == "denylist"
@@ -66,7 +71,28 @@ func packageState(pkg InstalledVersion, desired string) PackageState {
 	} else if pkg.Version != desired {
 		status = DriftBehind
 	}
-	return PackageState{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Installed: pkg.Version, DesiredVersion: desired, Status: status}
+	return PackageState{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Installed: pkg.Version, DesiredVersion: desired, DependencyClass: pkg.DependencyClass, Status: status}
+}
+
+func dependencyClassSelected(profile Profile, pkg InstalledVersion) bool {
+	if pkg.Manager != "npm" || pkg.DependencyClass == "" {
+		return true
+	}
+	for _, project := range profile.Projects {
+		if project.ResolvedPath != pkg.Path && project.Path != pkg.Path {
+			continue
+		}
+		if len(project.NPMDependencyClasses) == 0 {
+			return true
+		}
+		for _, class := range project.NPMDependencyClasses {
+			if class == pkg.DependencyClass {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func rulesForScope(profile Profile, path string) ([]PackageRule, string) {

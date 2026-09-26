@@ -139,7 +139,7 @@ func (cli *Cli) packages() *urfave.Command {
 					records := packagemanager.Records(result.Packages)
 					installed := make([]config.InstalledVersion, len(records))
 					for i, record := range records {
-						installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current}
+						installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current, DependencyClass: record.DependencyClass}
 					}
 					selected, drift := config.EvaluatePackages(resolved.Profile, installed)
 					selectedKeys := make(map[string]struct{}, len(selected))
@@ -205,7 +205,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if resolved.Profile.SecurityScope == "selected" {
 						versions := make([]config.InstalledVersion, len(inventory.Packages))
 						for i, pkg := range inventory.Packages {
-							versions[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
+							versions[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version, DependencyClass: pkg.DependencyClass}
 						}
 						selected, _ := config.EvaluatePackages(resolved.Profile, versions)
 						allowed := make(map[string]struct{}, len(selected))
@@ -391,7 +391,7 @@ func filterProfilePackages(packages packagemanager.Packages, profile config.Prof
 	records := packagemanager.Records(packages)
 	installed := make([]config.InstalledVersion, len(records))
 	for i, record := range records {
-		installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current}
+		installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current, DependencyClass: record.DependencyClass}
 	}
 	selected, _ := config.EvaluatePackages(profile, installed)
 	allowed := make(map[string]struct{}, len(selected))

@@ -2,6 +2,14 @@ package config
 
 import "testing"
 
+func TestEvaluatePackagesFiltersNPMDependencyClasses(t *testing.T) {
+	profile := Profile{Mode: "denylist", Projects: []ProfileProject{{Path: "/repo", ResolvedPath: "/repo", NPMDependencyClasses: []string{"development"}}}}
+	selected, _ := EvaluatePackages(profile, []InstalledVersion{{Manager: "npm", Name: "react", Path: "/repo", DependencyClass: "runtime"}, {Manager: "npm", Name: "typescript", Path: "/repo", DependencyClass: "development"}})
+	if len(selected) != 1 || selected[0].Name != "typescript" {
+		t.Fatalf("selected = %#v", selected)
+	}
+}
+
 func TestEvaluatePackagesAppliesAllowlistAndDrift(t *testing.T) {
 	profile := Profile{Mode: "allowlist", Packages: []PackageRule{
 		{Manager: "npm", Name: "typescript", Policy: "include", DesiredVersion: "5.9.2"},
