@@ -322,11 +322,15 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 			continue
 		}
 		for name, tools := range operationResult.value {
-			if operationResult.operation.manager == PM_NPM && len(classes) > 0 && !classes[dependencyClasses[name]] {
+			dependencyClass := dependencyClasses[name]
+			if operationResult.operation.manager == PM_NPM && dependencyClass == "" && (operationResult.operation.scope.Kind == "project" || operationResult.operation.scope.Kind == "workspace") {
+				dependencyClass = "extraneous"
+			}
+			if operationResult.operation.manager == PM_NPM && len(classes) > 0 && !classes[dependencyClass] {
 				continue
 			}
 			for _, tool := range tools {
-				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope, dependencyClass: dependencyClasses[name]})
+				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope, dependencyClass: dependencyClass})
 			}
 		}
 	}
