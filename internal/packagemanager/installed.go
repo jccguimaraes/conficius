@@ -32,6 +32,11 @@ func (identity PackageIdentity) CanonicalID() string {
 	return identity.Manager + ":" + identity.Name
 }
 
+type ExposedCommand struct {
+	Package PackageIdentity `json:"package"`
+	Name    string          `json:"name"`
+}
+
 type InstalledPackage struct {
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`

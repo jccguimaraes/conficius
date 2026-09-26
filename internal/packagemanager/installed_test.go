@@ -208,6 +208,13 @@ func TestPackageIdentityCanonicalIDIncludesManager(t *testing.T) {
 	}
 }
 
+func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
+	command := ExposedCommand{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsc"}
+	if command.Package.CanonicalID() != "npm:typescript" || command.Name != "tsc" {
+		t.Fatalf("command = %#v", command)
+	}
+}
+
 func TestQueryInstalledFiltersConfiguredNPMDependencyClasses(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`93089eb feat(packages): report disabled managers`
+`97b09ab feat(packages): model canonical identity`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Model exposed command names without resolving command paths yet. Keep change small.
+Add ownership and collision reporting. Detect collision candidates without filesystem resolution. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `93089eb`.
+Working tree was clean after `97b09ab`.

@@ -59,6 +59,7 @@ Each normalized package can carry:
 - owning manifest or config
 - npm dependency class
 - direct or transitive status
+- exposed command names with canonical package ownership
 - native executable used for operation
 
 Roles are independent from scope:
