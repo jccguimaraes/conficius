@@ -39,13 +39,19 @@ type packageOutputEnvelope struct {
 	Data          any             `json:"data"`
 }
 
+type npmDependencyClassFilter struct {
+	Path    string   `json:"path"`
+	Classes []string `json:"classes"`
+}
+
 type outdatedOutput struct {
-	Scopes    []config.Scope                    `json:"scopes"`
-	Managers  []packagemanager.ManagerStatus    `json:"managers"`
-	Packages  []packagemanager.Package          `json:"packages"`
-	Installed []packagemanager.InstalledPackage `json:"installed,omitempty"`
-	Freshness string                            `json:"freshness"`
-	Drift     []config.PackageState             `json:"drift"`
+	Scopes                    []config.Scope                    `json:"scopes"`
+	Managers                  []packagemanager.ManagerStatus    `json:"managers"`
+	Packages                  []packagemanager.Package          `json:"packages"`
+	Installed                 []packagemanager.InstalledPackage `json:"installed,omitempty"`
+	Freshness                 string                            `json:"freshness"`
+	Drift                     []config.PackageState             `json:"drift"`
+	NPMDependencyClassFilters []npmDependencyClassFilter        `json:"npm_dependency_class_filters,omitempty"`
 }
 
 type updateOutput struct {
@@ -119,12 +125,16 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					options := packagemanager.QueryOptionsFromProfile(resolved.Profile)
+					classFilters := npmDependencyClassFilters(resolved.Profile)
 					if c.Bool("offline") {
 						inventory, queryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 						if c.Bool("json") {
-							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown"}))
+							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown", NPMDependencyClassFilters: classFilters}))
 						}
 						if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
+							return err
+						}
+						if err := printNPMDependencyClassFilters(cli.Writer, classFilters); err != nil {
 							return err
 						}
 						if _, err := fmt.Fprintf(cli.Writer, "Offline inventory: %d packages; freshness unknown.\n", len(inventory.Packages)); err != nil {
@@ -151,11 +161,14 @@ func (cli *Cli) packages() *urfave.Command {
 						return exists
 					})
 					if c.Bool("json") {
-						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Freshness: "fresh", Drift: drift}); err != nil {
+						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Freshness: "fresh", Drift: drift, NPMDependencyClassFilters: classFilters}); err != nil {
 							return err
 						}
 					} else {
 						if err := printManagerWarnings(cli.Writer, result.Managers); err != nil {
+							return err
+						}
+						if err := printNPMDependencyClassFilters(cli.Writer, classFilters); err != nil {
 							return err
 						}
 						if err := audit.PrintOutdated(result.Packages, cli.Writer); err != nil {
@@ -438,6 +451,25 @@ func validateProjectMutations(plans []packagemanager.UpdatePlan, profile config.
 		}
 		if len(status) > 0 && !allowDirty {
 			return fmt.Errorf("project %q has uncommitted changes; use --allow-dirty", plan.Directory)
+		}
+	}
+	return nil
+}
+
+func npmDependencyClassFilters(profile config.Profile) []npmDependencyClassFilter {
+	filters := make([]npmDependencyClassFilter, 0, len(profile.Projects))
+	for _, project := range profile.Projects {
+		if len(project.NPMDependencyClasses) > 0 {
+			filters = append(filters, npmDependencyClassFilter{Path: project.ResolvedPath, Classes: project.NPMDependencyClasses})
+		}
+	}
+	return filters
+}
+
+func printNPMDependencyClassFilters(writer io.Writer, filters []npmDependencyClassFilter) error {
+	for _, filter := range filters {
+		if _, err := fmt.Fprintf(writer, "npm dependency classes: %s (%s); results exclude other classes.\n", strings.Join(filter.Classes, ", "), filter.Path); err != nil {
+			return err
 		}
 	}
 	return nil

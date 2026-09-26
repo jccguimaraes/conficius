@@ -139,6 +139,52 @@ desired_version = "9.0.0"
 	}
 }
 
+func TestPackagesOutdatedReportsNPMClassFilterWhenInventoryIsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+printf '{"react":{"current":"19.0.0","wanted":"19.1.0","latest":"19.1.0"}}'
+`)
+	t.Setenv("PATH", dir)
+	configPath := filepath.Join(t.TempDir(), "conficius.toml")
+	contents := fmt.Sprintf(`version = 2
+[profiles.work]
+mode = "denylist"
+[[profiles.work.projects]]
+name = "app"
+path = %q
+npm_dependency_classes = ["development"]
+`, project)
+	if err := os.WriteFile(configPath, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		name string
+		json bool
+		want []string
+	}{
+		{name: "human", want: []string{"npm dependency classes: development (", "results exclude other classes.", "Total number of packages found: 0"}},
+		{name: "json", json: true, want: []string{`"npm_dependency_class_filters": [`, `"classes": [`, `"development"`, `"packages": []`}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			args := []string{appName, "--config", configPath, "packages", "outdated", "--pm", "npm", "--profile", "work", "--profile-project", "app"}
+			if test.json {
+				args = append(args, "--json")
+			}
+			if err := New(&output, "test").Execute(args); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(output.String(), want) {
+					t.Fatalf("output missing %q: %s", want, output.String())
+				}
+			}
+		})
+	}
+}
+
 func TestPackagesCommandsExcludeVulnerabilities(t *testing.T) {
 	commands := New(io.Discard, "test").Command.Command("packages").VisibleCommands()
 	var names []string
