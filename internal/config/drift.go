@@ -59,9 +59,21 @@ func EvaluatePackages(profile Profile, installed []InstalledVersion) ([]Installe
 		if scope.Rule.Manager == "brew" {
 			status = DriftUnsupported
 		}
-		states = append(states, PackageState{Manager: scope.Rule.Manager, Name: scope.Rule.Name, Scope: scope.Scope, Path: scope.Path, DesiredVersion: scope.Rule.DesiredVersion, Status: status})
+		states = append(states, PackageState{Manager: scope.Rule.Manager, Name: scope.Rule.Name, Scope: scope.Scope, Path: scope.Path, DesiredVersion: scope.Rule.DesiredVersion, DependencyClass: missingDependencyClass(profile, scope), Status: status})
 	}
 	return selected, states
+}
+
+func missingDependencyClass(profile Profile, scope scopedRule) string {
+	if scope.Rule.Manager != "npm" || scope.Path == "" {
+		return ""
+	}
+	for _, project := range profile.Projects {
+		if (project.ResolvedPath == scope.Path || project.Path == scope.Path) && len(project.NPMDependencyClasses) == 1 {
+			return project.NPMDependencyClasses[0]
+		}
+	}
+	return ""
 }
 
 func packageState(pkg InstalledVersion, desired string) PackageState {

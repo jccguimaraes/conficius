@@ -2,6 +2,14 @@ package config
 
 import "testing"
 
+func TestEvaluatePackagesInfersMissingNPMDependencyClass(t *testing.T) {
+	profile := Profile{Mode: "denylist", Projects: []ProfileProject{{Path: "/repo", ResolvedPath: "/repo", NPMDependencyClasses: []string{"development"}, Packages: []PackageRule{{Manager: "npm", Name: "typescript", Policy: "include", DesiredVersion: "5"}}}}}
+	_, states := EvaluatePackages(profile, nil)
+	if len(states) != 1 || states[0].Status != DriftMissing || states[0].DependencyClass != "development" {
+		t.Fatalf("states = %#v", states)
+	}
+}
+
 func TestEvaluatePackagesFiltersNPMDependencyClasses(t *testing.T) {
 	profile := Profile{Mode: "denylist", Projects: []ProfileProject{{Path: "/repo", ResolvedPath: "/repo", NPMDependencyClasses: []string{"development"}}}}
 	selected, _ := EvaluatePackages(profile, []InstalledVersion{{Manager: "npm", Name: "react", Path: "/repo", DependencyClass: "runtime"}, {Manager: "npm", Name: "typescript", Path: "/repo", DependencyClass: "development"}})
