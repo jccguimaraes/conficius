@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`e69c37b feat(packages): resolve collision commands`
+`220b5ff feat(packages): render collision warnings`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Connect command ownership data to CLI warnings. Keep change small.
+Add ownership and collision reporting. Collect exposed commands from installed npm package manifests. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `e69c37b`.
+Working tree was clean after `220b5ff`.

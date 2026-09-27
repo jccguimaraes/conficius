@@ -38,6 +38,7 @@ Built-in adapters implement one internal interface. Adapter owns:
 - capability declaration
 - inventory and outdated commands
 - output parser
+- package command metadata parsing
 - update arguments
 - project-owned files
 - impact and recovery metadata

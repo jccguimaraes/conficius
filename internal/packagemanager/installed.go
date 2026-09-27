@@ -259,6 +259,36 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	return packages, nil
 }
 
+func npmExposedCommands(owner PackageIdentity, contents []byte, scope, path string) ([]ExposedCommand, error) {
+	var manifest struct {
+		Bin json.RawMessage `json:"bin"`
+	}
+	if err := json.Unmarshal(contents, &manifest); err != nil {
+		return nil, parserError(fmt.Errorf("decode npm package manifest: %w", err))
+	}
+	var names []string
+	var command string
+	if err := json.Unmarshal(manifest.Bin, &command); err == nil && command != "" {
+		names = append(names, owner.Name)
+	} else {
+		var commands map[string]string
+		if err := json.Unmarshal(manifest.Bin, &commands); err != nil && len(manifest.Bin) > 0 && string(manifest.Bin) != "null" {
+			return nil, parserError(fmt.Errorf("decode npm package bin: %w", err))
+		}
+		for name, target := range commands {
+			if name != "" && target != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	sort.Strings(names)
+	commands := make([]ExposedCommand, len(names))
+	for i, name := range names {
+		commands[i] = ExposedCommand{Package: owner, Name: name, Scope: scope, Path: path}
+	}
+	return commands, nil
+}
+
 func npmDependencyClasses(scope Scope) (map[string]string, error) {
 	result := make(map[string]string)
 	if scope.Kind != "project" && scope.Kind != "workspace" {

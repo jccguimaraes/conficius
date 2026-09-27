@@ -215,6 +215,43 @@ func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
 	}
 }
 
+func TestNPMExposedCommandsParsesStringAndMapBin(t *testing.T) {
+	owner := PackageIdentity{Manager: PM_NPM, Name: "typescript"}
+	for _, test := range []struct {
+		name     string
+		manifest string
+		want     []string
+	}{
+		{name: "string", manifest: `{"bin":"cli.js"}`, want: []string{"typescript"}},
+		{name: "map", manifest: `{"bin":{"tsserver":"server.js","tsc":"cli.js","empty":""}}`, want: []string{"tsc", "tsserver"}},
+		{name: "missing", manifest: `{}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			commands, err := npmExposedCommands(owner, []byte(test.manifest), "global", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var names []string
+			for _, command := range commands {
+				names = append(names, command.Name)
+				if command.Package != owner || command.Scope != "global" {
+					t.Fatalf("command = %#v", command)
+				}
+			}
+			if !reflect.DeepEqual(names, test.want) {
+				t.Fatalf("names = %#v; want %#v", names, test.want)
+			}
+		})
+	}
+}
+
+func TestNPMExposedCommandsRejectsInvalidBin(t *testing.T) {
+	_, err := npmExposedCommands(PackageIdentity{Manager: PM_NPM, Name: "bad"}, []byte(`{"bin":42}`), "global", "")
+	if err == nil || !strings.Contains(err.Error(), "decode npm package bin") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestCollisionCandidatesOnlyReportsCompetingGlobalOwners(t *testing.T) {
 	commands := []ExposedCommand{
 		{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsc", Scope: "global"},
