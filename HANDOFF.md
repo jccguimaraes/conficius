@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`121336b feat(packages): check npm lockfile integrity`
+`732a1ea feat(packages): report project integrity`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Start one adapter expansion slice. Verify CLI capabilities before choosing manager. Keep change small.
+Continue `mas` adapter. Verify and parse `mas outdated --json` output before registration. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `121336b`.
+Working tree was clean after `732a1ea`.

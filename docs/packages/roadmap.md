@@ -8,9 +8,12 @@ Start adapter expansion with one manager whose structured output covers inventor
 
 ## Adapter expansion
 
+Adapter in progress:
+
+- Mac App Store (`mas`): inventory parser complete; outdated, update planning, and registration remain.
+
 Original target managers still missing:
 
-- Mac App Store (`mas`)
 - `uv`
 - Poetry
 - `pipx`
