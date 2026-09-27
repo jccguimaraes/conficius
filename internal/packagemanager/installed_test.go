@@ -228,6 +228,26 @@ func TestCollisionCandidatesOnlyReportsCompetingGlobalOwners(t *testing.T) {
 	}
 }
 
+func TestResolveCollisionCandidatesOnlyLooksUpCandidates(t *testing.T) {
+	var lookedUp []string
+	candidates := []CollisionCandidate{{Command: "node", Owners: []PackageIdentity{{Manager: PM_BREW, Name: "node"}, {Manager: PM_MISE, Name: "node"}}}}
+	resolved := ResolveCollisionCandidates(candidates, func(command string) (string, error) {
+		lookedUp = append(lookedUp, command)
+		return "/usr/local/bin/" + command, nil
+	})
+	if !reflect.DeepEqual(lookedUp, []string{"node"}) || len(resolved) != 1 || resolved[0].Path != "/usr/local/bin/node" || candidates[0].Path != "" {
+		t.Fatalf("lookedUp = %#v, resolved = %#v, candidates = %#v", lookedUp, resolved, candidates)
+	}
+}
+
+func TestResolveCollisionCandidatesKeepsUnknownPath(t *testing.T) {
+	candidates := []CollisionCandidate{{Command: "missing"}}
+	resolved := ResolveCollisionCandidates(candidates, func(string) (string, error) { return "", os.ErrNotExist })
+	if len(resolved) != 1 || resolved[0].Path != "" {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+}
+
 func TestCollisionCandidatesDoesNotTreatLocalAndGlobalCopiesAsDuplicates(t *testing.T) {
 	owner := PackageIdentity{Manager: PM_NPM, Name: "typescript"}
 	commands := []ExposedCommand{{Package: owner, Name: "tsc", Scope: "global"}, {Package: owner, Name: "tsc", Scope: "project", Path: "/repo"}}

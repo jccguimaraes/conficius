@@ -33,6 +33,7 @@
 - Canonical package identity as manager plus native package name.
 - Exposed-command ownership model, separate from command-path resolution.
 - Deterministic collision candidates for distinct global package owners.
+- Command-path lookup limited to collision candidates.
 - Package roles and owning manifest/config metadata.
 - Snapshot metadata and package audit check exit codes.
 - Active npm dependency-class filters in CLI JSON and human summaries.

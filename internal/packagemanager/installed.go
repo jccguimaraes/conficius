@@ -42,6 +42,18 @@ type ExposedCommand struct {
 type CollisionCandidate struct {
 	Command string            `json:"command"`
 	Owners  []PackageIdentity `json:"owners"`
+	Path    string            `json:"path,omitempty"`
+}
+
+func ResolveCollisionCandidates(candidates []CollisionCandidate, lookPath func(string) (string, error)) []CollisionCandidate {
+	resolved := append([]CollisionCandidate(nil), candidates...)
+	for i := range resolved {
+		path, err := lookPath(resolved[i].Command)
+		if err == nil {
+			resolved[i].Path = path
+		}
+	}
+	return resolved
 }
 
 func CollisionCandidates(commands []ExposedCommand) []CollisionCandidate {
