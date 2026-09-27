@@ -9,6 +9,50 @@ import (
 	"testing"
 )
 
+func TestCheckNPMProjectIntegrityReportsMissingDirectLockDependency(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"react":"^19"},"devDependencies":{"typescript":"^5"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "package-lock.json"), []byte(`{"lockfileVersion":3,"packages":{"":{"dependencies":{"react":"^19"}}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check := CheckNPMProjectIntegrity(root)
+	if check.Status != "warning" || check.Message != "package-lock.json is missing direct dependencies: typescript" {
+		t.Fatalf("check = %#v", check)
+	}
+}
+
+func TestCheckNPMProjectIntegrityAcceptsMatchingDirectDependencies(t *testing.T) {
+	root := t.TempDir()
+	manifest := `{"dependencies":{"react":"^19"},"devDependencies":{"typescript":"^5"}}`
+	lock := `{"lockfileVersion":3,"packages":{"":{"dependencies":{"react":"^19"},"devDependencies":{"typescript":"^5"}}}}`
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "package-lock.json"), []byte(lock), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check := CheckNPMProjectIntegrity(root)
+	if check.Status != "healthy" {
+		t.Fatalf("check = %#v", check)
+	}
+}
+
+func TestCheckNPMProjectIntegrityReportsUnknownOldLockfile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "package-lock.json"), []byte(`{"lockfileVersion":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check := CheckNPMProjectIntegrity(root)
+	if check.Status != "unknown" {
+		t.Fatalf("check = %#v", check)
+	}
+}
+
 func TestManagerPackagesReadsManagerVersionsAndOSVIdentities(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, "mise"), "#!/bin/sh\nprintf '2026.9.6 macos-arm64\n'\n")

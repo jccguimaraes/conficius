@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`176be01 feat(packages): check manager integrity`
+`8dbe1ec feat(packages): add doctor command`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add safe npm manifest and lockfile consistency checks to read-only doctor. Keep change small.
+Include scoped npm project integrity results in `packages doctor` human and JSON output. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `176be01`.
+Working tree was clean after `8dbe1ec`.

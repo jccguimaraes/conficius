@@ -50,6 +50,8 @@
 - Manager integrity remains separate from package freshness.
 - Untested manager versions report warnings.
 - `packages doctor` human and schema-versioned JSON output.
+- npm v2/v3 lockfile root metadata checked against direct manifest dependencies.
+- Unsupported old lockfiles report unknown rather than healthy.
 
 ### Security
 

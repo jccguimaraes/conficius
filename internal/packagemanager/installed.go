@@ -104,6 +104,76 @@ type Scope struct {
 	Path string
 }
 
+type ProjectIntegrity struct {
+	Path    string `json:"path"`
+	Manager string `json:"manager"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+func CheckNPMProjectIntegrity(root string) ProjectIntegrity {
+	check := ProjectIntegrity{Path: root, Manager: PM_NPM, Status: "healthy", Message: "manifest and lockfile direct dependencies agree"}
+	manifestContents, err := os.ReadFile(filepath.Join(root, "package.json"))
+	if err != nil {
+		check.Status, check.Message = StatusError, "read package.json: "+err.Error()
+		return check
+	}
+	lockContents, err := os.ReadFile(filepath.Join(root, "package-lock.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		check.Status, check.Message = "warning", "package-lock.json is missing"
+		return check
+	}
+	if err != nil {
+		check.Status, check.Message = StatusError, "read package-lock.json: "+err.Error()
+		return check
+	}
+	var manifest struct {
+		Dependencies         map[string]string `json:"dependencies"`
+		DevDependencies      map[string]string `json:"devDependencies"`
+		OptionalDependencies map[string]string `json:"optionalDependencies"`
+		PeerDependencies     map[string]string `json:"peerDependencies"`
+	}
+	if err := json.Unmarshal(manifestContents, &manifest); err != nil {
+		check.Status, check.Message = StatusError, "decode package.json: "+err.Error()
+		return check
+	}
+	var lock struct {
+		LockfileVersion int `json:"lockfileVersion"`
+		Packages        map[string]struct {
+			Dependencies         map[string]string `json:"dependencies"`
+			DevDependencies      map[string]string `json:"devDependencies"`
+			OptionalDependencies map[string]string `json:"optionalDependencies"`
+			PeerDependencies     map[string]string `json:"peerDependencies"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(lockContents, &lock); err != nil {
+		check.Status, check.Message = StatusError, "decode package-lock.json: "+err.Error()
+		return check
+	}
+	if lock.LockfileVersion < 2 || lock.Packages == nil {
+		check.Status, check.Message = "unknown", "package-lock.json format does not expose root package metadata"
+		return check
+	}
+	locked, exists := lock.Packages[""]
+	if !exists {
+		check.Status, check.Message = "warning", "package-lock.json is missing root package metadata"
+		return check
+	}
+	var missing []string
+	for _, pair := range []struct{ manifest, locked map[string]string }{{manifest.Dependencies, locked.Dependencies}, {manifest.DevDependencies, locked.DevDependencies}, {manifest.OptionalDependencies, locked.OptionalDependencies}, {manifest.PeerDependencies, locked.PeerDependencies}} {
+		for name := range pair.manifest {
+			if _, exists := pair.locked[name]; !exists {
+				missing = append(missing, name)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		check.Status, check.Message = "warning", "package-lock.json is missing direct dependencies: "+strings.Join(missing, ", ")
+	}
+	return check
+}
+
 type InstalledResult struct {
 	Managers []ManagerStatus    `json:"managers"`
 	Packages []InstalledPackage `json:"packages"`
