@@ -60,6 +60,11 @@ type updateOutput struct {
 	Updates  []packagemanager.UpdatePlan    `json:"updates"`
 }
 
+type doctorOutput struct {
+	Managers []packagemanager.ManagerIntegrity `json:"managers"`
+	Projects []packagemanager.ProjectIntegrity `json:"projects,omitempty"`
+}
+
 type vulnerabilityOutput struct {
 	Scopes   []config.Scope                 `json:"scopes"`
 	Managers []packagemanager.ManagerStatus `json:"managers"`
@@ -100,9 +105,9 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "doctor",
 				Description: "Check package manager environment integrity without freshness queries.",
 				Usage:       "Check package manager integrity.",
-				Flags:       []urfave.Flag{pmFlag(), jsonFlag(), &urfave.StringFlag{Name: "profile", Usage: "Select profile `NAME`.", Sources: urfave.EnvVars(config.ProfileEnvironment)}},
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag()}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
-					_, resolved, err := resolvePackageScopes(c)
+					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
 						return err
 					}
@@ -110,10 +115,14 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
+					projects := projectIntegrityChecks(scopes)
 					if c.Bool("json") {
-						return cli.writePackageJSON(checks)
+						return cli.writePackageJSON(doctorOutput{Managers: checks, Projects: projects})
 					}
-					return printManagerIntegrity(cli.Writer, checks)
+					if err := printManagerIntegrity(cli.Writer, checks); err != nil {
+						return err
+					}
+					return printProjectIntegrity(cli.Writer, projects)
 				},
 			},
 			{
@@ -572,6 +581,28 @@ func (cli *Cli) writePackageJSON(data any) error {
 		},
 		Data: data,
 	})
+}
+
+func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectIntegrity {
+	var checks []packagemanager.ProjectIntegrity
+	for _, scope := range scopes {
+		if scope.Kind == "project" || scope.Kind == "workspace" {
+			checks = append(checks, packagemanager.CheckNPMProjectIntegrity(scope.Path))
+		}
+		for _, workspace := range scope.Workspaces {
+			checks = append(checks, packagemanager.CheckNPMProjectIntegrity(workspace))
+		}
+	}
+	return checks
+}
+
+func printProjectIntegrity(writer io.Writer, checks []packagemanager.ProjectIntegrity) error {
+	for _, check := range checks {
+		if _, err := fmt.Fprintf(writer, "%s project %s: %s: %s\n", check.Manager, check.Path, check.Status, check.Message); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func printManagerIntegrity(writer io.Writer, checks []packagemanager.ManagerIntegrity) error {

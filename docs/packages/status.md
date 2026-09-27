@@ -52,6 +52,7 @@
 - `packages doctor` human and schema-versioned JSON output.
 - npm v2/v3 lockfile root metadata checked against direct manifest dependencies.
 - Unsupported old lockfiles report unknown rather than healthy.
+- Selected project and workspace checks in human and JSON doctor output.
 
 ### Security
 

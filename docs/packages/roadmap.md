@@ -4,10 +4,7 @@ Work in small tested commits. Finish one item before starting next.
 
 ## Next
 
-1. **Add doctor checks.**
-   - Verify manager environment integrity separately from freshness.
-   - Detect safe lockfile/manifest inconsistencies.
-   - Keep doctor read-only.
+Start adapter expansion with one manager whose structured output covers inventory and outdated checks.
 
 ## Adapter expansion
 

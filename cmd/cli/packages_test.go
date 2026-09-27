@@ -259,6 +259,37 @@ exit 99
 	}
 }
 
+func TestPackagesDoctorReportsProjectLockfileIntegrity(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '11.0.0'\n")
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"react":"^19"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "package-lock.json"), []byte(`{"lockfileVersion":3,"packages":{"":{}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	for _, jsonOutput := range []bool{false, true} {
+		var output bytes.Buffer
+		args := []string{"conficius", "packages", "doctor", "--pm", "npm", "--project", project}
+		if jsonOutput {
+			args = append(args, "--json")
+		}
+		if err := New(&output, "test").Command.Run(t.Context(), args); err != nil {
+			t.Fatal(err)
+		}
+		want := "package-lock.json is missing direct dependencies: react"
+		if jsonOutput && (!strings.Contains(output.String(), `"projects": [`) || !strings.Contains(output.String(), `"status": "warning"`)) {
+			t.Fatalf("output = %q", output.String())
+		}
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("json = %t, output = %q", jsonOutput, output.String())
+		}
+	}
+}
+
 func TestPackagesPMSJSONReportsUnavailableAndExitZero(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	var output bytes.Buffer
