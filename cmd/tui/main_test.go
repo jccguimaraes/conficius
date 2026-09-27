@@ -81,6 +81,17 @@ func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
 	}
 }
 
+func TestAppendCollisionStatusReportsCompetingGlobalCommands(t *testing.T) {
+	commands := []packagemanager.ExposedCommand{
+		{Package: packagemanager.PackageIdentity{Manager: "brew", Name: "node"}, Name: "node", Scope: "global"},
+		{Package: packagemanager.PackageIdentity{Manager: "mise", Name: "node"}, Name: "node", Scope: "global"},
+		{Package: packagemanager.PackageIdentity{Manager: "npm", Name: "typescript"}, Name: "tsc", Scope: "project", Path: "/repo"},
+	}
+	if got, want := appendCollisionStatus("0 outdated", commands), "0 outdated; 1 command collisions: node"; got != want {
+		t.Fatalf("summary = %q; want %q", got, want)
+	}
+}
+
 func TestAppendManagerStatusReportsDisabledDetectedManager(t *testing.T) {
 	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}}}
 	if got, want := appendManagerStatus("0 outdated", statuses), "0 outdated; managers: npm disabled"; got != want {

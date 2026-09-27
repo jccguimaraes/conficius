@@ -66,7 +66,7 @@
 ### Frontends
 
 - CLI supports manager status, outdated, offline inventory, vulnerability checks, and updates.
-- TUI provides read-only profile, scope, outdated, drift, and vulnerability views.
+- TUI provides read-only profile, scope, outdated, drift, vulnerability, and command-collision summaries.
 - CLI and TUI summaries report disabled detected managers.
 
 ## Verification state

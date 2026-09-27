@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`404a9eb feat(packages): include inventory commands`
+`930d96b feat(packages): report offline collisions`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Surface collision state in TUI summaries. Keep change small.
+Add read-only doctor checks. Start with manager environment integrity separate from freshness. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `404a9eb`.
+Working tree was clean after `930d96b`.

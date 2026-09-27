@@ -4,13 +4,7 @@ Work in small tested commits. Finish one item before starting next.
 
 ## Next
 
-1. **Add ownership and collision reporting.**
-   - Model canonical package identity and exposed commands.
-   - Resolve commands only for collision candidates.
-   - Warn for competing global owners.
-   - Never classify valid local/global copies as duplicates.
-
-2. **Add doctor checks.**
+1. **Add doctor checks.**
    - Verify manager environment integrity separately from freshness.
    - Detect safe lockfile/manifest inconsistencies.
    - Keep doctor read-only.

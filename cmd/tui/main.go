@@ -418,7 +418,7 @@ func refresh(data *model, app *glyph.App) {
 			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
 			data.rows = outdatedRows(packages, data.selected, data.failed)
 			data.drift = drift
-			data.status = appendManagerStatus(refreshStatus(len(packages), len(drift), upgraded, unchanged, failed), result.Managers)
+			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), len(drift), upgraded, unchanged, failed), result.Managers), inventory.Commands)
 			if err != nil {
 				data.status = err.Error()
 			}
@@ -435,7 +435,7 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = appendManagerStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), result.Managers)
+			data.status = appendCollisionStatus(appendManagerStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), result.Managers), inventory.Commands)
 		})
 	}()
 }
@@ -494,6 +494,18 @@ func appendManagerStatus(summary string, statuses []packagemanager.ManagerStatus
 		return summary
 	}
 	return summary + "; managers: " + managerSummary
+}
+
+func appendCollisionStatus(summary string, commands []packagemanager.ExposedCommand) string {
+	collisions := packagemanager.CollisionCandidates(commands)
+	if len(collisions) == 0 {
+		return summary
+	}
+	names := make([]string, len(collisions))
+	for i, collision := range collisions {
+		names[i] = collision.Command
+	}
+	return fmt.Sprintf("%s; %d command collisions: %s", summary, len(collisions), strings.Join(names, ", "))
 }
 
 func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
