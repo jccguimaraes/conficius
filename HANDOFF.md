@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`ca7fc2b feat(packages): parse npm command metadata`
+`94b0405 feat(packages): collect npm commands`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Discover global npm package root for command collection. Keep change small.
+Add ownership and collision reporting. Attach npm exposed commands to installed inventory results. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `ca7fc2b`.
+Working tree was clean after `94b0405`.

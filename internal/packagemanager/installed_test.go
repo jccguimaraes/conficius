@@ -215,6 +215,33 @@ func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
 	}
 }
 
+func TestNPMGlobalPackageRootUsesNativeCommand(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	executable := filepath.Join(dir, "npm")
+	writeExecutable(t, executable, "#!/bin/sh\nprintf '%s' \"$*\" >\"$ARGS_FILE\"\nprintf '  /opt/npm/lib/node_modules\\n'\n")
+	t.Setenv("ARGS_FILE", argsFile)
+	root, err := npmGlobalPackageRoot(context.Background(), executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root != "/opt/npm/lib/node_modules" || string(args) != "root --global" {
+		t.Fatalf("root = %q, args = %q", root, args)
+	}
+}
+
+func TestNPMGlobalPackageRootRejectsEmptyOutput(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), "npm")
+	writeExecutable(t, executable, "#!/bin/sh\n")
+	if _, err := npmGlobalPackageRoot(context.Background(), executable); err == nil || !strings.Contains(err.Error(), "empty output") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestCollectNPMExposedCommandsReadsDirectPackageManifests(t *testing.T) {
 	root := t.TempDir()
 	manifest := npmPackageManifestPath(root, "@scope/tool")

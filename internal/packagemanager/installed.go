@@ -259,6 +259,18 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	return packages, nil
 }
 
+func npmGlobalPackageRoot(ctx context.Context, executable string) (string, error) {
+	output, err := runOutput(ctx, executable, "root", NPMFlagGlobal)
+	if err != nil {
+		return "", fmt.Errorf("read npm global package root: %w", err)
+	}
+	root := strings.TrimSpace(string(output))
+	if root == "" {
+		return "", errors.New("read npm global package root: empty output")
+	}
+	return filepath.Clean(root), nil
+}
+
 func npmPackageManifestPath(root, name string) string {
 	parts := strings.Split(name, "/")
 	return filepath.Join(append([]string{root, "node_modules"}, append(parts, "package.json")...)...)
