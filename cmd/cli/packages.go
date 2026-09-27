@@ -45,13 +45,14 @@ type npmDependencyClassFilter struct {
 }
 
 type outdatedOutput struct {
-	Scopes                    []config.Scope                    `json:"scopes"`
-	Managers                  []packagemanager.ManagerStatus    `json:"managers"`
-	Packages                  []packagemanager.Package          `json:"packages"`
-	Installed                 []packagemanager.InstalledPackage `json:"installed,omitempty"`
-	Freshness                 string                            `json:"freshness"`
-	Drift                     []config.PackageState             `json:"drift"`
-	NPMDependencyClassFilters []npmDependencyClassFilter        `json:"npm_dependency_class_filters,omitempty"`
+	Scopes                    []config.Scope                      `json:"scopes"`
+	Managers                  []packagemanager.ManagerStatus      `json:"managers"`
+	Packages                  []packagemanager.Package            `json:"packages"`
+	Installed                 []packagemanager.InstalledPackage   `json:"installed,omitempty"`
+	Freshness                 string                              `json:"freshness"`
+	Drift                     []config.PackageState               `json:"drift"`
+	NPMDependencyClassFilters []npmDependencyClassFilter          `json:"npm_dependency_class_filters,omitempty"`
+	Collisions                []packagemanager.CollisionCandidate `json:"collisions,omitempty"`
 }
 
 type updateOutput struct {
@@ -128,13 +129,17 @@ func (cli *Cli) packages() *urfave.Command {
 					classFilters := npmDependencyClassFilters(resolved.Profile)
 					if c.Bool("offline") {
 						inventory, queryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
+						collisions := packagemanager.ResolveCollisionCandidates(packagemanager.CollisionCandidates(inventory.Commands), exec.LookPath)
 						if c.Bool("json") {
-							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown", NPMDependencyClassFilters: classFilters}))
+							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown", NPMDependencyClassFilters: classFilters, Collisions: collisions}))
 						}
 						if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
 							return err
 						}
 						if err := printNPMDependencyClassFilters(cli.Writer, classFilters); err != nil {
+							return err
+						}
+						if err := printCollisionWarnings(cli.Writer, collisions); err != nil {
 							return err
 						}
 						if _, err := fmt.Fprintf(cli.Writer, "Offline inventory: %d packages; freshness unknown.\n", len(inventory.Packages)); err != nil {

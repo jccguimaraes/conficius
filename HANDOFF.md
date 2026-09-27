@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`3c738d5 feat(packages): discover npm package root`
+`404a9eb feat(packages): include inventory commands`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Surface collision candidates in CLI offline JSON and human output. Keep change small.
+Add ownership and collision reporting. Surface collision state in TUI summaries. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `3c738d5`.
+Working tree was clean after `404a9eb`.

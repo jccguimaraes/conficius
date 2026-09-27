@@ -83,6 +83,43 @@ printf '{"dependencies":{"typescript":{"version":"5.0.0"}}}'
 	}
 }
 
+func TestPackagesOutdatedOfflineReportsNPMCommandCollisions(t *testing.T) {
+	dir := t.TempDir()
+	globalRoot := filepath.Join(t.TempDir(), "lib", "node_modules")
+	for _, name := range []string{"first", "second"} {
+		manifest := filepath.Join(globalRoot, name, "package.json")
+		if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manifest, []byte(`{"bin":{"shared":"cli.js"}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '11.0.0'; elif [ "$1" = "root" ]; then printf '%s' "$NPM_ROOT"; else printf '{"dependencies":{"first":{"version":"1.0.0"},"second":{"version":"1.0.0"}}}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("NPM_ROOT", globalRoot)
+
+	for _, jsonOutput := range []bool{false, true} {
+		var output bytes.Buffer
+		args := []string{"conficius", "packages", "outdated", "--global", "--pm", "npm", "--offline"}
+		if jsonOutput {
+			args = append(args, "--json")
+		}
+		if err := New(&output, "test").Command.Run(t.Context(), args); err != nil {
+			t.Fatal(err)
+		}
+		want := "competing global owners: npm:first, npm:second"
+		if jsonOutput {
+			want = `"command": "shared"`
+		}
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("json = %t, output = %q", jsonOutput, output.String())
+		}
+	}
+}
+
 func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

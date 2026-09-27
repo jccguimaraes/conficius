@@ -63,6 +63,7 @@ Each normalized package can carry:
 - collision candidates only when distinct global owners expose same command
 - resolved command path only for collision candidates
 - warnings name command, resolved path when known, and canonical owners
+- offline CLI JSON includes typed collision candidates
 - native executable used for operation
 
 Roles are independent from scope:
