@@ -36,6 +36,7 @@
 - Command-path lookup limited to collision candidates.
 - CLI warning format for competing global command owners.
 - npm package `bin` parsing for string and object forms.
+- Direct npm package command collection from scoped and unscoped manifests.
 - Package roles and owning manifest/config metadata.
 - Snapshot metadata and package audit check exit codes.
 - Active npm dependency-class filters in CLI JSON and human summaries.

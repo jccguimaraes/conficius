@@ -259,6 +259,36 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 	return packages, nil
 }
 
+func npmPackageManifestPath(root, name string) string {
+	parts := strings.Split(name, "/")
+	return filepath.Join(append([]string{root, "node_modules"}, append(parts, "package.json")...)...)
+}
+
+func collectNPMExposedCommands(packages []InstalledPackage) ([]ExposedCommand, error) {
+	var commands []ExposedCommand
+	var commandErrors []error
+	for _, pkg := range packages {
+		if pkg.Manager != PM_NPM || pkg.Transitive {
+			continue
+		}
+		contents, err := os.ReadFile(npmPackageManifestPath(pkg.Path, pkg.Name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			commandErrors = append(commandErrors, fmt.Errorf("read npm package manifest for %s: %w", pkg.Name, err))
+			continue
+		}
+		exposed, err := npmExposedCommands(PackageIdentity{Manager: pkg.Manager, Name: pkg.Name}, contents, pkg.Scope, pkg.Path)
+		if err != nil {
+			commandErrors = append(commandErrors, fmt.Errorf("read npm commands for %s: %w", pkg.Name, err))
+			continue
+		}
+		commands = append(commands, exposed...)
+	}
+	return commands, errors.Join(commandErrors...)
+}
+
 func npmExposedCommands(owner PackageIdentity, contents []byte, scope, path string) ([]ExposedCommand, error) {
 	var manifest struct {
 		Bin json.RawMessage `json:"bin"`

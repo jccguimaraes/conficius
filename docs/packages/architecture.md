@@ -78,7 +78,7 @@ Manifest discovery happens before manager commands. Contradictions, missing requ
 
 ## Inventory and outdated models
 
-Inventory uses `InstalledPackage`. It contains exact installed version, role, ownership, npm class, and transitive flag.
+Inventory uses `InstalledPackage`. It contains exact installed version, role, ownership, npm class, and transitive flag. Direct npm package manifests provide exposed-command metadata. Missing manifests do not fail inventory.
 
 Outdated query starts with manager-native `Tool` values. Core wraps tools in `scopedTool`, then `Records` creates normalized `Package` values. Scope, ownership, role, and npm class flow into plans.
 

@@ -215,6 +215,46 @@ func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
 	}
 }
 
+func TestCollectNPMExposedCommandsReadsDirectPackageManifests(t *testing.T) {
+	root := t.TempDir()
+	manifest := npmPackageManifestPath(root, "@scope/tool")
+	if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte(`{"bin":{"tool":"cli.js"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	packages := []InstalledPackage{
+		{Manager: PM_NPM, Name: "@scope/tool", Scope: "global", Path: root},
+		{Manager: PM_NPM, Name: "missing", Scope: "global", Path: root},
+		{Manager: PM_NPM, Name: "child", Scope: "global", Path: root, Transitive: true},
+		{Manager: PM_BREW, Name: "tool", Scope: "global"},
+	}
+	commands, err := collectNPMExposedCommands(packages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ExposedCommand{{Package: PackageIdentity{Manager: PM_NPM, Name: "@scope/tool"}, Name: "tool", Scope: "global", Path: root}}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("commands = %#v; want %#v", commands, want)
+	}
+}
+
+func TestCollectNPMExposedCommandsReportsMalformedManifest(t *testing.T) {
+	root := t.TempDir()
+	manifest := npmPackageManifestPath(root, "bad")
+	if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte(`{"bin":42}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	commands, err := collectNPMExposedCommands([]InstalledPackage{{Manager: PM_NPM, Name: "bad", Scope: "global", Path: root}})
+	if len(commands) != 0 || err == nil || !strings.Contains(err.Error(), "read npm commands for bad") {
+		t.Fatalf("commands = %#v, error = %v", commands, err)
+	}
+}
+
 func TestNPMExposedCommandsParsesStringAndMapBin(t *testing.T) {
 	owner := PackageIdentity{Manager: PM_NPM, Name: "typescript"}
 	for _, test := range []struct {
