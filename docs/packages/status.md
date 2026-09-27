@@ -15,7 +15,7 @@
 ### Managers
 
 - Built-in mise, Homebrew, and npm adapters.
-- `mas` adapter foundation with stable Adam ID identity and inventory parser; not registered yet.
+- `mas` adapter foundation with stable Adam ID identity plus inventory and outdated parsers; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

@@ -1,8 +1,10 @@
 package packagemanager
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
 const PM_MAS = "mas"
@@ -14,13 +16,9 @@ type masInstalledApp struct {
 }
 
 func parseMASInstalled(output []byte) ([]InstalledPackage, error) {
-	var apps []masInstalledApp
-	if err := json.Unmarshal(output, &apps); err != nil {
-		var app masInstalledApp
-		if lineErr := json.Unmarshal(output, &app); lineErr != nil {
-			return nil, parserError(fmt.Errorf("decode mas inventory: %w", err))
-		}
-		apps = []masInstalledApp{app}
+	apps, err := decodeMASJSON[masInstalledApp](output)
+	if err != nil {
+		return nil, parserError(fmt.Errorf("decode mas inventory: %w", err))
 	}
 	packages := make([]InstalledPackage, 0, len(apps))
 	for _, app := range apps {
@@ -31,3 +29,62 @@ func parseMASInstalled(output []byte) ([]InstalledPackage, error) {
 	}
 	return packages, nil
 }
+
+type masOutdatedApp struct {
+	AdamID     int64  `json:"adamID"`
+	Version    string `json:"version"`
+	NewVersion string `json:"newVersion"`
+}
+
+func parseMASOutdated(output []byte, executable string) (Packages, error) {
+	apps, err := decodeMASJSON[masOutdatedApp](output)
+	if err != nil {
+		return nil, parserError(fmt.Errorf("decode mas outdated: %w", err))
+	}
+	packages := make(Packages)
+	for _, app := range apps {
+		if app.AdamID == 0 || app.Version == "" || app.NewVersion == "" {
+			continue
+		}
+		name := fmt.Sprint(app.AdamID)
+		packages[name] = append(packages[name], masTool{name: name, current: app.Version, latest: app.NewVersion, executable: executable})
+	}
+	return packages, nil
+}
+
+func decodeMASJSON[T any](output []byte) ([]T, error) {
+	var items []T
+	if err := json.Unmarshal(output, &items); err == nil {
+		return items, nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(output))
+	for {
+		var item T
+		err := decoder.Decode(&item)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 && len(bytes.TrimSpace(output)) > 0 {
+		return nil, fmt.Errorf("no JSON objects")
+	}
+	return items, nil
+}
+
+type masTool struct {
+	name       string
+	current    string
+	latest     string
+	executable string
+}
+
+func (tool masTool) GetPackageManager() string   { return PM_MAS }
+func (tool masTool) GetName() string             { return tool.name }
+func (tool masTool) GetCurrentVersion() string   { return tool.current }
+func (tool masTool) GetLatestVersion() string    { return tool.latest }
+func (tool masTool) GetRequestedVersion() string { return "" }
+func (tool masTool) GetExecutable() string       { return tool.executable }
