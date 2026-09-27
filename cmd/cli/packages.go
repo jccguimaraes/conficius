@@ -97,6 +97,26 @@ func (cli *Cli) packages() *urfave.Command {
 		},
 		Commands: []*urfave.Command{
 			{
+				Name:        "doctor",
+				Description: "Check package manager environment integrity without freshness queries.",
+				Usage:       "Check package manager integrity.",
+				Flags:       []urfave.Flag{pmFlag(), jsonFlag(), &urfave.StringFlag{Name: "profile", Usage: "Select profile `NAME`.", Sources: urfave.EnvVars(config.ProfileEnvironment)}},
+				Action: func(ctx context.Context, c *urfave.Command) error {
+					_, resolved, err := resolvePackageScopes(c)
+					if err != nil {
+						return err
+					}
+					checks, err := packagemanager.CheckManagerIntegrity(c.StringSlice("pm"), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					if err != nil {
+						return err
+					}
+					if c.Bool("json") {
+						return cli.writePackageJSON(checks)
+					}
+					return printManagerIntegrity(cli.Writer, checks)
+				},
+			},
+			{
 				Name:        "pms",
 				Description: "List supported package managers and availability.",
 				Usage:       "Show supported package managers.",
@@ -552,6 +572,15 @@ func (cli *Cli) writePackageJSON(data any) error {
 		},
 		Data: data,
 	})
+}
+
+func printManagerIntegrity(writer io.Writer, checks []packagemanager.ManagerIntegrity) error {
+	for _, check := range checks {
+		if _, err := fmt.Fprintf(writer, "%s: %s: %s\n", check.Manager, check.Status, check.Message); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func printManagerStatuses(writer io.Writer, statuses []packagemanager.ManagerStatus) error {

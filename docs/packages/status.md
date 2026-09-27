@@ -49,6 +49,7 @@
 - Read-only manager executable and version integrity checks.
 - Manager integrity remains separate from package freshness.
 - Untested manager versions report warnings.
+- `packages doctor` human and schema-versioned JSON output.
 
 ### Security
 
@@ -71,7 +72,7 @@
 
 ### Frontends
 
-- CLI supports manager status, outdated, offline inventory, vulnerability checks, and updates.
+- CLI supports manager status, doctor checks, outdated, offline inventory, vulnerability checks, and updates.
 - TUI provides read-only profile, scope, outdated, drift, vulnerability, and command-collision summaries.
 - CLI and TUI summaries report disabled detected managers.
 

@@ -103,7 +103,7 @@ Inspection runs managers concurrently with bounded concurrency. Commands within 
 
 Successful manager results survive failures from other managers or scopes. Status can be available, unavailable, disabled, unsupported, partial, or error.
 
-Manager integrity checks executable availability and tested version range without registry or freshness queries.
+`packages doctor` checks executable availability and tested version range without registry or freshness queries. It is read-only.
 
 Freshness and vulnerability are separate:
 

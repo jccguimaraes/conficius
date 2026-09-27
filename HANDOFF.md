@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`af7eb77 feat(packages): show TUI collisions`
+`176be01 feat(packages): check manager integrity`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add read-only `packages doctor` CLI output for manager integrity. Keep change small.
+Add safe npm manifest and lockfile consistency checks to read-only doctor. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `af7eb77`.
+Working tree was clean after `176be01`.

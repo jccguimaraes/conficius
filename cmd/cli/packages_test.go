@@ -228,8 +228,34 @@ func TestPackagesCommandsExcludeVulnerabilities(t *testing.T) {
 	for _, command := range commands {
 		names = append(names, command.Name)
 	}
-	if got, want := strings.Join(names, ","), "pms,outdated,vulnerabilities,update"; got != want {
+	if got, want := strings.Join(names, ","), "doctor,pms,outdated,vulnerabilities,update"; got != want {
 		t.Fatalf("commands = %q; want %q", got, want)
+	}
+}
+
+func TestPackagesDoctorReportsManagerIntegrityWithoutFreshnessQuery(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '11.0.0'; exit 0; fi
+exit 99
+`)
+	t.Setenv("PATH", dir)
+	for _, jsonOutput := range []bool{false, true} {
+		var output bytes.Buffer
+		args := []string{"conficius", "packages", "doctor", "--pm", "npm"}
+		if jsonOutput {
+			args = append(args, "--json")
+		}
+		if err := New(&output, "test").Command.Run(t.Context(), args); err != nil {
+			t.Fatal(err)
+		}
+		want := "npm: healthy: executable and manager version available"
+		if jsonOutput {
+			want = `"status": "healthy"`
+		}
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("json = %t, output = %q", jsonOutput, output.String())
+		}
 	}
 }
 
