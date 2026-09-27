@@ -85,6 +85,33 @@ type ManagerStatus struct {
 	Error          string            `json:"error,omitempty"`
 }
 
+type ManagerIntegrity struct {
+	Manager string `json:"manager"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+func CheckManagerIntegrity(pms []string, options QueryOptions) ([]ManagerIntegrity, error) {
+	statuses, err := inspectWithOptions(pms, options)
+	if err != nil {
+		return nil, err
+	}
+	checks := make([]ManagerIntegrity, len(statuses))
+	for i, status := range statuses {
+		check := ManagerIntegrity{Manager: status.Name, Status: status.Status, Message: status.Error}
+		if status.Status == StatusAvailable {
+			check.Status = "healthy"
+			check.Message = "executable and manager version available"
+			if status.ManagerVersion != "" && !status.VersionTested {
+				check.Status = "warning"
+				check.Message = fmt.Sprintf("manager version %s is outside tested range", status.ManagerVersion)
+			}
+		}
+		checks[i] = check
+	}
+	return checks, nil
+}
+
 type ManagerOptions struct {
 	IncludeBumpCandidates bool
 	IncludeGreedy         bool

@@ -28,6 +28,36 @@ func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testin
 	}
 }
 
+func TestCheckManagerIntegritySeparatesHealthFromFreshness(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_NPM), "#!/bin/sh\nprintf '11.0.0'\n")
+	t.Setenv("PATH", dir)
+	checks, err := CheckManagerIntegrity([]string{PM_NPM, PM_MISE}, QueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ManagerIntegrity{
+		{Manager: PM_NPM, Status: "healthy", Message: "executable and manager version available"},
+		{Manager: PM_MISE, Status: StatusUnavailable, Message: "executable not found"},
+	}
+	if !reflect.DeepEqual(checks, want) {
+		t.Fatalf("checks = %#v; want %#v", checks, want)
+	}
+}
+
+func TestCheckManagerIntegrityWarnsForUntestedVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_NPM), "#!/bin/sh\nprintf '12.0.0'\n")
+	t.Setenv("PATH", dir)
+	checks, err := CheckManagerIntegrity([]string{PM_NPM}, QueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(checks) != 1 || checks[0].Status != "warning" || !strings.Contains(checks[0].Message, "outside tested range") {
+		t.Fatalf("checks = %#v", checks)
+	}
+}
+
 func TestNormalizeScopesPrefersWorkspaceForSamePhysicalRoot(t *testing.T) {
 	root := t.TempDir()
 	scopes, err := normalizeScopes([]Scope{{Kind: "project", Path: root}, {Kind: "workspace", Path: root}})

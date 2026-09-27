@@ -44,6 +44,12 @@
 - Snapshot metadata and package audit check exit codes.
 - Active npm dependency-class filters in CLI JSON and human summaries.
 
+### Doctor
+
+- Read-only manager executable and version integrity checks.
+- Manager integrity remains separate from package freshness.
+- Untested manager versions report warnings.
+
 ### Security
 
 - Exact-version OSV checks.

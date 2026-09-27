@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`930d96b feat(packages): report offline collisions`
+`af7eb77 feat(packages): show TUI collisions`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add read-only doctor checks. Start with manager environment integrity separate from freshness. Keep change small.
+Add read-only `packages doctor` CLI output for manager integrity. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `930d96b`.
+Working tree was clean after `af7eb77`.
