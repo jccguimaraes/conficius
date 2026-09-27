@@ -238,6 +238,22 @@ func TestPackagesOutdatedMissingManagerWarnsAndExitZero(t *testing.T) {
 	}
 }
 
+func TestPrintCollisionWarningsReportsCommandPathAndOwners(t *testing.T) {
+	var output bytes.Buffer
+	candidates := []packagemanager.CollisionCandidate{{
+		Command: "node",
+		Path:    "/usr/local/bin/node",
+		Owners:  []packagemanager.PackageIdentity{{Manager: "brew", Name: "node"}, {Manager: "mise", Name: "node"}},
+	}}
+	if err := printCollisionWarnings(&output, candidates); err != nil {
+		t.Fatal(err)
+	}
+	want := "warning: command node at /usr/local/bin/node has competing global owners: brew:node, mise:node\n"
+	if output.String() != want {
+		t.Fatalf("output = %q; want %q", output.String(), want)
+	}
+}
+
 func TestPrintManagerWarningsReportsDisabledManagerWithoutEmptyError(t *testing.T) {
 	var output bytes.Buffer
 	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}}}

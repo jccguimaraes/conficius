@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`a9972b0 feat(packages): detect collision candidates`
+`e69c37b feat(packages): resolve collision commands`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add ownership and collision reporting. Warn for competing global owners. Keep change small.
+Add ownership and collision reporting. Connect command ownership data to CLI warnings. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `a9972b0`.
+Working tree was clean after `e69c37b`.

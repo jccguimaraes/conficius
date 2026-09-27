@@ -62,6 +62,7 @@ Each normalized package can carry:
 - exposed command names with canonical package ownership
 - collision candidates only when distinct global owners expose same command
 - resolved command path only for collision candidates
+- warnings name command, resolved path when known, and canonical owners
 - native executable used for operation
 
 Roles are independent from scope:

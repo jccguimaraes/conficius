@@ -475,6 +475,23 @@ func printNPMDependencyClassFilters(writer io.Writer, filters []npmDependencyCla
 	return nil
 }
 
+func printCollisionWarnings(writer io.Writer, candidates []packagemanager.CollisionCandidate) error {
+	for _, candidate := range candidates {
+		owners := make([]string, len(candidate.Owners))
+		for i, owner := range candidate.Owners {
+			owners[i] = owner.CanonicalID()
+		}
+		location := ""
+		if candidate.Path != "" {
+			location = " at " + candidate.Path
+		}
+		if _, err := fmt.Fprintf(writer, "warning: command %s%s has competing global owners: %s\n", candidate.Command, location, strings.Join(owners, ", ")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func printPackageDrift(writer io.Writer, states []config.PackageState) error {
 	for _, state := range states {
 		if _, err := fmt.Fprintf(writer, "Drift: %s:%s scope=%s installed=%s desired=%s status=%s\n", state.Manager, state.Name, state.Scope, state.Installed, state.DesiredVersion, state.Status); err != nil {
