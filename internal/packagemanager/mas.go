@@ -2,12 +2,44 @@ package packagemanager
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 )
 
 const PM_MAS = "mas"
+
+type MAS struct{}
+
+func (MAS) name() string                             { return PM_MAS }
+func (MAS) testedVersions() VersionRange             { return VersionRange{MinimumMajor: 7, MaximumMajor: 7} }
+func (MAS) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (MAS) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (MAS) projectFiles() []string                   { return nil }
+func (MAS) updateArgs([]Package) []string            { return nil }
+func (MAS) capabilities() []Capability {
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+}
+func (MAS) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
+	output, err := runOutput(ctx, executable, "list", "--json")
+	if err != nil {
+		return nil, err
+	}
+	return parseMASInstalled(output)
+}
+func (MAS) listOutdatedScope(ctx context.Context, executable string, _ Scope, _ ManagerOptions, packages Packages) error {
+	output, err := runOutput(ctx, executable, "outdated", "--json", "--inaccurate", "--no-check-min-os")
+	if err != nil {
+		return err
+	}
+	parsed, err := parseMASOutdated(output, executable)
+	if err != nil {
+		return err
+	}
+	MergePackages(packages, parsed)
+	return nil
+}
 
 type masInstalledApp struct {
 	AdamID  int64  `json:"adamID"`

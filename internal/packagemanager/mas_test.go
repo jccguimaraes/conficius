@@ -1,9 +1,40 @@
 package packagemanager
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestMASAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	executable := filepath.Join(dir, PM_MAS)
+	writeExecutable(t, executable, `#!/bin/sh
+printf '%s\n' "$*" >>"$ARGS_FILE"
+if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then printf '{"adamID":497799835,"name":"Xcode","version":"26.0"}'; else printf '{"adamID":497799835,"version":"26.0","newVersion":"27.0"}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+	installed, err := QueryInstalledScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), "list --json") || !strings.Contains(string(args), "outdated --json --inaccurate --no-check-min-os") {
+		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
 
 func TestParseMASInstalledSupportsJSONArray(t *testing.T) {
 	output := []byte(`[{"adamID":497799835,"name":"Xcode","version":"27.0"},{"adamID":0,"name":"invalid","version":"1"}]`)

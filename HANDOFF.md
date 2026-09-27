@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`1ff57f7 feat(packages): parse mas inventory`
+`0a837c8 feat(packages): parse mas outdated`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `mas` adapter. Register read-only global inventory and outdated capabilities. Keep change small.
+Continue `mas` adapter. Verify update command and add guarded update planning. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `1ff57f7`.
+Working tree was clean after `0a837c8`.
