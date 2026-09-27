@@ -60,6 +60,7 @@ Each normalized package can carry:
 - npm dependency class
 - direct or transitive status
 - exposed command names with canonical package ownership
+- collision candidates only when distinct global owners expose same command
 - native executable used for operation
 
 Roles are independent from scope:

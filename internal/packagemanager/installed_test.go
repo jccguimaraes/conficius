@@ -215,6 +215,27 @@ func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
 	}
 }
 
+func TestCollisionCandidatesOnlyReportsCompetingGlobalOwners(t *testing.T) {
+	commands := []ExposedCommand{
+		{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsc", Scope: "global"},
+		{Package: PackageIdentity{Manager: PM_BREW, Name: "typescript"}, Name: "tsc", Scope: "global"},
+		{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsc", Scope: "project", Path: "/repo"},
+		{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsserver", Scope: "global"},
+	}
+	want := []CollisionCandidate{{Command: "tsc", Owners: []PackageIdentity{{Manager: PM_BREW, Name: "typescript"}, {Manager: PM_NPM, Name: "typescript"}}}}
+	if got := CollisionCandidates(commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("candidates = %#v; want %#v", got, want)
+	}
+}
+
+func TestCollisionCandidatesDoesNotTreatLocalAndGlobalCopiesAsDuplicates(t *testing.T) {
+	owner := PackageIdentity{Manager: PM_NPM, Name: "typescript"}
+	commands := []ExposedCommand{{Package: owner, Name: "tsc", Scope: "global"}, {Package: owner, Name: "tsc", Scope: "project", Path: "/repo"}}
+	if got := CollisionCandidates(commands); len(got) != 0 {
+		t.Fatalf("candidates = %#v", got)
+	}
+}
+
 func TestQueryInstalledFiltersConfiguredNPMDependencyClasses(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

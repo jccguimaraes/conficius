@@ -35,6 +35,40 @@ func (identity PackageIdentity) CanonicalID() string {
 type ExposedCommand struct {
 	Package PackageIdentity `json:"package"`
 	Name    string          `json:"name"`
+	Scope   string          `json:"scope"`
+	Path    string          `json:"path,omitempty"`
+}
+
+type CollisionCandidate struct {
+	Command string            `json:"command"`
+	Owners  []PackageIdentity `json:"owners"`
+}
+
+func CollisionCandidates(commands []ExposedCommand) []CollisionCandidate {
+	ownersByCommand := make(map[string]map[PackageIdentity]struct{})
+	for _, command := range commands {
+		if command.Scope != "global" || command.Name == "" {
+			continue
+		}
+		if ownersByCommand[command.Name] == nil {
+			ownersByCommand[command.Name] = make(map[PackageIdentity]struct{})
+		}
+		ownersByCommand[command.Name][command.Package] = struct{}{}
+	}
+	var candidates []CollisionCandidate
+	for command, ownerSet := range ownersByCommand {
+		if len(ownerSet) < 2 {
+			continue
+		}
+		owners := make([]PackageIdentity, 0, len(ownerSet))
+		for owner := range ownerSet {
+			owners = append(owners, owner)
+		}
+		sort.Slice(owners, func(i, j int) bool { return owners[i].CanonicalID() < owners[j].CanonicalID() })
+		candidates = append(candidates, CollisionCandidate{Command: command, Owners: owners})
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Command < candidates[j].Command })
+	return candidates
 }
 
 type InstalledPackage struct {
