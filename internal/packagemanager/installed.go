@@ -107,6 +107,7 @@ type Scope struct {
 type InstalledResult struct {
 	Managers []ManagerStatus    `json:"managers"`
 	Packages []InstalledPackage `json:"packages"`
+	Commands []ExposedCommand   `json:"commands,omitempty"`
 }
 
 func QueryInstalled(ctx context.Context, pms []string) (InstalledResult, error) {
@@ -178,7 +179,9 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 	}
 	finalizeManagerStatuses(result.Managers)
 	result.Packages = dedupeInstalled(result.Packages)
-	return result, errors.Join(inventoryErrors...)
+	commands, commandErr := collectInventoryCommands(ctx, result.Packages, result.Managers)
+	result.Commands = commands
+	return result, errors.Join(append(inventoryErrors, commandErr)...)
 }
 
 func listInstalledScope(ctx context.Context, manager, executable string, scope Scope, options QueryOptions) ([]InstalledPackage, error) {
@@ -257,6 +260,35 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 		}
 	}
 	return packages, nil
+}
+
+func collectInventoryCommands(ctx context.Context, packages []InstalledPackage, statuses []ManagerStatus) ([]ExposedCommand, error) {
+	hasGlobalNPM := false
+	for _, pkg := range packages {
+		if pkg.Manager == PM_NPM && pkg.Scope == "global" {
+			hasGlobalNPM = true
+			break
+		}
+	}
+	for _, status := range statuses {
+		if status.Name != PM_NPM || status.Status != StatusAvailable || len(status.Executables) == 0 {
+			continue
+		}
+		commandPackages := append([]InstalledPackage(nil), packages...)
+		if hasGlobalNPM {
+			globalRoot, err := npmGlobalPackageRoot(ctx, status.Executables[0])
+			if err != nil {
+				return nil, err
+			}
+			for i := range commandPackages {
+				if commandPackages[i].Manager == PM_NPM && commandPackages[i].Scope == "global" {
+					commandPackages[i].Path = filepath.Dir(globalRoot)
+				}
+			}
+		}
+		return collectNPMExposedCommands(commandPackages)
+	}
+	return nil, nil
 }
 
 func npmGlobalPackageRoot(ctx context.Context, executable string) (string, error) {

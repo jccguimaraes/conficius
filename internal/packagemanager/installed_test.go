@@ -215,6 +215,31 @@ func TestExposedCommandKeepsOwnerIdentity(t *testing.T) {
 	}
 }
 
+func TestQueryInstalledIncludesNPMExposedCommands(t *testing.T) {
+	dir := t.TempDir()
+	globalRoot := filepath.Join(t.TempDir(), "lib", "node_modules")
+	manifest := filepath.Join(globalRoot, "typescript", "package.json")
+	if err := os.MkdirAll(filepath.Dir(manifest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte(`{"bin":{"tsc":"cli.js"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '11.19.1'; elif [ "$1" = "root" ]; then printf '%s' "$NPM_ROOT"; else printf '{"dependencies":{"typescript":{"version":"5.0.0"}}}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("NPM_ROOT", globalRoot)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ExposedCommand{{Package: PackageIdentity{Manager: PM_NPM, Name: "typescript"}, Name: "tsc", Scope: "global", Path: filepath.Dir(globalRoot)}}
+	if !reflect.DeepEqual(result.Commands, want) {
+		t.Fatalf("commands = %#v; want %#v", result.Commands, want)
+	}
+}
+
 func TestNPMGlobalPackageRootUsesNativeCommand(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
