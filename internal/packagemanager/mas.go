@@ -14,12 +14,18 @@ type MAS struct{}
 
 func (MAS) name() string                             { return PM_MAS }
 func (MAS) testedVersions() VersionRange             { return VersionRange{MinimumMajor: 7, MaximumMajor: 7} }
-func (MAS) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (MAS) updateImpact(Scope) MutationImpact        { return MutationImpact{RequiresAdmin: true} }
 func (MAS) recoveryArgs(Scope, []Package) [][]string { return nil }
 func (MAS) projectFiles() []string                   { return nil }
-func (MAS) updateArgs([]Package) []string            { return nil }
+func (MAS) updateArgs(packages []Package) []string {
+	args := []string{"update", "--inaccurate", "--no-check-min-os"}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
 func (MAS) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }
 func (MAS) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
 	output, err := runOutput(ctx, executable, "list", "--json")

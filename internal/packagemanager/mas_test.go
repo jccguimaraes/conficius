@@ -9,6 +9,15 @@ import (
 	"testing"
 )
 
+func TestMASUpdateArgsUseExplicitSafeChecksAndAdamIDs(t *testing.T) {
+	adapter := MAS{}
+	packages := []Package{{Name: "497799835"}, {Name: "123"}}
+	want := []string{"update", "--inaccurate", "--no-check-min-os", "497799835", "123"}
+	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v; want %#v", got, want)
+	}
+}
+
 func TestMASAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")

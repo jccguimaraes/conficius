@@ -10,7 +10,7 @@ Start adapter expansion with one manager whose structured output covers inventor
 
 Adapter in progress:
 
-- Mac App Store (`mas`): registered global inventory and outdated checks; update planning remains.
+- Mac App Store (`mas`): inventory, outdated checks, and update planning complete; command fixtures and failure coverage remain.
 
 Original target managers still missing:
 

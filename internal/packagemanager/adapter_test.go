@@ -55,7 +55,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_MISE: {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
 		PM_BREW: {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
 		PM_NPM:  {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
-		PM_MAS:  {CapabilityGlobalInventory, CapabilityGlobalOutdated},
+		PM_MAS:  {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
 	}
 	for name, capabilities := range want {
 		adapter, err := adapterFor(name)
@@ -84,6 +84,13 @@ func TestAdaptersDeclareUpdateImpacts(t *testing.T) {
 	}
 	if !brew.updateImpact(Scope{Kind: "global"}).MayRestartServices {
 		t.Fatal("Homebrew impact does not report service restart risk")
+	}
+	mas, err := adapterFor(PM_MAS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !mas.updateImpact(Scope{Kind: "global"}).RequiresAdmin {
+		t.Fatal("mas impact does not report admin requirement")
 	}
 }
 
