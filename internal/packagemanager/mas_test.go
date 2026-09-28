@@ -2,6 +2,7 @@ package packagemanager
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,6 +43,39 @@ if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then pri
 	}
 	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), "list --json") || !strings.Contains(string(args), "outdated --json --inaccurate --no-check-min-os") {
 		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
+
+func TestMASOutdatedClassifiesAuthenticationFailure(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, PM_MAS)
+	writeExecutable(t, executable, `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '7.0.0'; else printf 'HTTP 401 Unauthorized' >&2; exit 1; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
+	if err == nil {
+		t.Fatal("query succeeded")
+	}
+	if len(result.Managers) != 1 || len(result.Managers[0].Operations) != 1 || result.Managers[0].Operations[0].Category != ErrorAuthentication {
+		t.Fatalf("result = %#v, error = %v", result, err)
+	}
+}
+
+func TestMASInventoryClassifiesParserFailure(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, PM_MAS)
+	writeExecutable(t, executable, `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '7.0.0'; else printf 'changed output'; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
+	if err == nil {
+		t.Fatal("query succeeded")
+	}
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorParser || result.Managers[0].Operations[0].Category != ErrorParser {
+		t.Fatalf("result = %#v, error = %#v", result, err)
 	}
 }
 

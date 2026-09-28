@@ -10,7 +10,7 @@ Start adapter expansion with one manager whose structured output covers inventor
 
 Adapter in progress:
 
-- Mac App Store (`mas`): inventory, outdated checks, update planning, and CLI preview complete; failure fixtures remain.
+- Mac App Store (`mas`): inventory, outdated checks, update planning, CLI preview, authentication, and parser fixtures complete; network and rate-limit fixtures remain.
 
 Original target managers still missing:
 
