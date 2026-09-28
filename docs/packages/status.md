@@ -23,6 +23,7 @@
 - `uv` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered `pipx` adapter for global inventory, outdated checks, and selected-package update plans.
 - `pipx` authentication, network, rate-limit, and changed-output parser failure fixtures.
+- Poetry project inventory/outdated parser foundation; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`d670a38 test(packages): cover pipx failures`
+`42acc3a test(packages): finish pipx failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue Poetry adapter. Register read-only project inventory and outdated checks. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `d670a38`.
+Working tree was clean after `42acc3a`.

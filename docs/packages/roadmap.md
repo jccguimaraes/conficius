@@ -14,9 +14,11 @@ Completed adapters:
 - `uv`: global tool inventory, outdated checks, selected-tool updates, and failure fixtures.
 - `pipx`: global inventory, outdated checks, selected-package updates, and failure fixtures.
 
-Original target managers still missing:
+Adapter in progress:
 
-- Poetry
+- Poetry: project inventory/outdated parser complete; registration, updates, and failure fixtures remain.
+
+Original target managers still missing:
 - Cargo
 - Go tool installs and journaled imports
 - pnpm
