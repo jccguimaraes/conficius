@@ -22,6 +22,7 @@
 - Registered `uv` adapter for global tool inventory, outdated checks, and selected-tool update plans.
 - `uv` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered `pipx` adapter for global inventory, outdated checks, and selected-package update plans.
+- `pipx` authentication and changed-output parser failure fixtures.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

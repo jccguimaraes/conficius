@@ -15,7 +15,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- `pipx`: global inventory, outdated checks, and selected-package update planning complete; failure fixtures remain.
+- `pipx`: inventory, outdated checks, update planning, authentication, and parser fixtures complete; network and rate-limit fixtures remain.
 
 Original target managers still missing:
 

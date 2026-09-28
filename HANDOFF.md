@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`fe7e100 feat(packages): register pipx adapter`
+`3e84c9e feat(packages): plan pipx updates`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `pipx` adapter. Add authentication and changed-output failure fixtures. Keep change small.
+Continue `pipx` adapter. Add network and rate-limit failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `fe7e100`.
+Working tree was clean after `3e84c9e`.
