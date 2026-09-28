@@ -9,6 +9,15 @@ import (
 	"testing"
 )
 
+func TestPipxUpdateArgsUseSelectedPackageNames(t *testing.T) {
+	adapter := Pipx{}
+	packages := []Package{{Name: "black"}, {Name: "ruff"}}
+	want := []string{"upgrade", "black", "ruff"}
+	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v; want %#v", got, want)
+	}
+}
+
 func TestPipxAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")

@@ -14,12 +14,18 @@ type Pipx struct{}
 func (Pipx) name() string                 { return PM_PIPX }
 func (Pipx) testedVersions() VersionRange { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
 func (Pipx) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }
 func (Pipx) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
 func (Pipx) recoveryArgs(Scope, []Package) [][]string { return nil }
 func (Pipx) projectFiles() []string                   { return nil }
-func (Pipx) updateArgs([]Package) []string            { return nil }
+func (Pipx) updateArgs(packages []Package) []string {
+	args := []string{"upgrade"}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
 func (Pipx) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
 	output, err := runOutput(ctx, executable, "list", "--output", "json")
 	if err != nil {

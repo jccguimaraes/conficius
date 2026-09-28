@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`edabba3 feat(packages): parse pipx outdated`
+`fe7e100 feat(packages): register pipx adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `pipx` adapter. Verify `pipx upgrade` and add selected-package update planning. Keep change small.
+Continue `pipx` adapter. Add authentication and changed-output failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `edabba3`.
+Working tree was clean after `fe7e100`.
