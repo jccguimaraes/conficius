@@ -46,6 +46,29 @@ if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then pri
 	}
 }
 
+func TestMASOutdatedClassifiesNetworkAndRateLimitFailures(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		stderr   string
+		category ErrorCategory
+	}{
+		{name: "network", stderr: "network connection refused", category: ErrorNetwork},
+		{name: "rate limit", stderr: "HTTP 429 Too Many Requests", category: ErrorRateLimit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			executable := filepath.Join(dir, PM_MAS)
+			writeExecutable(t, executable, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf '7.0.0'; else printf '%s' \"$FAILURE\" >&2; exit 1; fi\n")
+			t.Setenv("PATH", dir)
+			t.Setenv("FAILURE", test.stderr)
+			result, err := QueryOutdatedScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
+			if err == nil || len(result.Managers) != 1 || len(result.Managers[0].Operations) != 1 || result.Managers[0].Operations[0].Category != test.category {
+				t.Fatalf("result = %#v, error = %v", result, err)
+			}
+		})
+	}
+}
+
 func TestMASOutdatedClassifiesAuthenticationFailure(t *testing.T) {
 	dir := t.TempDir()
 	executable := filepath.Join(dir, PM_MAS)

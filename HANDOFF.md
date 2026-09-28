@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`cd708f0 test(packages): cover mas CLI plans`
+`b9b6e1f test(packages): cover mas failures`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `mas` adapter. Add network and rate-limit failure fixtures. Keep change small.
+Select next adapter by verified structured-output support. Start parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `cd708f0`.
+Working tree was clean after `b9b6e1f`.
