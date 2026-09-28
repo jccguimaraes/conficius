@@ -20,7 +20,7 @@
 - CLI preview and unsupported project-scope coverage for `mas`.
 - `mas` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered `uv` adapter for global tool inventory, outdated checks, and selected-tool update plans.
-- `uv` authentication and changed-output parser failure fixtures.
+- `uv` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

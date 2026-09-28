@@ -45,6 +45,28 @@ if [ "$1" = "--version" ]; then printf 'uv 0.12.19'; elif [ "$3" = "--outdated" 
 	}
 }
 
+func TestUVOutdatedClassifiesNetworkAndRateLimitFailures(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		stderr   string
+		category ErrorCategory
+	}{
+		{name: "network", stderr: "network connection refused", category: ErrorNetwork},
+		{name: "rate limit", stderr: "HTTP 429 Too Many Requests", category: ErrorRateLimit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeExecutable(t, filepath.Join(dir, PM_UV), "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf 'uv 0.12.19'; else printf '%s' \"$FAILURE\" >&2; exit 1; fi\n")
+			t.Setenv("PATH", dir)
+			t.Setenv("FAILURE", test.stderr)
+			result, err := QueryOutdatedScopes(context.Background(), []string{PM_UV}, []Scope{{Kind: "global"}})
+			if err == nil || len(result.Managers) != 1 || len(result.Managers[0].Operations) != 1 || result.Managers[0].Operations[0].Category != test.category {
+				t.Fatalf("result = %#v, error = %v", result, err)
+			}
+		})
+	}
+}
+
 func TestUVOutdatedClassifiesAuthenticationFailure(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, PM_UV), `#!/bin/sh
