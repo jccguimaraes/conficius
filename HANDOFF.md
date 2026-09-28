@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`17b16d2 feat(packages): register uv adapter`
+`2d2707d feat(packages): plan uv tool updates`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `uv` adapter. Add authentication and changed-output failure fixtures. Keep change small.
+Continue `uv` adapter. Add network and rate-limit failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `17b16d2`.
+Working tree was clean after `2d2707d`.

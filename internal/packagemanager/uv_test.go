@@ -2,6 +2,7 @@ package packagemanager
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -41,6 +42,31 @@ if [ "$1" = "--version" ]; then printf 'uv 0.12.19'; elif [ "$3" = "--outdated" 
 	}
 	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), "tool list\n") || !strings.Contains(string(args), "tool list --outdated") {
 		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
+
+func TestUVOutdatedClassifiesAuthenticationFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_UV), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'uv 0.12.19'; else printf 'HTTP 401 Unauthorized' >&2; exit 1; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_UV}, []Scope{{Kind: "global"}})
+	if err == nil || len(result.Managers) != 1 || len(result.Managers[0].Operations) != 1 || result.Managers[0].Operations[0].Category != ErrorAuthentication {
+		t.Fatalf("result = %#v, error = %v", result, err)
+	}
+}
+
+func TestUVInventoryClassifiesParserFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_UV), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'uv 0.12.19'; else printf 'changed output'; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_UV}, []Scope{{Kind: "global"}})
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorParser || result.Managers[0].Operations[0].Category != ErrorParser {
+		t.Fatalf("result = %#v, error = %#v", result, err)
 	}
 }
 
