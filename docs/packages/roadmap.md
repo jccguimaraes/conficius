@@ -13,10 +13,13 @@ Completed adapters:
 - Mac App Store (`mas`): global inventory, outdated checks, guarded updates, CLI preview, unsupported scope, and failure fixtures.
 - `uv`: global tool inventory, outdated checks, selected-tool updates, and failure fixtures.
 
+Adapter in progress:
+
+- `pipx`: global inventory parser complete; outdated parsing, registration, updates, and failure fixtures remain.
+
 Original target managers still missing:
 
 - Poetry
-- `pipx`
 - Cargo
 - Go tool installs and journaled imports
 - pnpm

@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`c36e8b4 test(packages): cover uv failures`
+`a0b8b49 test(packages): finish uv failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue `pipx` adapter. Add outdated JSON parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `c36e8b4`.
+Working tree was clean after `a0b8b49`.
