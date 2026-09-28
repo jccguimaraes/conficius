@@ -14,7 +14,7 @@ Completed adapter:
 
 Adapter in progress:
 
-- `uv`: registered global tool inventory and outdated checks; update planning and failure fixtures remain.
+- `uv`: global tool inventory, outdated checks, and selected-tool update planning complete; failure fixtures remain.
 
 Original target managers still missing:
 

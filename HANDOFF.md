@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`ab64f00 feat(packages): parse uv tools`
+`17b16d2 feat(packages): register uv adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `uv` adapter. Verify `uv tool upgrade` and add update planning. Keep change small.
+Continue `uv` adapter. Add authentication and changed-output failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `ab64f00`.
+Working tree was clean after `17b16d2`.

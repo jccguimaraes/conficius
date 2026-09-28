@@ -19,7 +19,7 @@
 - `mas` updates require admin access and use explicit inaccurate/no-minimum-OS flags.
 - CLI preview and unsupported project-scope coverage for `mas`.
 - `mas` authentication, network, rate-limit, and changed-output parser failure fixtures.
-- Registered read-only `uv` adapter for global tool inventory and outdated checks.
+- Registered `uv` adapter for global tool inventory, outdated checks, and selected-tool update plans.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

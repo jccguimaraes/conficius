@@ -9,6 +9,15 @@ import (
 	"testing"
 )
 
+func TestUVUpdateArgsUseSelectedToolNames(t *testing.T) {
+	adapter := UV{}
+	packages := []Package{{Name: "black"}, {Name: "ruff"}}
+	want := []string{"tool", "upgrade", "black", "ruff"}
+	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v; want %#v", got, want)
+	}
+}
+
 func TestUVAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")

@@ -16,9 +16,15 @@ func (UV) testedVersions() VersionRange             { return VersionRange{Minimu
 func (UV) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
 func (UV) recoveryArgs(Scope, []Package) [][]string { return nil }
 func (UV) projectFiles() []string                   { return nil }
-func (UV) updateArgs([]Package) []string            { return nil }
+func (UV) updateArgs(packages []Package) []string {
+	args := []string{"tool", "upgrade"}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
 func (UV) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }
 func (UV) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
 	output, err := runOutput(ctx, executable, "tool", "list")
