@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`a0b8b49 test(packages): finish uv failure coverage`
+`67983b0 feat(packages): parse pipx inventory`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `pipx` adapter. Add outdated JSON parser only. Keep change small.
+Continue `pipx` adapter. Register read-only global inventory and outdated checks. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `a0b8b49`.
+Working tree was clean after `67983b0`.

@@ -21,6 +21,50 @@ type pipxList struct {
 	} `json:"venvs"`
 }
 
+type pipxOutdated struct {
+	ResultVersion string `json:"pipx_result_version"`
+	Status        string `json:"status"`
+	Data          struct {
+		Packages []struct {
+			Package       string `json:"package"`
+			Version       string `json:"version"`
+			LatestVersion string `json:"latest_version"`
+		} `json:"packages"`
+	} `json:"data"`
+}
+
+func parsePipxOutdated(output []byte, executable string) (Packages, error) {
+	var result pipxOutdated
+	if err := json.Unmarshal(output, &result); err != nil {
+		return nil, parserError(fmt.Errorf("decode pipx outdated: %w", err))
+	}
+	if result.ResultVersion == "" || result.Status == "" || result.Data.Packages == nil {
+		return nil, parserError(fmt.Errorf("decode pipx outdated: missing schema fields"))
+	}
+	packages := make(Packages)
+	for _, pkg := range result.Data.Packages {
+		if pkg.Package == "" || pkg.Version == "" || pkg.LatestVersion == "" {
+			return nil, parserError(fmt.Errorf("decode pipx outdated: missing package fields"))
+		}
+		packages[pkg.Package] = append(packages[pkg.Package], pipxPackage{name: pkg.Package, current: pkg.Version, latest: pkg.LatestVersion, executable: executable})
+	}
+	return packages, nil
+}
+
+type pipxPackage struct {
+	name       string
+	current    string
+	latest     string
+	executable string
+}
+
+func (pkg pipxPackage) GetPackageManager() string   { return PM_PIPX }
+func (pkg pipxPackage) GetName() string             { return pkg.name }
+func (pkg pipxPackage) GetCurrentVersion() string   { return pkg.current }
+func (pkg pipxPackage) GetLatestVersion() string    { return pkg.latest }
+func (pkg pipxPackage) GetRequestedVersion() string { return "" }
+func (pkg pipxPackage) GetExecutable() string       { return pkg.executable }
+
 func parsePipxInstalled(output []byte) ([]InstalledPackage, error) {
 	var list pipxList
 	if err := json.Unmarshal(output, &list); err != nil {
