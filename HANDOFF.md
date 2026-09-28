@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`b9b6e1f test(packages): cover mas failures`
+`1ec49e5 test(packages): finish mas failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue `uv` adapter. Verify flags and register read-only global tool inventory/outdated checks. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `b9b6e1f`.
+Working tree was clean after `1ec49e5`.

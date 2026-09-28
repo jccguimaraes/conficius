@@ -12,9 +12,12 @@ Completed adapter:
 
 - Mac App Store (`mas`): global inventory, outdated checks, guarded updates, CLI preview, unsupported scope, and failure fixtures.
 
+Adapter in progress:
+
+- `uv`: tool inventory/outdated parser complete; adapter registration, updates, and failure fixtures remain.
+
 Original target managers still missing:
 
-- `uv`
 - Poetry
 - `pipx`
 - Cargo

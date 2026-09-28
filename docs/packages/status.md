@@ -19,6 +19,7 @@
 - `mas` updates require admin access and use explicit inaccurate/no-minimum-OS flags.
 - CLI preview and unsupported project-scope coverage for `mas`.
 - `mas` authentication, network, rate-limit, and changed-output parser failure fixtures.
+- `uv` tool inventory/outdated parser foundation; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.
