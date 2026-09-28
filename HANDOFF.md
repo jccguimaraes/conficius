@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`3e84c9e feat(packages): plan pipx updates`
+`d670a38 test(packages): cover pipx failures`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `pipx` adapter. Add network and rate-limit failure fixtures. Keep change small.
+Select next adapter by verified structured-output support. Start parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `3e84c9e`.
+Working tree was clean after `d670a38`.

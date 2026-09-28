@@ -12,10 +12,7 @@ Completed adapters:
 
 - Mac App Store (`mas`): global inventory, outdated checks, guarded updates, CLI preview, unsupported scope, and failure fixtures.
 - `uv`: global tool inventory, outdated checks, selected-tool updates, and failure fixtures.
-
-Adapter in progress:
-
-- `pipx`: inventory, outdated checks, update planning, authentication, and parser fixtures complete; network and rate-limit fixtures remain.
+- `pipx`: global inventory, outdated checks, selected-package updates, and failure fixtures.
 
 Original target managers still missing:
 
