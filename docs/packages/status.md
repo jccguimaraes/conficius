@@ -17,6 +17,7 @@
 - Built-in mise, Homebrew, npm, and `mas` adapters.
 - `mas` uses stable Adam ID identity with global inventory, outdated checks, and guarded update plans.
 - `mas` updates require admin access and use explicit inaccurate/no-minimum-OS flags.
+- CLI preview and unsupported project-scope coverage for `mas`.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

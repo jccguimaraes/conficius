@@ -590,6 +590,39 @@ func TestPackagesUpdateApplyRequiresExplicitScope(t *testing.T) {
 	}
 }
 
+func TestPackagesUpdateMASPreviewUsesAdamIDAndAdminImpact(t *testing.T) {
+	dir := t.TempDir()
+	writeCLIExecutable(t, filepath.Join(dir, "mas"), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '7.0.0'; else printf '{"adamID":497799835,"version":"26.0","newVersion":"27.0"}'; fi
+`)
+	t.Setenv("PATH", dir)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--pm", "mas", "--global", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"manager": "mas"`, `"requires_admin": true`, `"update"`, `"497799835"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("output missing %q: %s", want, output.String())
+		}
+	}
+}
+
+func TestPackagesOutdatedMASProjectScopeReportsUnsupportedOperation(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	writeCLIExecutable(t, filepath.Join(dir, "mas"), "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf '7.0.0'; else exit 99; fi\n")
+	t.Setenv("PATH", dir)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "outdated", "--pm", "mas", "--project", project, "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"status": "unsupported"`) || !strings.Contains(output.String(), `"scope": "project"`) {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestPackagesUpdateProjectPlanUsesProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

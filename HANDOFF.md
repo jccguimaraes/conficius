@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`e3afcda feat(packages): register mas adapter`
+`6347155 feat(packages): plan mas updates`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `mas` adapter. Add command-level preview and unsupported project-scope coverage. Keep change small.
+Continue `mas` adapter. Add command and parser failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `e3afcda`.
+Working tree was clean after `6347155`.
