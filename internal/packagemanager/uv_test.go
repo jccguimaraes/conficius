@@ -1,9 +1,39 @@
 package packagemanager
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestUVAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, PM_UV), `#!/bin/sh
+printf '%s\n' "$*" >>"$ARGS_FILE"
+if [ "$1" = "--version" ]; then printf 'uv 0.12.19'; elif [ "$3" = "--outdated" ]; then printf 'black v24.2.0 [latest: 25.1.0]\n- black\n'; else printf 'black v24.2.0\n- black\n'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+	installed, err := QueryInstalledScopes(context.Background(), []string{PM_UV}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_UV}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), "tool list\n") || !strings.Contains(string(args), "tool list --outdated") {
+		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
 
 func TestParseUVToolsReadsInventoryAndOutdatedVersions(t *testing.T) {
 	output := []byte("black v24.2.0 [latest: 25.1.0]\n- black\n- blackd\nruff v0.9.0\n- ruff\n")

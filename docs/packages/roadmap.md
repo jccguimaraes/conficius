@@ -14,7 +14,7 @@ Completed adapter:
 
 Adapter in progress:
 
-- `uv`: tool inventory/outdated parser complete; adapter registration, updates, and failure fixtures remain.
+- `uv`: registered global tool inventory and outdated checks; update planning and failure fixtures remain.
 
 Original target managers still missing:
 

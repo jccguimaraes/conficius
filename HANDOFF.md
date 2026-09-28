@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`1ec49e5 test(packages): finish mas failure coverage`
+`ab64f00 feat(packages): parse uv tools`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue `uv` adapter. Verify flags and register read-only global tool inventory/outdated checks. Keep change small.
+Continue `uv` adapter. Verify `uv tool upgrade` and add update planning. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `1ec49e5`.
+Working tree was clean after `ab64f00`.

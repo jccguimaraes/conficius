@@ -47,6 +47,7 @@ var adapters = []managerAdapter{
 	Homebrew{},
 	NPM{},
 	MAS{},
+	UV{},
 }
 
 func hasCapability(adapter managerAdapter, capability Capability) bool {
