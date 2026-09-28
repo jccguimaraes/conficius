@@ -1,9 +1,39 @@
 package packagemanager
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestPipxAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, PM_PIPX), `#!/bin/sh
+printf '%s\n' "$*" >>"$ARGS_FILE"
+if [ "$1" = "--version" ]; then printf '1.17.7'; elif [ "$2" = "--outdated" ]; then printf '{"pipx_result_version":"1","status":"success","data":{"packages":[{"package":"black","version":"24.2.0","latest_version":"25.1.0"}]}}'; else printf '{"pipx_spec_version":"0.1","venvs":{"black":{"metadata":{"main_package":{"package":"black","package_version":"24.2.0","apps":["black"]}}}}}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+	installed, err := QueryInstalledScopes(context.Background(), []string{PM_PIPX}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_PIPX}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), "list --output json\n") || !strings.Contains(string(args), "list --outdated --output json") {
+		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
 
 func TestParsePipxOutdatedReadsVersions(t *testing.T) {
 	output := []byte(`{"pipx_result_version":"1","status":"success","data":{"packages_checked":1,"packages":[{"environment":"black","package":"black","version":"24.2.0","latest_version":"25.1.0","pinned":false,"injected":false}],"skipped":[]},"errors":[],"exit_code":0}`)

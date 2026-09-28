@@ -1,12 +1,44 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 )
 
 const PM_PIPX = "pipx"
+
+type Pipx struct{}
+
+func (Pipx) name() string                 { return PM_PIPX }
+func (Pipx) testedVersions() VersionRange { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
+func (Pipx) capabilities() []Capability {
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+}
+func (Pipx) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (Pipx) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (Pipx) projectFiles() []string                   { return nil }
+func (Pipx) updateArgs([]Package) []string            { return nil }
+func (Pipx) listInstalled(ctx context.Context, executable string, _ Scope) ([]InstalledPackage, error) {
+	output, err := runOutput(ctx, executable, "list", "--output", "json")
+	if err != nil {
+		return nil, err
+	}
+	return parsePipxInstalled(output)
+}
+func (Pipx) listOutdatedScope(ctx context.Context, executable string, _ Scope, _ ManagerOptions, packages Packages) error {
+	output, err := runOutput(ctx, executable, "list", "--outdated", "--output", "json")
+	if err != nil {
+		return err
+	}
+	outdated, err := parsePipxOutdated(output, executable)
+	if err != nil {
+		return err
+	}
+	MergePackages(packages, outdated)
+	return nil
+}
 
 type pipxList struct {
 	SpecVersion string `json:"pipx_spec_version"`

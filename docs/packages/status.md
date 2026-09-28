@@ -21,7 +21,7 @@
 - `mas` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered `uv` adapter for global tool inventory, outdated checks, and selected-tool update plans.
 - `uv` authentication, network, rate-limit, and changed-output parser failure fixtures.
-- `pipx` global inventory and outdated parser foundation; not registered yet.
+- Registered read-only `pipx` adapter for global inventory and outdated checks.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

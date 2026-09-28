@@ -48,6 +48,7 @@ var adapters = []managerAdapter{
 	NPM{},
 	MAS{},
 	UV{},
+	Pipx{},
 }
 
 func hasCapability(adapter managerAdapter, capability Capability) bool {
