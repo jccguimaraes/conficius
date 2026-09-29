@@ -15,10 +15,13 @@ Completed adapters:
 - `pipx`: global inventory, outdated checks, selected-package updates, and failure fixtures.
 - Poetry: project inventory, outdated checks, selected-package updates, and failure fixtures.
 
+Adapter in progress:
+
+- pnpm: outdated parser complete; inventory parsing, registration, updates, and failure fixtures remain.
+
 Original target managers still missing:
 - Cargo
 - Go tool installs and journaled imports
-- pnpm
 - Yarn
 - Bun
 

@@ -25,6 +25,7 @@
 - `pipx` authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered Poetry adapter for project inventory, outdated checks, and selected-package update plans.
 - Poetry authentication, network, rate-limit, and changed-output parser failure fixtures.
+- pnpm outdated parser foundation; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

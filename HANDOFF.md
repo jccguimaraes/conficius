@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`ec73544 test(packages): cover poetry failures`
+`45fcff4 test(packages): finish poetry failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue pnpm adapter. Add inventory JSON parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `ec73544`.
+Working tree was clean after `45fcff4`.
