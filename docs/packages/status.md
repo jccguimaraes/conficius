@@ -26,6 +26,7 @@
 - Registered Poetry adapter for project inventory, outdated checks, and selected-package update plans.
 - Poetry authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered pnpm adapter for project inventory, outdated checks, and selected-package update plans.
+- pnpm authentication and changed-output parser failure fixtures.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.
