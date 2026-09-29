@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`36279c5 test(packages): cover pnpm failures`
+`bf1330d test(packages): finish pnpm failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue Cargo adapter. Register global inventory only and report outdated/update scopes unsupported. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `36279c5`.
+Working tree was clean after `bf1330d`.

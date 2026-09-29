@@ -27,6 +27,7 @@
 - Poetry authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered pnpm adapter for project inventory, outdated checks, and selected-package update plans.
 - pnpm authentication, network, rate-limit, and changed-output parser failure fixtures.
+- Cargo global inventory parser foundation; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

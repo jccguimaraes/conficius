@@ -16,8 +16,11 @@ Completed adapters:
 - Poetry: project inventory, outdated checks, selected-package updates, and failure fixtures.
 - pnpm: project inventory, outdated checks, selected-package updates, and failure fixtures.
 
+Adapter in progress:
+
+- Cargo: global inventory parser complete; registration and failure fixtures remain. Native outdated checks are unavailable.
+
 Original target managers still missing:
-- Cargo
 - Go tool installs and journaled imports
 - Yarn
 - Bun
