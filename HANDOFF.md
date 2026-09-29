@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`f52d11a feat(packages): register cargo adapter`
+`890a574 test(packages): finish cargo failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Select next adapter by verified structured-output support. Start parser only. Keep change small.
+Continue Yarn adapter. Register project inventory only and report outdated/update scopes unsupported. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `f52d11a`.
+Working tree was clean after `890a574`.

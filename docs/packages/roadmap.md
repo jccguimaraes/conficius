@@ -17,9 +17,12 @@ Completed adapters:
 - pnpm: project inventory, outdated checks, selected-package updates, and failure fixtures.
 - Cargo: global inventory, unsupported outdated/update outcomes, and failure fixtures.
 
+Adapter in progress:
+
+- Yarn: project inventory parser complete; registration and failure fixtures remain. Native outdated checks are unavailable.
+
 Original target managers still missing:
 - Go tool installs and journaled imports
-- Yarn
 - Bun
 
 Each adapter requires:

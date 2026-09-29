@@ -29,6 +29,7 @@
 - pnpm authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered Cargo adapter for global inventory; outdated checks and updates report unsupported.
 - Cargo command and changed-output parser failure fixtures.
+- Yarn project inventory parser foundation; not registered yet.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.
