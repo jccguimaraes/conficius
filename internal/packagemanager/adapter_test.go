@@ -58,7 +58,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_MAS:    {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
 		PM_UV:     {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
 		PM_PIPX:   {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
-		PM_POETRY: {CapabilityProjectInventory, CapabilityProjectOutdated},
+		PM_POETRY: {CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate},
 	}
 	for name, capabilities := range want {
 		adapter, err := adapterFor(name)

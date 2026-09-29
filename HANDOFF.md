@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`f02b478 feat(packages): parse poetry packages`
+`e929384 feat(packages): register poetry adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Poetry adapter. Verify selected-package updates and add update planning. Keep change small.
+Continue Poetry adapter. Add authentication and changed-output failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `f02b478`.
+Working tree was clean after `e929384`.

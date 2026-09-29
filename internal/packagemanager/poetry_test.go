@@ -4,9 +4,19 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestPoetryUpdateArgsUseSelectedPackageNames(t *testing.T) {
+	adapter := Poetry{}
+	packages := []Package{{Name: "requests"}, {Name: "urllib3"}}
+	want := []string{"update", "requests", "urllib3"}
+	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v; want %#v", got, want)
+	}
+}
 
 func TestPoetryAdapterQueriesProjectInventoryAndOutdated(t *testing.T) {
 	dir := t.TempDir()
