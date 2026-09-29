@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`9ec8330 feat(packages): register bun adapter`
+`e101e17 test(packages): finish bun failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Inspect Go tool inventory and journal architecture. Start one smallest slice. Keep change small.
+Add Go import-journal model only. Native installed-tool inventory is unavailable. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `9ec8330`.
+Working tree was clean after `e101e17`.

@@ -33,6 +33,7 @@
 - Yarn command and changed-output parser failure fixtures.
 - Registered Bun adapter for project inventory; outdated checks and updates report unsupported.
 - Bun command and changed-output parser failure fixtures.
+- Bun command and changed-output parser failure fixtures.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

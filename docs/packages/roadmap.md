@@ -19,8 +19,9 @@ Completed adapters:
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Bun: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 
-Original target managers still missing:
-- Go tool installs and journaled imports
+Adapter in progress:
+
+- Go tools: native installed-tool inventory is unavailable. Add journaled import records before adapter registration.
 
 Each adapter requires:
 
