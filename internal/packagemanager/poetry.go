@@ -1,11 +1,44 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 )
 
 const PM_POETRY = "poetry"
+
+type Poetry struct{}
+
+func (Poetry) name() string                 { return PM_POETRY }
+func (Poetry) testedVersions() VersionRange { return VersionRange{MinimumMajor: 2, MaximumMajor: 2} }
+func (Poetry) capabilities() []Capability {
+	return []Capability{CapabilityProjectInventory, CapabilityProjectOutdated}
+}
+func (Poetry) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (Poetry) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (Poetry) projectFiles() []string                   { return []string{"pyproject.toml", "poetry.lock"} }
+func (Poetry) updateArgs([]Package) []string            { return nil }
+func (Poetry) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	output, err := runOutputDir(ctx, scope.Path, executable, "show", "--format", "json")
+	if err != nil {
+		return nil, err
+	}
+	installed, _, err := parsePoetryPackages(output, executable)
+	return installed, err
+}
+func (Poetry) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
+	output, err := runOutputDir(ctx, scope.Path, executable, "show", "--outdated", "--format", "json")
+	if err != nil {
+		return err
+	}
+	_, outdated, err := parsePoetryPackages(output, executable)
+	if err != nil {
+		return err
+	}
+	MergePackages(packages, outdated)
+	return nil
+}
 
 type poetryPackage struct {
 	Name            string `json:"name"`

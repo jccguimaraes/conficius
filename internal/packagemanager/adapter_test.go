@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisteredPackageManagersComeFromAdapters(t *testing.T) {
-	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX}
+	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX, PM_POETRY}
 	if !reflect.DeepEqual(RegisteredPackageManagers, want) {
 		t.Fatalf("registered managers = %#v; want %#v", RegisteredPackageManagers, want)
 	}
@@ -52,12 +52,13 @@ func TestInspectWarnsForUntestedManagerVersion(t *testing.T) {
 
 func TestAdaptersDeclareCapabilities(t *testing.T) {
 	want := map[string][]Capability{
-		PM_MISE: {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
-		PM_BREW: {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
-		PM_NPM:  {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
-		PM_MAS:  {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
-		PM_UV:   {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
-		PM_PIPX: {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_MISE:   {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
+		PM_BREW:   {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_NPM:    {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
+		PM_MAS:    {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_UV:     {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_PIPX:   {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_POETRY: {CapabilityProjectInventory, CapabilityProjectOutdated},
 	}
 	for name, capabilities := range want {
 		adapter, err := adapterFor(name)

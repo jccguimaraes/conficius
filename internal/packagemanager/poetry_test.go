@@ -1,6 +1,39 @@
 package packagemanager
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestPoetryAdapterQueriesProjectInventoryAndOutdated(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, PM_POETRY), `#!/bin/sh
+printf '%s|%s\n' "$PWD" "$*" >>"$ARGS_FILE"
+if [ "$1" = "--version" ]; then printf 'Poetry (version 2.5.1)'; elif [ "$2" = "--outdated" ]; then printf '[{"name":"requests","installed_status":"installed","version":"2.31.0","latest_version":"2.32.0"}]'; else printf '[{"name":"requests","installed_status":"installed","version":"2.31.0"}]'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+	scope := Scope{Kind: "project", Path: dir}
+	installed, err := QueryInstalledScopes(context.Background(), []string{PM_POETRY}, []Scope{scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_POETRY}, []Scope{scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), dir+"|show --format json") || !strings.Contains(string(args), dir+"|show --outdated --format json") {
+		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
 
 func TestParsePoetryPackagesReadsInventoryAndOutdated(t *testing.T) {
 	output := []byte(`[{"name":"requests","installed_status":"installed","version":"2.31.0","latest_version":"2.32.0","description":"HTTP"},{"name":"urllib3","installed_status":"installed","version":"2.2.0","latest_version":"2.2.0","description":"HTTP"}]`)

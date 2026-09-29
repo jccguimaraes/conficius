@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`42acc3a test(packages): finish pipx failure coverage`
+`f02b478 feat(packages): parse poetry packages`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Poetry adapter. Register read-only project inventory and outdated checks. Keep change small.
+Continue Poetry adapter. Verify selected-package updates and add update planning. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `42acc3a`.
+Working tree was clean after `f02b478`.
