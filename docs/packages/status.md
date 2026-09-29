@@ -28,6 +28,7 @@
 - Registered pnpm adapter for project inventory, outdated checks, and selected-package update plans.
 - pnpm authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered Cargo adapter for global inventory; outdated checks and updates report unsupported.
+- Cargo command and changed-output parser failure fixtures.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.

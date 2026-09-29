@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`c10e2aa feat(packages): parse cargo inventory`
+`f52d11a feat(packages): register cargo adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Cargo adapter. Add command and changed-output parser failure fixtures. Keep change small.
+Select next adapter by verified structured-output support. Start parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `c10e2aa`.
+Working tree was clean after `f52d11a`.
