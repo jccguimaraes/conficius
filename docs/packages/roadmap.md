@@ -16,7 +16,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Poetry: project inventory, outdated checks, and selected-package update planning complete; failure fixtures remain.
+- Poetry: inventory, outdated checks, update planning, authentication, and parser fixtures complete; network and rate-limit fixtures remain.
 
 Original target managers still missing:
 - Cargo

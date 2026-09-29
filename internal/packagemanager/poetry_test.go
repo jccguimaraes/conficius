@@ -2,6 +2,7 @@ package packagemanager
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,6 +43,31 @@ if [ "$1" = "--version" ]; then printf 'Poetry (version 2.5.1)'; elif [ "$2" = "
 	}
 	if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), dir+"|show --format json") || !strings.Contains(string(args), dir+"|show --outdated --format json") {
 		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
+	}
+}
+
+func TestPoetryOutdatedClassifiesAuthenticationFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_POETRY), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'Poetry (version 2.5.1)'; else printf 'HTTP 401 Unauthorized' >&2; exit 1; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_POETRY}, []Scope{{Kind: "project", Path: dir}})
+	if err == nil || len(result.Managers) != 1 || len(result.Managers[0].Operations) != 1 || result.Managers[0].Operations[0].Category != ErrorAuthentication {
+		t.Fatalf("result = %#v, error = %v", result, err)
+	}
+}
+
+func TestPoetryInventoryClassifiesParserFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_POETRY), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'Poetry (version 2.5.1)'; else printf 'changed output'; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_POETRY}, []Scope{{Kind: "project", Path: dir}})
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorParser || result.Managers[0].Operations[0].Category != ErrorParser {
+		t.Fatalf("result = %#v, error = %#v", result, err)
 	}
 }
 
