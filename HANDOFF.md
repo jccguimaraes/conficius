@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`e101e17 test(packages): finish bun failure coverage`
+`0129b2d docs(packages): note go tool inventory limit`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add Go import-journal model only. Native installed-tool inventory is unavailable. Keep change small.
+Finish Go import record model commit. Then add read-only journal storage and import command. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `e101e17`.
+Working tree was clean after `0129b2d`.

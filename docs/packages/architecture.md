@@ -8,7 +8,7 @@
 | `internal/packagemanager/adapter.go` | Adapter contract, capabilities, tested versions, impact metadata |
 | `internal/packagemanager/{mise,homebrew,npm}.go` | Native commands, structured parsing, manager-specific planning |
 | `internal/packagemanager/packagemanager.go` | Discovery, scoped outdated queries, normalized records, plans, execution, verification |
-| `internal/packagemanager/installed.go` | Installed inventory, package roles, npm graph/classes, ownership metadata |
+| `internal/packagemanager/installed.go` | Installed inventory, Go import records, package roles, npm graph/classes, ownership metadata |
 | `internal/packagemanager/concurrent.go` | Bounded read concurrency and stable merge |
 | `internal/packagemanager/errors.go` | Operation error categories and redaction boundaries |
 | `internal/security` | Inventory-to-evidence mapping and vulnerability report assembly |
@@ -79,6 +79,8 @@ Manifest discovery happens before manager commands. Contradictions, missing requ
 ## Inventory and outdated models
 
 Inventory uses `InstalledPackage` plus normalized exposed commands. It contains exact installed version, role, ownership, npm class, and transitive flag. `npm root --global` locates global package manifests. Direct npm package manifests provide exposed-command metadata. Missing manifests do not fail inventory.
+
+Go-installed binaries do not retain canonical module and version ownership. `GoToolImport` validates journaled module, semantic version, and command names before any future Go inventory can use them.
 
 Outdated query starts with manager-native `Tool` values. Core wraps tools in `scopedTool`, then `Records` creates normalized `Package` values. Scope, ownership, role, and npm class flow into plans.
 

@@ -10,6 +10,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 type PackageRole string
@@ -81,6 +84,39 @@ func CollisionCandidates(commands []ExposedCommand) []CollisionCandidate {
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Command < candidates[j].Command })
 	return candidates
+}
+
+const PM_GO = "go"
+
+// GoToolImport records a verified `go install module@version` import.
+// Installed binaries do not retain enough data to infer this record safely.
+type GoToolImport struct {
+	Module   string   `json:"module"`
+	Version  string   `json:"version"`
+	Commands []string `json:"commands"`
+}
+
+func (imported GoToolImport) Validate() error {
+	if err := module.CheckPath(imported.Module); err != nil {
+		return fmt.Errorf("invalid Go tool module %q: %w", imported.Module, err)
+	}
+	if !semver.IsValid(imported.Version) {
+		return fmt.Errorf("invalid Go tool version %q", imported.Version)
+	}
+	if len(imported.Commands) == 0 {
+		return fmt.Errorf("go tool import %q has no commands", imported.Module)
+	}
+	seen := make(map[string]struct{}, len(imported.Commands))
+	for _, command := range imported.Commands {
+		if command == "" || filepath.Base(command) != command || command == "." || command == ".." {
+			return fmt.Errorf("invalid Go tool command %q", command)
+		}
+		if _, exists := seen[command]; exists {
+			return fmt.Errorf("duplicate Go tool command %q", command)
+		}
+		seen[command] = struct{}{}
+	}
+	return nil
 }
 
 type InstalledPackage struct {
