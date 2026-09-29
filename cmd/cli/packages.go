@@ -75,7 +75,7 @@ func (cli *Cli) packages() *urfave.Command {
 	pmFlag := func() urfave.Flag {
 		return &urfave.StringSliceFlag{
 			Name:  "pm",
-			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry)",
+			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry, pnpm)",
 			Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
 				return packagemanager.Supported(pms)
 			},

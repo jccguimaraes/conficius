@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`5a116df feat(packages): parse pnpm outdated`
+`00735ea feat(packages): parse pnpm inventory`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue pnpm adapter. Register read-only inventory and outdated checks after scope verification. Keep change small.
+Continue pnpm adapter. Verify selected-package updates and add update planning. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `5a116df`.
+Working tree was clean after `00735ea`.

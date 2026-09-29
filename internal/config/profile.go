@@ -237,7 +237,7 @@ func normalizePackageRules(rules []PackageRule) error {
 }
 
 func supportedManager(manager string) bool {
-	return manager == "mise" || manager == "brew" || manager == "npm" || manager == "mas" || manager == "uv" || manager == "pipx" || manager == "poetry"
+	return manager == "mise" || manager == "brew" || manager == "npm" || manager == "mas" || manager == "uv" || manager == "pipx" || manager == "poetry" || manager == "pnpm"
 }
 
 func expandConfigPath(value, root string) (string, error) {

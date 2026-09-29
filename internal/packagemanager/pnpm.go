@@ -1,11 +1,53 @@
 package packagemanager
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os/exec"
 )
 
 const PM_PNPM = "pnpm"
+
+type PNPM struct{}
+
+func (PNPM) name() string                 { return PM_PNPM }
+func (PNPM) testedVersions() VersionRange { return VersionRange{MinimumMajor: 12, MaximumMajor: 12} }
+func (PNPM) capabilities() []Capability {
+	return []Capability{CapabilityProjectInventory, CapabilityProjectOutdated}
+}
+func (PNPM) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (PNPM) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (PNPM) projectFiles() []string                   { return []string{"package.json", "pnpm-lock.yaml"} }
+func (PNPM) updateArgs([]Package) []string            { return nil }
+func (PNPM) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	output, err := runOutputDir(ctx, scope.Path, executable, "list", "--depth", "0", "--json")
+	if err != nil {
+		return nil, err
+	}
+	return parsePNPMInstalled(output)
+}
+func (PNPM) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
+	cmd := commandContext(ctx, executable, "outdated", "--format", "json")
+	cmd.Dir = scope.Path
+	cmd.Env = managerEnvironment(scope.Path)
+	output, err := cmd.Output()
+	var exitErr *exec.ExitError
+	if err != nil && (!errors.As(err, &exitErr) || exitErr.ExitCode() != 1 || len(output) == 0) {
+		stderr := ""
+		if exitErr != nil {
+			stderr = string(exitErr.Stderr)
+		}
+		return classifyOperationError(ctx, err, stderr)
+	}
+	outdated, err := parsePNPMOutdated(output, executable)
+	if err != nil {
+		return err
+	}
+	MergePackages(packages, outdated)
+	return nil
+}
 
 type pnpmInventoryProject struct {
 	Dependencies         map[string]pnpmInventoryPackage `json:"dependencies"`
