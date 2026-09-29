@@ -2,6 +2,7 @@ package packagemanager
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,6 +33,31 @@ if [ "$1" = "--version" ]; then printf '4.18.1'; else printf '{"value":"lodash@n
 	}
 	if len(installed.Packages) != 1 || len(outdated.Packages) != 0 || !strings.Contains(string(args), dir+"|info --json") || outdated.Managers[0].Operations[0].Status != StatusUnsupported {
 		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed, outdated, args)
+	}
+}
+
+func TestYarnInventoryClassifiesCommandFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_YARN), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '4.18.1'; else printf 'inventory failed' >&2; exit 2; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_YARN}, []Scope{{Kind: "project", Path: dir}})
+	if err == nil || len(result.Managers) != 1 || result.Managers[0].Operations[0].Category != ErrorCommand {
+		t.Fatalf("result = %#v, error = %v", result, err)
+	}
+}
+
+func TestYarnInventoryClassifiesParserFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_YARN), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '4.18.1'; else printf 'changed output'; fi
+`)
+	t.Setenv("PATH", dir)
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_YARN}, []Scope{{Kind: "project", Path: dir}})
+	var operationErr *OperationError
+	if !errors.As(err, &operationErr) || operationErr.Category != ErrorParser || result.Managers[0].Operations[0].Category != ErrorParser {
+		t.Fatalf("result = %#v, error = %#v", result, err)
 	}
 }
 

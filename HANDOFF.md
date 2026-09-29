@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`80e07be feat(packages): parse yarn inventory`
+`4611aec feat(packages): register yarn adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Yarn adapter. Add command and changed-output parser failure fixtures. Keep change small.
+Verify Bun structured-output capabilities. Start one parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `80e07be`.
+Working tree was clean after `4611aec`.
