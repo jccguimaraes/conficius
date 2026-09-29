@@ -19,7 +19,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Yarn: project inventory parser complete; registration and failure fixtures remain. Native outdated checks are unavailable.
+- Yarn: registered project inventory with unsupported outdated/update outcomes; failure fixtures remain.
 
 Original target managers still missing:
 - Go tool installs and journaled imports

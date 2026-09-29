@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`890a574 test(packages): finish cargo failure coverage`
+`80e07be feat(packages): parse yarn inventory`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Yarn adapter. Register project inventory only and report outdated/update scopes unsupported. Keep change small.
+Continue Yarn adapter. Add command and changed-output parser failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `890a574`.
+Working tree was clean after `80e07be`.
