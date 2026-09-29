@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`4619771 feat(packages): plan poetry updates`
+`ec73544 test(packages): cover poetry failures`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Poetry adapter. Add network and rate-limit failure fixtures. Keep change small.
+Select next adapter by verified structured-output support. Start parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `4619771`.
+Working tree was clean after `ec73544`.
