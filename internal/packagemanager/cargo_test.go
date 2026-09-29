@@ -1,6 +1,39 @@
 package packagemanager
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestCargoAdapterQueriesGlobalInventoryAndReportsUnsupportedOperations(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, PM_CARGO), `#!/bin/sh
+printf '%s\n' "$*" >>"$ARGS_FILE"
+if [ "$1" = "--version" ]; then printf 'cargo 1.98.1'; else printf 'cargo-edit v0.13.3:\n    cargo-add\n'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+	scope := Scope{Kind: "global"}
+	installed, err := QueryInstalledScopes(context.Background(), []string{PM_CARGO}, []Scope{scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_CARGO}, []Scope{scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed.Packages) != 1 || len(outdated.Packages) != 0 || !strings.Contains(string(args), "install --list") || outdated.Managers[0].Operations[0].Status != StatusUnsupported {
+		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed, outdated, args)
+	}
+}
 
 func TestParseCargoInstalledReadsInventory(t *testing.T) {
 	output := []byte("cargo-edit v0.13.3:\n    cargo-add\n    cargo-rm\ndioxus-cli v0.7.10:\n    dx\n")

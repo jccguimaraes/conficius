@@ -18,7 +18,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Cargo: global inventory parser complete; registration and failure fixtures remain. Native outdated checks are unavailable.
+- Cargo: registered global inventory with unsupported outdated/update outcomes; failure fixtures remain.
 
 Original target managers still missing:
 - Go tool installs and journaled imports

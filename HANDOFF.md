@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`bf1330d test(packages): finish pnpm failure coverage`
+`c10e2aa feat(packages): parse cargo inventory`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Cargo adapter. Register global inventory only and report outdated/update scopes unsupported. Keep change small.
+Continue Cargo adapter. Add command and changed-output parser failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `bf1330d`.
+Working tree was clean after `c10e2aa`.

@@ -51,6 +51,7 @@ var adapters = []managerAdapter{
 	Pipx{},
 	Poetry{},
 	PNPM{},
+	Cargo{},
 }
 
 func hasCapability(adapter managerAdapter, capability Capability) bool {
