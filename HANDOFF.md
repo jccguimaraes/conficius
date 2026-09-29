@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`209aaac feat(packages): parse bun inventory`
+`9ec8330 feat(packages): register bun adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Bun adapter. Add command and changed-output parser failure fixtures. Keep change small.
+Inspect Go tool inventory and journal architecture. Start one smallest slice. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `209aaac`.
+Working tree was clean after `9ec8330`.
