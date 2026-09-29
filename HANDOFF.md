@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`904a2ee test(packages): finish yarn failure coverage`
+`209aaac feat(packages): parse bun inventory`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue Bun adapter. Register project inventory only and report outdated/update scopes unsupported. Keep change small.
+Continue Bun adapter. Add command and changed-output parser failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `904a2ee`.
+Working tree was clean after `209aaac`.

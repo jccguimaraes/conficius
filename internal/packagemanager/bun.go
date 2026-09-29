@@ -1,12 +1,33 @@
 package packagemanager
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
 const PM_BUN = "bun"
+
+type Bun struct{}
+
+func (Bun) name() string                             { return PM_BUN }
+func (Bun) testedVersions() VersionRange             { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
+func (Bun) capabilities() []Capability               { return []Capability{CapabilityProjectInventory} }
+func (Bun) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (Bun) recoveryArgs(Scope, []Package) [][]string { return nil }
+func (Bun) projectFiles() []string                   { return []string{"package.json", "bun.lock", "bun.lockb"} }
+func (Bun) updateArgs([]Package) []string            { return nil }
+func (Bun) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
+	output, err := runOutputDir(ctx, scope.Path, executable, "pm", "ls")
+	if err != nil {
+		return nil, err
+	}
+	return parseBunInstalled(output)
+}
+func (Bun) listOutdatedScope(context.Context, string, Scope, ManagerOptions, Packages) error {
+	return nil
+}
 
 var bunListLine = regexp.MustCompile(`^[├└]── (.+)@([^@]+)$`)
 

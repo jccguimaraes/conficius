@@ -20,7 +20,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Bun: project inventory parser complete; registration and failure fixtures remain. Structured outdated output is unavailable.
+- Bun: registered project inventory with unsupported outdated/update outcomes; failure fixtures remain.
 
 Original target managers still missing:
 - Go tool installs and journaled imports

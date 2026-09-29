@@ -31,7 +31,7 @@
 - Cargo command and changed-output parser failure fixtures.
 - Registered Yarn adapter for project inventory; outdated checks and updates report unsupported.
 - Yarn command and changed-output parser failure fixtures.
-- Bun project inventory parser foundation; not registered yet.
+- Registered Bun adapter for project inventory; outdated checks and updates report unsupported.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - Configured executable overrides.
