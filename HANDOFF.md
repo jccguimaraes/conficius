@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`3571587 feat(packages): plan pnpm updates`
+`36279c5 test(packages): cover pnpm failures`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue pnpm adapter. Add network and rate-limit failure fixtures. Keep change small.
+Select next adapter by verified structured-output support. Start parser only. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `3571587`.
+Working tree was clean after `36279c5`.

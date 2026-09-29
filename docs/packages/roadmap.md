@@ -14,10 +14,7 @@ Completed adapters:
 - `uv`: global tool inventory, outdated checks, selected-tool updates, and failure fixtures.
 - `pipx`: global inventory, outdated checks, selected-package updates, and failure fixtures.
 - Poetry: project inventory, outdated checks, selected-package updates, and failure fixtures.
-
-Adapter in progress:
-
-- pnpm: inventory, outdated checks, update planning, authentication, and parser fixtures complete; network and rate-limit fixtures remain.
+- pnpm: project inventory, outdated checks, selected-package updates, and failure fixtures.
 
 Original target managers still missing:
 - Cargo
