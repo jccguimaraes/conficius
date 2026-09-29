@@ -18,9 +18,12 @@ Completed adapters:
 - Cargo: global inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 
+Adapter in progress:
+
+- Bun: project inventory parser complete; registration and failure fixtures remain. Structured outdated output is unavailable.
+
 Original target managers still missing:
 - Go tool installs and journaled imports
-- Bun
 
 Each adapter requires:
 

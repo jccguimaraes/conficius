@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`4611aec feat(packages): register yarn adapter`
+`904a2ee test(packages): finish yarn failure coverage`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Verify Bun structured-output capabilities. Start one parser only. Keep change small.
+Continue Bun adapter. Register project inventory only and report outdated/update scopes unsupported. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `4611aec`.
+Working tree was clean after `904a2ee`.
