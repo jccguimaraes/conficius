@@ -17,7 +17,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- pnpm: outdated parser complete; inventory parsing, registration, updates, and failure fixtures remain.
+- pnpm: project inventory and outdated parsers complete; registration, updates, and failure fixtures remain.
 
 Original target managers still missing:
 - Cargo

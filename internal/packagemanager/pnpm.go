@@ -7,6 +7,44 @@ import (
 
 const PM_PNPM = "pnpm"
 
+type pnpmInventoryProject struct {
+	Dependencies         map[string]pnpmInventoryPackage `json:"dependencies"`
+	DevDependencies      map[string]pnpmInventoryPackage `json:"devDependencies"`
+	OptionalDependencies map[string]pnpmInventoryPackage `json:"optionalDependencies"`
+}
+
+type pnpmInventoryPackage struct {
+	Version string `json:"version"`
+}
+
+func parsePNPMInstalled(output []byte) ([]InstalledPackage, error) {
+	var projects []pnpmInventoryProject
+	if err := json.Unmarshal(output, &projects); err != nil {
+		return nil, parserError(fmt.Errorf("decode pnpm inventory: %w", err))
+	}
+	if projects == nil {
+		return nil, parserError(fmt.Errorf("decode pnpm inventory: expected array"))
+	}
+	var packages []InstalledPackage
+	for _, project := range projects {
+		for class, dependencies := range map[string]map[string]pnpmInventoryPackage{
+			"runtime": project.Dependencies, "development": project.DevDependencies, "optional": project.OptionalDependencies,
+		} {
+			for name, pkg := range dependencies {
+				if name == "" || pkg.Version == "" {
+					return nil, parserError(fmt.Errorf("decode pnpm inventory package %q: missing fields", name))
+				}
+				role := RoleLibrary
+				if class == "development" {
+					role = RoleDevelopmentTool
+				}
+				packages = append(packages, InstalledPackage{Manager: PM_PNPM, Name: name, Version: pkg.Version, Role: role, DependencyClass: class})
+			}
+		}
+	}
+	return packages, nil
+}
+
 type pnpmOutdatedPackage struct {
 	Current        string `json:"current"`
 	Wanted         string `json:"wanted"`
