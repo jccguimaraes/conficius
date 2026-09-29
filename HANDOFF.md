@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`00735ea feat(packages): parse pnpm inventory`
+`8fc3d8a feat(packages): register pnpm adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Continue pnpm adapter. Verify selected-package updates and add update planning. Keep change small.
+Continue pnpm adapter. Add authentication and changed-output failure fixtures. Keep change small.
 
 ## Working tree guard
 
-Working tree was clean after `00735ea`.
+Working tree was clean after `8fc3d8a`.

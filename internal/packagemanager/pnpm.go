@@ -15,12 +15,18 @@ type PNPM struct{}
 func (PNPM) name() string                 { return PM_PNPM }
 func (PNPM) testedVersions() VersionRange { return VersionRange{MinimumMajor: 12, MaximumMajor: 12} }
 func (PNPM) capabilities() []Capability {
-	return []Capability{CapabilityProjectInventory, CapabilityProjectOutdated}
+	return []Capability{CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate}
 }
 func (PNPM) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
 func (PNPM) recoveryArgs(Scope, []Package) [][]string { return nil }
 func (PNPM) projectFiles() []string                   { return []string{"package.json", "pnpm-lock.yaml"} }
-func (PNPM) updateArgs([]Package) []string            { return nil }
+func (PNPM) updateArgs(packages []Package) []string {
+	args := []string{"update"}
+	for _, pkg := range packages {
+		args = append(args, pkg.Name)
+	}
+	return args
+}
 func (PNPM) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
 	output, err := runOutputDir(ctx, scope.Path, executable, "list", "--depth", "0", "--json")
 	if err != nil {

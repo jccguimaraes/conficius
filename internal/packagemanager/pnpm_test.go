@@ -4,10 +4,20 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
 )
+
+func TestPNPMUpdateArgsUseSelectedPackageNames(t *testing.T) {
+	adapter := PNPM{}
+	packages := []Package{{Name: "react"}, {Name: "typescript"}}
+	want := []string{"update", "react", "typescript"}
+	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v; want %#v", got, want)
+	}
+}
 
 func TestPNPMAdapterQueriesProjectInventoryAndOutdated(t *testing.T) {
 	dir := t.TempDir()
