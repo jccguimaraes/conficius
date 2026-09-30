@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`f3e7130 feat(packages): update journaled go tools`
+`839483a docs(packages): complete go adapter`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Choose next package roadmap slice. Go adapter is complete with journal-backed state.
+Finish Go update execution fixture commit. Then choose next package roadmap slice.
 
 ## Working tree guard
 
-Working tree was clean after `f3e7130`.
+Working tree was clean after `839483a`.

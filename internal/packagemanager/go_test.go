@@ -1,6 +1,7 @@
 package packagemanager
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -90,6 +91,23 @@ func TestGoAdapterPlansOneInstallPerModule(t *testing.T) {
 	}
 	if len(plans) != 2 || len(plans[0].Packages) != 1 || len(plans[1].Packages) != 1 {
 		t.Fatalf("plans = %#v", plans)
+	}
+}
+
+func TestGoUpdateExecutesExactInstall(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	goExecutable := filepath.Join(dir, PM_GO)
+	writeExecutable(t, goExecutable, "#!/bin/sh\nprintf '%s' \"$*\" >\"$ARGS_PATH\"\n")
+	t.Setenv("ARGS_PATH", argsPath)
+	plans := []UpdatePlan{{Manager: PM_GO, Executable: goExecutable, Scope: "global", StateHash: "plan", Args: []string{"install", "golang.org/x/tools/gopls@v0.23.0"}}}
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil || len(outcomes) != 1 || outcomes[0].Status != "completed" {
+		t.Fatalf("outcomes = %#v, error = %v", outcomes, err)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil || string(args) != "install golang.org/x/tools/gopls@v0.23.0" {
+		t.Fatalf("args = %q, error = %v", args, err)
 	}
 }
 
