@@ -21,7 +21,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Go tools: explicit journal import command exists. Connect journal records to global inventory before adapter registration.
+- Go tools: explicit journal import command exists. Add journal-backed global inventory before adapter registration.
 
 Each adapter requires:
 
