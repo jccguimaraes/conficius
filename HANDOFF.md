@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`bdfa629 feat(packages): read go tool journal`
+`d8ec754 feat(packages): record go tool imports`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish Go journal import command commit. Then connect journal records to global inventory. Native installed-tool inventory is unavailable.
+Connect Go journal records to global inventory. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `bdfa629`.
+Working tree was clean after `d8ec754`.
