@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`9703941 docs(packages): start go update slice`
+`f3e7130 feat(packages): update journaled go tools`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish Go update commit. Then continue adapter roadmap. Native installed-tool inventory is unavailable.
+Choose next package roadmap slice. Go adapter is complete with journal-backed state.
 
 ## Working tree guard
 
-Working tree was clean after `9703941`.
+Working tree was clean after `f3e7130`.

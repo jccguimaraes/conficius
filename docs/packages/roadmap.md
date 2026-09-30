@@ -18,10 +18,7 @@ Completed adapters:
 - Cargo: global inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Bun: project inventory, unsupported outdated/update outcomes, and failure fixtures.
-
-Adapter in progress:
-
-- Go tools: journal-backed global inventory, command ownership, structured freshness, and exact install update plans exist.
+- Go tools: journal-backed global inventory, command ownership, structured freshness, exact install updates, recovery, and failure fixtures.
 
 Each adapter requires:
 
