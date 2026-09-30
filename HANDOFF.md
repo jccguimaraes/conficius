@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`e144f77 docs(packages): advance go inventory slice`
+`a5723eb docs(packages): start go inventory slice`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Add journal-backed Go global inventory. Native installed-tool inventory is unavailable.
+Finish Go global inventory commit. Then add journal command ownership records before update support. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `e144f77`.
+Working tree was clean after `a5723eb`.

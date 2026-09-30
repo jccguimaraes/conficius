@@ -326,7 +326,7 @@ func TestPackagesPMSJSONReportsUnavailableAndExitZero(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
 		t.Fatalf("output is not JSON: %v\n%s", err, output.String())
 	}
-	if envelope.SchemaVersion != 2 || len(envelope.Data) != 11 {
+	if envelope.SchemaVersion != 2 || len(envelope.Data) != 12 {
 		t.Fatalf("envelope = %#v", envelope)
 	}
 	for _, status := range envelope.Data {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisteredPackageManagersComeFromAdapters(t *testing.T) {
-	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX, PM_POETRY, PM_PNPM, PM_CARGO, PM_YARN, PM_BUN}
+	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX, PM_POETRY, PM_PNPM, PM_CARGO, PM_YARN, PM_BUN, PM_GO}
 	if !reflect.DeepEqual(RegisteredPackageManagers, want) {
 		t.Fatalf("registered managers = %#v; want %#v", RegisteredPackageManagers, want)
 	}
@@ -63,6 +63,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_CARGO:  {CapabilityGlobalInventory},
 		PM_YARN:   {CapabilityProjectInventory},
 		PM_BUN:    {CapabilityProjectInventory},
+		PM_GO:     {CapabilityGlobalInventory},
 	}
 	for name, capabilities := range want {
 		adapter, err := adapterFor(name)
