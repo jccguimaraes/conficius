@@ -137,6 +137,16 @@ if [ "$1" = "--version" ]; then printf '11.0.0'; elif [ "$1" = "root" ]; then pr
 	}
 }
 
+func TestProjectIntegrityChecksSkipCargoOnlyProject(t *testing.T) {
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "Cargo.toml"), []byte("[package]\nname = \"app\"\nversion = \"0.1.0\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if checks := projectIntegrityChecks([]config.Scope{{Kind: "project", Path: project}}); len(checks) != 0 {
+		t.Fatalf("checks = %#v", checks)
+	}
+}
+
 func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

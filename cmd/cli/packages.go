@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -619,14 +620,21 @@ func (cli *Cli) writePackageJSON(data any) error {
 func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectIntegrity {
 	var checks []packagemanager.ProjectIntegrity
 	for _, scope := range scopes {
-		if scope.Kind == "project" || scope.Kind == "workspace" {
+		if (scope.Kind == "project" || scope.Kind == "workspace") && hasPackageManifest(scope.Path) {
 			checks = append(checks, packagemanager.CheckNPMProjectIntegrity(scope.Path))
 		}
 		for _, workspace := range scope.Workspaces {
-			checks = append(checks, packagemanager.CheckNPMProjectIntegrity(workspace))
+			if hasPackageManifest(workspace) {
+				checks = append(checks, packagemanager.CheckNPMProjectIntegrity(workspace))
+			}
 		}
 	}
 	return checks
+}
+
+func hasPackageManifest(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "package.json"))
+	return err == nil && !info.IsDir()
 }
 
 func printProjectIntegrity(writer io.Writer, checks []packagemanager.ProjectIntegrity) error {
