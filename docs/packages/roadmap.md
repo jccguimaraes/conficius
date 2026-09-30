@@ -21,7 +21,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Go tools: validated journaled import model exists. Add read-only journal storage, then import command, before adapter registration.
+- Go tools: validated read-only journal storage exists. Add import command before adapter registration.
 
 Each adapter requires:
 
