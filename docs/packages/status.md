@@ -7,6 +7,7 @@
 - TOML schema version 2 with strict validation and version 1 migration.
 - CLI, environment, project config, selected profile, and default resolution.
 - Global, project, Cargo, and npm workspace inspection.
+- npm project inventory and freshness checks run only where `package.json` exists.
 - Absolute scope paths, symlink-aware deduplication, and workspace precedence.
 - Manager and package allowlist/denylist policy.
 - Exact desired-version drift.

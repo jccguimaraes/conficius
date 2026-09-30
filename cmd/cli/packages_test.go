@@ -140,6 +140,9 @@ if [ "$1" = "--version" ]; then printf '11.0.0'; elif [ "$1" = "root" ]; then pr
 func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
 printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0"}}'
 `)
@@ -457,6 +460,9 @@ if [ "$1" = "--version" ]; then printf '11.19.1\n'; elif [ "$1" = "view" ]; then
 	defer server.Close()
 	t.Setenv("CONFICIUS_OSV_URL", server.URL)
 	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	var output bytes.Buffer
 	cli := New(&output, "test")
@@ -643,6 +649,9 @@ func TestPackagesOutdatedMASProjectScopeReportsUnsupportedOperation(t *testing.T
 func TestPackagesUpdateProjectPlanUsesProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	writeCLIExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
 printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"1.1.0"}}'
 `)

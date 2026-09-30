@@ -502,6 +502,9 @@ printf '{"dependencies":{"react":{"version":"19.0.0"},"typescript":{"version":"5
 func TestQueryInstalledPreservesWorkspaceScope(t *testing.T) {
 	dir := t.TempDir()
 	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
 printf '{"dependencies":{"workspace-package":{"version":"1.0.0"}}}'
 `)
@@ -519,6 +522,9 @@ printf '{"dependencies":{"workspace-package":{"version":"1.0.0"}}}'
 func TestQueryInstalledScopesRunsProjectNPMInProjectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
 printf '{"dependencies":{"project-package":{"version":"2.0.0"}}}'
 `)
@@ -552,6 +558,11 @@ func TestQueryInstalledReportsPartialManagerAndPreservesSuccessfulScope(t *testi
 	dir := t.TempDir()
 	goodProject := t.TempDir()
 	badProject := t.TempDir()
+	for _, project := range []string{goodProject, badProject} {
+		if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
 if [ "$PWD" = "$BAD_PROJECT" ]; then
   printf 'registry unavailable' >&2

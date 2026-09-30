@@ -327,6 +327,9 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 				status.Warnings = append(status.Warnings, npmPrefixWarnings(ctx, executable, options.Managers[PM_NPM].ExpectedGlobalPrefix)...)
 			}
 			for _, scope := range scopes {
+				if !hasProjectManagerManifest(adapter, scope) {
+					continue
+				}
 				if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalOutdated, CapabilityProjectOutdated)) {
 					status.Operations = append(status.Operations, unsupportedOperationStatus("outdated", executable, scope))
 					continue
@@ -423,6 +426,17 @@ func normalizeScopes(scopes []Scope) ([]Scope, error) {
 		result = append(result, scope)
 	}
 	return result, errors.Join(errs...)
+}
+
+func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
+	if scope.Kind != "project" && scope.Kind != "workspace" {
+		return true
+	}
+	if adapter.name() != PM_NPM {
+		return true
+	}
+	info, err := os.Stat(filepath.Join(scope.Path, "package.json"))
+	return err == nil && !info.IsDir()
 }
 
 func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {

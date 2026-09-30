@@ -109,6 +109,31 @@ func TestQueriesRejectInvalidScopes(t *testing.T) {
 	}
 }
 
+func TestRustProjectDoesNotRunNPMWithoutPackageManifest(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "Cargo.toml"), []byte("[package]\nname = \"app\"\nversion = \"0.1.0\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, PM_NPM), "#!/bin/sh\nprintf '11.0.0\\n'\n")
+	t.Setenv("PATH", dir)
+
+	inventory, err := QueryInstalledScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}}, QueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory.Packages) != 0 || len(inventory.Managers) != 1 || len(inventory.Managers[0].Operations) != 0 {
+		t.Fatalf("inventory = %#v", inventory)
+	}
+	outdated, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}}, QueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outdated.Packages) != 0 || len(outdated.Managers) != 1 || len(outdated.Managers[0].Operations) != 0 {
+		t.Fatalf("outdated = %#v", outdated)
+	}
+}
+
 func TestManagerFilterCannotExcludeManifestManager(t *testing.T) {
 	project := t.TempDir()
 	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte("{}"), 0o600); err != nil {
@@ -441,6 +466,11 @@ func TestQueryOutdatedReportsPartialManagerAndPreservesSuccessfulScope(t *testin
 	dir := t.TempDir()
 	goodProject := t.TempDir()
 	badProject := t.TempDir()
+	for _, project := range []string{goodProject, badProject} {
+		if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
 if [ "$PWD" = "$BAD_PROJECT" ]; then
   printf 'network connection refused' >&2

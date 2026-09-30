@@ -255,6 +255,9 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		}
 		for _, executable := range status.Executables {
 			for _, scope := range scopes {
+				if !hasProjectManagerManifest(adapter, scope) {
+					continue
+				}
 				if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalInventory, CapabilityProjectInventory)) {
 					status.Operations = append(status.Operations, unsupportedOperationStatus("inventory", executable, scope))
 					continue
