@@ -30,6 +30,23 @@ func writeFakeManager(t *testing.T, path, contents string) {
 	}
 }
 
+func TestPackagesGoToolsImportWritesJournalWithoutRunningGo(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	var output bytes.Buffer
+	if err := New(&output, "test").Command.Run(t.Context(), []string{"conficius", "packages", "go-tools", "import", "golang.org/x/tools/gopls", "v0.20.0", "gopls"}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(state, "conficius", "go-tools.json")
+	journal, err := packagemanager.ReadGoToolJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(journal.Imports) != 1 || journal.Imports[0].Module != "golang.org/x/tools/gopls" || !strings.Contains(output.String(), path) {
+		t.Fatalf("journal = %#v, output = %q", journal, output.String())
+	}
+}
+
 func TestManagerScopesExpandsWorkspaces(t *testing.T) {
 	scopes := managerScopes([]config.Scope{{Kind: "project", Path: "/repo", Workspaces: []string{"/repo/apps/a", "/repo/apps/b"}}})
 	want := []packagemanager.Scope{{Kind: "project", Path: "/repo"}, {Kind: "workspace", Path: "/repo/apps/a"}, {Kind: "workspace", Path: "/repo/apps/b"}}
@@ -228,7 +245,7 @@ func TestPackagesCommandsExcludeVulnerabilities(t *testing.T) {
 	for _, command := range commands {
 		names = append(names, command.Name)
 	}
-	if got, want := strings.Join(names, ","), "doctor,pms,outdated,vulnerabilities,update"; got != want {
+	if got, want := strings.Join(names, ","), "go-tools,doctor,pms,outdated,vulnerabilities,update"; got != want {
 		t.Fatalf("commands = %q; want %q", got, want)
 	}
 }

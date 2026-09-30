@@ -102,6 +102,39 @@ func (cli *Cli) packages() *urfave.Command {
 		},
 		Commands: []*urfave.Command{
 			{
+				Name:        "go-tools",
+				Description: "Record Go tool ownership without changing installed binaries.",
+				Usage:       "Manage Go tool import records.",
+				Commands: []*urfave.Command{
+					{
+						Name:      "import",
+						Usage:     "Record MODULE VERSION COMMAND [COMMAND...]",
+						ArgsUsage: "MODULE VERSION COMMAND [COMMAND...]",
+						Action: func(_ context.Context, c *urfave.Command) error {
+							if c.NArg() < 3 {
+								return errors.New("import requires MODULE VERSION COMMAND [COMMAND...]")
+							}
+							path, err := goToolJournalPath()
+							if err != nil {
+								return err
+							}
+							journal, err := packagemanager.ReadGoToolJournal(path)
+							if errors.Is(err, os.ErrNotExist) {
+								journal = packagemanager.NewGoToolJournal(nil)
+							} else if err != nil {
+								return err
+							}
+							journal.Imports = append(journal.Imports, packagemanager.GoToolImport{Module: c.Args().First(), Version: c.Args().Get(1), Commands: c.Args().Slice()[2:]})
+							if err := packagemanager.WriteGoToolJournal(path, journal); err != nil {
+								return err
+							}
+							_, err = fmt.Fprintf(cli.Writer, "Recorded Go tool import in %s.\n", path)
+							return err
+						},
+					},
+				},
+			},
+			{
 				Name:        "doctor",
 				Description: "Check package manager environment integrity without freshness queries.",
 				Usage:       "Check package manager integrity.",

@@ -22,16 +22,36 @@ type updateLog struct {
 	Error       string                         `json:"error,omitempty"`
 }
 
-func writeUpdateLog(log updateLog) (string, error) {
+func stateDirectory() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("get home directory for update log: %w", err)
+		return "", fmt.Errorf("get home directory for state: %w", err)
 	}
 	state := os.Getenv("XDG_STATE_HOME")
 	if state == "" {
 		state = filepath.Join(home, ".local", "state")
 	}
-	directory := filepath.Join(state, "conficius", "updates")
+	return filepath.Join(state, "conficius"), nil
+}
+
+func goToolJournalPath() (string, error) {
+	directory, err := stateDirectory()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, "go-tools.json"), nil
+}
+
+func writeUpdateLog(log updateLog) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home directory for update log: %w", err)
+	}
+	directory, err := stateDirectory()
+	if err != nil {
+		return "", err
+	}
+	directory = filepath.Join(directory, "updates")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create update log directory: %w", err)
 	}

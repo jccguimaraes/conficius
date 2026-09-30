@@ -34,6 +34,7 @@
 - Registered Bun adapter for project inventory; outdated checks and updates report unsupported.
 - Validated Go tool import records with canonical module path, semantic version, and command ownership.
 - Read-only Go tool journal parser rejects unsupported schemas and ambiguous command ownership.
+- `packages go-tools import` records explicit Go module/version/command ownership without running `go install`.
 - Bun command and changed-output parser failure fixtures.
 - Bun command and changed-output parser failure fixtures.
 - Explicit capability declarations.
