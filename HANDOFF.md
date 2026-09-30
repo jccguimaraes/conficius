@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`0129b2d docs(packages): note go tool inventory limit`
+`c9bd148 feat(packages): validate go tool imports`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish Go import record model commit. Then add read-only journal storage and import command. Native installed-tool inventory is unavailable.
+Add read-only Go journal storage and import command. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `0129b2d`.
+Working tree was clean after `c9bd148`.
