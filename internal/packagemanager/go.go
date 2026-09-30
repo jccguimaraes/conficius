@@ -16,12 +16,23 @@ type Go struct{}
 func (Go) name() string                 { return PM_GO }
 func (Go) testedVersions() VersionRange { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
 func (Go) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated}
+	return []Capability{CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate}
 }
-func (Go) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
-func (Go) recoveryArgs(Scope, []Package) [][]string { return nil }
-func (Go) projectFiles() []string                   { return nil }
-func (Go) updateArgs([]Package) []string            { return nil }
+func (Go) updateImpact(Scope) MutationImpact { return MutationImpact{} }
+func (Go) recoveryArgs(_ Scope, packages []Package) [][]string {
+	args := make([][]string, 0, len(packages))
+	for _, pkg := range packages {
+		args = append(args, []string{"install", pkg.Name + "@" + pkg.Current})
+	}
+	return args
+}
+func (Go) projectFiles() []string { return nil }
+func (Go) updateArgs(packages []Package) []string {
+	if len(packages) != 1 {
+		return nil
+	}
+	return []string{"install", packages[0].Name + "@" + packages[0].Latest}
+}
 func (Go) listOutdatedScope(ctx context.Context, executable string, _ Scope, _ ManagerOptions, packages Packages) error {
 	path, err := GoToolJournalPath()
 	if err != nil {

@@ -21,7 +21,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Go tools: journal-backed global inventory, command ownership, and structured freshness exist. Add explicit `go install module@version` update plans.
+- Go tools: journal-backed global inventory, command ownership, structured freshness, and exact install update plans exist.
 
 Each adapter requires:
 

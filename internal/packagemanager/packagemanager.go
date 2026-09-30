@@ -738,11 +738,14 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		selected = append(selected, record)
 	}
 
-	type planKey struct{ manager, executable, scope, directory string }
+	type planKey struct{ manager, executable, scope, directory, packageName string }
 	plansByKey := make(map[planKey]*UpdatePlan)
 	var keys []planKey
 	for _, record := range selected {
-		key := planKey{record.Manager, record.Executable, record.Scope, record.Path}
+		key := planKey{manager: record.Manager, executable: record.Executable, scope: record.Scope, directory: record.Path}
+		if record.Manager == PM_GO {
+			key.packageName = record.Name
+		}
 		plan := plansByKey[key]
 		if plan == nil {
 			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
@@ -980,8 +983,23 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 		if !ok {
 			continue
 		}
+		var err error
+		if plan.Manager == PM_GO {
+			versions := make(map[string]string, len(plan.Packages))
+			for _, pkg := range plan.Packages {
+				versions[pkg.Name] = pkg.Latest
+			}
+			path, pathErr := GoToolJournalPath()
+			if pathErr != nil {
+				err = pathErr
+			} else {
+				err = UpdateGoToolJournalVersions(path, versions)
+			}
+		}
 		remaining := make(Packages)
-		err := listOutdatedScope(ctx, plan.Manager, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory}, options.Managers[plan.Manager], remaining)
+		if err == nil {
+			err = listOutdatedScope(ctx, plan.Manager, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory}, options.Managers[plan.Manager], remaining)
+		}
 		if err == nil {
 			for _, pkg := range plan.Packages {
 				if hasPackage(Records(remaining), pkg.Manager, pkg.Name) {

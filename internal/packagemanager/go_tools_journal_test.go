@@ -46,6 +46,21 @@ func TestReadGoToolJournalRejectsInvalidOrAmbiguousOwnership(t *testing.T) {
 	}
 }
 
+func TestUpdateGoToolJournalVersionsUpdatesKnownModules(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-tools.json")
+	journal := NewGoToolJournal([]GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}})
+	if err := WriteGoToolJournal(path, journal); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateGoToolJournalVersions(path, map[string]string{"golang.org/x/tools/gopls": "v0.23.0"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadGoToolJournal(path)
+	if err != nil || got.Imports[0].Version != "v0.23.0" {
+		t.Fatalf("journal = %#v, error = %v", got, err)
+	}
+}
+
 func TestWriteGoToolJournalRoundTripsValidatedImports(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state", "go-tools.json")
 	journal := GoToolJournal{SchemaVersion: goToolJournalSchemaVersion, Imports: []GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}}}

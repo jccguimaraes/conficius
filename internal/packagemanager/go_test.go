@@ -53,6 +53,67 @@ if [ "$1" = "--version" ]; then printf 'go version go1.27.1'; else printf '{"Pat
 	}
 }
 
+func TestGoAdapterPlansExactLatestInstalls(t *testing.T) {
+	dir := t.TempDir()
+	state := t.TempDir()
+	journalPath := filepath.Join(state, "conficius", "go-tools.json")
+	if err := WriteGoToolJournal(journalPath, NewGoToolJournal([]GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}})); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, PM_GO), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'go version go1.27.1'; else printf '{"Path":"golang.org/x/tools/gopls","Version":"v0.23.0"}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("XDG_STATE_HOME", state)
+
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_GO}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans, err := PlanUpdates(result, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || len(plans[0].Args) != 2 || plans[0].Args[0] != "install" || plans[0].Args[1] != "golang.org/x/tools/gopls@v0.23.0" || len(plans[0].Recovery) != 1 || plans[0].Recovery[0].Args[1] != "golang.org/x/tools/gopls@v0.20.0" {
+		t.Fatalf("plans = %#v", plans)
+	}
+}
+
+func TestGoAdapterPlansOneInstallPerModule(t *testing.T) {
+	result := QueryResult{Packages: Packages{
+		"example.com/one": {goTool{module: "example.com/one", current: "v1.0.0", latest: "v1.1.0", executable: "/bin/go"}},
+		"example.com/two": {goTool{module: "example.com/two", current: "v1.0.0", latest: "v1.1.0", executable: "/bin/go"}},
+	}}
+	plans, err := PlanUpdates(result, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 2 || len(plans[0].Packages) != 1 || len(plans[1].Packages) != 1 {
+		t.Fatalf("plans = %#v", plans)
+	}
+}
+
+func TestVerifyGoUpdateUpdatesJournalVersion(t *testing.T) {
+	dir := t.TempDir()
+	state := t.TempDir()
+	journalPath := filepath.Join(state, "conficius", "go-tools.json")
+	if err := WriteGoToolJournal(journalPath, NewGoToolJournal([]GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}})); err != nil {
+		t.Fatal(err)
+	}
+	goExecutable := filepath.Join(dir, PM_GO)
+	writeExecutable(t, goExecutable, "#!/bin/sh\nprintf '{\"Path\":\"golang.org/x/tools/gopls\",\"Version\":\"v0.23.0\"}'\n")
+	t.Setenv("XDG_STATE_HOME", state)
+	plans := []UpdatePlan{{Manager: PM_GO, Executable: goExecutable, Scope: "global", StateHash: "plan", Packages: []Package{{Manager: PM_GO, Name: "golang.org/x/tools/gopls", Current: "v0.20.0", Latest: "v0.23.0"}}}}
+	outcomes, err := VerifyUpdateOutcomes(context.Background(), plans, []UpdateOutcome{{StateHash: "plan", Status: "completed"}}, QueryOptions{})
+	if err != nil || outcomes[0].Status != "completed" {
+		t.Fatalf("outcomes = %#v, error = %v", outcomes, err)
+	}
+	journal, err := ReadGoToolJournal(journalPath)
+	if err != nil || journal.Imports[0].Version != "v0.23.0" {
+		t.Fatalf("journal = %#v, error = %v", journal, err)
+	}
+}
+
 func TestGoFreshnessClassifiesCommandAndParserFailures(t *testing.T) {
 	for _, test := range []struct {
 		name     string

@@ -33,6 +33,22 @@ func ReadGoToolJournal(path string) (GoToolJournal, error) {
 	return journal, nil
 }
 
+func UpdateGoToolJournalVersions(path string, versions map[string]string) error {
+	if len(versions) == 0 {
+		return nil
+	}
+	journal, err := ReadGoToolJournal(path)
+	if err != nil {
+		return err
+	}
+	for i := range journal.Imports {
+		if version, exists := versions[journal.Imports[i].Module]; exists {
+			journal.Imports[i].Version = version
+		}
+	}
+	return WriteGoToolJournal(path, journal)
+}
+
 func WriteGoToolJournal(path string, journal GoToolJournal) error {
 	if err := journal.Validate(); err != nil {
 		return err
