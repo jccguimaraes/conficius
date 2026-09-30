@@ -30,6 +30,57 @@ func TestGoAdapterReadsJournaledGlobalInventory(t *testing.T) {
 	}
 }
 
+func TestGoAdapterQueriesJournaledModuleFreshness(t *testing.T) {
+	dir := t.TempDir()
+	state := t.TempDir()
+	journalPath := filepath.Join(state, "conficius", "go-tools.json")
+	if err := WriteGoToolJournal(journalPath, NewGoToolJournal([]GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}})); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, PM_GO), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf 'go version go1.27.1'; else printf '{"Path":"golang.org/x/tools/gopls","Version":"v0.23.0"}'; fi
+`)
+	t.Setenv("PATH", dir)
+	t.Setenv("XDG_STATE_HOME", state)
+
+	result, err := QueryOutdatedScopes(context.Background(), []string{PM_GO}, []Scope{{Kind: "global"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := Records(result.Packages)
+	if len(records) != 1 || records[0].Name != "golang.org/x/tools/gopls" || records[0].Current != "v0.20.0" || records[0].Latest != "v0.23.0" {
+		t.Fatalf("records = %#v", records)
+	}
+}
+
+func TestGoFreshnessClassifiesCommandAndParserFailures(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		script   string
+		category ErrorCategory
+	}{
+		{name: "command", script: "printf 'lookup failed' >&2; exit 2", category: ErrorCommand},
+		{name: "parser", script: "printf 'changed output'", category: ErrorParser},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			state := t.TempDir()
+			journalPath := filepath.Join(state, "conficius", "go-tools.json")
+			if err := WriteGoToolJournal(journalPath, NewGoToolJournal([]GoToolImport{{Module: "golang.org/x/tools/gopls", Version: "v0.20.0", Commands: []string{"gopls"}}})); err != nil {
+				t.Fatal(err)
+			}
+			writeExecutable(t, filepath.Join(dir, PM_GO), "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then printf 'go version go1.27.1'; else "+test.script+"; fi\n")
+			t.Setenv("PATH", dir)
+			t.Setenv("XDG_STATE_HOME", state)
+
+			result, err := QueryOutdatedScopes(context.Background(), []string{PM_GO}, []Scope{{Kind: "global"}})
+			if err == nil || len(result.Managers) != 1 || result.Managers[0].Operations[0].Category != test.category {
+				t.Fatalf("result = %#v, error = %v", result, err)
+			}
+		})
+	}
+}
+
 func TestGoAdapterTreatsMissingJournalAsEmptyInventory(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, PM_GO), "#!/bin/sh\nprintf 'go version go1.27.1'\n")

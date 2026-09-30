@@ -80,7 +80,7 @@ Manifest discovery happens before manager commands. Contradictions, missing requ
 
 Inventory uses `InstalledPackage` plus normalized exposed commands. It contains exact installed version, role, ownership, npm class, and transitive flag. `npm root --global` locates global package manifests. Direct npm package manifests provide exposed-command metadata. Missing manifests do not fail inventory.
 
-Go-installed binaries do not retain canonical module and version ownership. `GoToolImport` validates journaled module, semantic version, and command names. `packages go-tools import MODULE VERSION COMMAND...` writes schema-versioned XDG state records. Go global inventory and exposed-command ownership read this journal only. They do not scan binaries or infer ownership.
+Go-installed binaries do not retain canonical module and version ownership. `GoToolImport` validates journaled module, semantic version, and command names. `packages go-tools import MODULE VERSION COMMAND...` writes schema-versioned XDG state records. Go global inventory and exposed-command ownership read this journal only. They do not scan binaries or infer ownership. Freshness uses `go list -m -json MODULE@latest` and accepts only matching module paths with semantic versions.
 
 Outdated query starts with manager-native `Tool` values. Core wraps tools in `scopedTool`, then `Records` creates normalized `Package` values. Scope, ownership, role, and npm class flow into plans.
 

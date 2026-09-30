@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`84f2644 feat(packages): expose go tool commands`
+`07c0790 docs(packages): start go freshness slice`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Verify Go module freshness metadata. Add outdated support only if command output is structured and fixture-testable. Native installed-tool inventory is unavailable.
+Finish Go freshness commit. Then add update support only with explicit `go install module@version` semantics. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `84f2644`.
+Working tree was clean after `07c0790`.
