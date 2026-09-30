@@ -435,7 +435,7 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), scanErr)
+			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), err, scanErr)
 			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
 		})
 	}()

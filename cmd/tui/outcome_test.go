@@ -29,8 +29,16 @@ func TestReconcileUpgradeOutcomes(t *testing.T) {
 }
 
 func TestVulnerabilityStatusIncludesScanFailure(t *testing.T) {
-	got := vulnerabilityStatus("1 vulnerable", errors.New("OSV scan: timeout"))
+	got := vulnerabilityStatus("1 vulnerable", nil, errors.New("OSV scan: timeout"))
 	want := "1 vulnerable; vulnerability scan failed: OSV scan: timeout"
+	if got != want {
+		t.Fatalf("status = %q; want %q", got, want)
+	}
+}
+
+func TestVulnerabilityStatusKeepsInspectionFailure(t *testing.T) {
+	got := vulnerabilityStatus("1 vulnerable", errors.New("mise: unavailable"), errors.New("OSV scan: timeout"))
+	want := "1 vulnerable; Package inspection failed. Run `conficius packages doctor`.; vulnerability scan failed: OSV scan: timeout"
 	if got != want {
 		t.Fatalf("status = %q; want %q", got, want)
 	}

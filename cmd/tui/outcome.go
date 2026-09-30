@@ -43,11 +43,14 @@ func reconcileUpgradeOutcomes(data *model, packages []packagemanager.Package) (u
 	return upgraded, unchanged, failed
 }
 
-func vulnerabilityStatus(summary string, err error) string {
-	if err == nil {
-		return summary
+func vulnerabilityStatus(summary string, inspectionErr, scanErr error) string {
+	if inspectionErr != nil {
+		summary += "; Package inspection failed. Run `conficius packages doctor`."
 	}
-	return summary + "; vulnerability scan failed: " + err.Error()
+	if scanErr != nil {
+		summary += "; vulnerability scan failed: " + scanErr.Error()
+	}
+	return summary
 }
 
 func refreshStatus(outdated, drift, upgraded, unchanged, failed int) string {
