@@ -420,10 +420,10 @@ func refresh(data *model, app *glyph.App) {
 			data.drift = drift
 			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), len(drift), upgraded, unchanged, failed), result.Managers), inventory.Commands)
 			if err != nil {
-				data.status = err.Error()
+				data.status = queryStatus(err)
 			}
 		})
-		report, _ := security.Scan(ctx, scanPackages, security.Options{
+		report, scanErr := security.Scan(ctx, scanPackages, security.Options{
 			Outdated: securityTargets, OSVMappings: mappings, EUVDMappings: euvdMaps,
 			OSVClient: data.osvClient, EUVDClient: data.euvdClient,
 		})
@@ -435,7 +435,8 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = appendCollisionStatus(appendManagerStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), result.Managers), inventory.Commands)
+			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), scanErr)
+			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
 		})
 	}()
 }
@@ -477,10 +478,17 @@ func vulnerabilitySummary(outdated, drift int, summary security.Summary) string 
 		summary.Vulnerable, summary.Unmapped, summary.Unknown, summary.Errors)
 }
 
+func queryStatus(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "Package inspection failed. Run `conficius packages doctor`."
+}
+
 func managerStatusSummary(statuses []packagemanager.ManagerStatus) string {
 	var summaries []string
 	for _, status := range statuses {
-		if status.Status == packagemanager.StatusAvailable {
+		if status.Status == packagemanager.StatusAvailable || (status.Status == packagemanager.StatusUnavailable && !status.Evidence.GlobalConfig) {
 			continue
 		}
 		summaries = append(summaries, status.Name+" "+status.Status)

@@ -6,7 +6,7 @@
 
 - TOML schema version 2 with strict validation and version 1 migration.
 - CLI, environment, project config, selected profile, and default resolution.
-- Global, project, and npm workspace inspection.
+- Global, project, Cargo, and npm workspace inspection.
 - Absolute scope paths, symlink-aware deduplication, and workspace precedence.
 - Manager and package allowlist/denylist policy.
 - Exact desired-version drift.
@@ -83,6 +83,7 @@
 
 - Exact-version OSV checks.
 - EUVD integration.
+- EUVD product entries without an affected-version rule do not emit unknown or vulnerable findings.
 - Explicit mappings for package identities that cannot be inferred safely.
 - Configurable selected/all security scope.
 - Unknown mapping remains unknown.
@@ -102,6 +103,8 @@
 
 - CLI supports manager status, doctor checks, outdated, offline inventory, vulnerability checks, and updates.
 - TUI provides read-only profile, scope, outdated, drift, vulnerability, and command-collision summaries.
+- TUI concurrent inventory and outdated queries use isolated required-manager options.
+- TUI reports vulnerability scan failure, hides optional unavailable managers, and replaces raw multiline inspection errors with doctor guidance.
 - CLI and TUI summaries report disabled detected managers.
 
 ## Verification state

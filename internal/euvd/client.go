@@ -165,12 +165,16 @@ func (item Vulnerability) Match(identity Identity, version string) (Match, []str
 		if !strings.EqualFold(product.Product.Name, identity.Product) || !strings.EqualFold(product.Product.Vendor.Name, identity.Vendor) {
 			continue
 		}
-		matched, supported := versionMatches(version, product.ProductVersion)
+		rule := strings.TrimSpace(product.ProductVersion)
+		if rule == "" {
+			continue
+		}
+		matched, supported := versionMatches(version, rule)
 		if matched {
 			return Affected, nil
 		}
-		if !supported && !slices.Contains(unsupportedRules, product.ProductVersion) {
-			unsupportedRules = append(unsupportedRules, product.ProductVersion)
+		if !supported && !slices.Contains(unsupportedRules, rule) {
+			unsupportedRules = append(unsupportedRules, rule)
 		}
 	}
 	if len(unsupportedRules) > 0 {

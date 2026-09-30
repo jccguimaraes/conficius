@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`839483a docs(packages): complete go adapter`
+`e1ad16c test(packages): cover go update execution`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,14 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish Go update execution fixture commit. Then choose next package roadmap slice.
+Choose one roadmap item. Current working tree contains uncommitted TUI and security fixes:
+
+- clone `QueryOptions.Required` before manifest checks so concurrent TUI inventory and outdated queries cannot write same map;
+- retain vulnerability scan errors in TUI status;
+- hide optional unavailable managers and replace raw multiline inspection errors with `conficius packages doctor` guidance;
+- recognize `Cargo.toml` as project scope evidence;
+- ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions.
 
 ## Working tree guard
 
-Working tree was clean after `839483a`.
+Do not discard current uncommitted package fixes.

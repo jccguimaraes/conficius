@@ -36,6 +36,24 @@ func TestResolveScopesDetectsCurrentProjectAndWorkspaces(t *testing.T) {
 	}
 }
 
+func TestResolveScopesDetectsCurrentRustProject(t *testing.T) {
+	root := t.TempDir()
+	withDirectory(t, root)
+	mustWrite(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"app\"\nversion = \"0.1.0\"\n")
+
+	scopes, err := ResolveScopes(&Project{Root: root}, ResolvedProfile{Profile: defaultProfile()}, false, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scopes) != 2 || scopes[0].Kind != "global" || scopes[1].Kind != "project" || scopes[1].Path != resolvedRoot {
+		t.Fatalf("scopes = %#v", scopes)
+	}
+}
+
 func TestResolveScopesSelectsNamedProfileProject(t *testing.T) {
 	root := t.TempDir()
 	profile := ResolvedProfile{Name: "work", Profile: Profile{Projects: []ProfileProject{{Name: "api", Path: root}}}}

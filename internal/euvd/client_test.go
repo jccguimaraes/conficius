@@ -64,6 +64,17 @@ func TestVersionMatchesEUVDRange(t *testing.T) {
 	}
 }
 
+func TestGoReleaserCVE202423840SkipsProductEntryWithoutVersionRule(t *testing.T) {
+	identity := Identity{Product: "goreleaser", Vendor: "goreleaser"}
+	item := Vulnerability{Products: []ProductEntry{
+		productEntryForClientTest("goreleaser", "goreleaser", ""),
+		productEntryForClientTest("goreleaser", "goreleaser", "1.23.0"),
+	}}
+	if match, rules := item.Match(identity, "2.12.3"); match != NoMatch || rules != nil {
+		t.Fatalf("match = %v, rules = %#v", match, rules)
+	}
+}
+
 func TestNPMCurrentVersionDoesNotMatchCVE202229244Rules(t *testing.T) {
 	item := Vulnerability{Products: []ProductEntry{
 		productEntryForClientTest("NPM", "npm", "7.9.0 <7.9.0*"),

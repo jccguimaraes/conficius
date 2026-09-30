@@ -43,6 +43,13 @@ func reconcileUpgradeOutcomes(data *model, packages []packagemanager.Package) (u
 	return upgraded, unchanged, failed
 }
 
+func vulnerabilityStatus(summary string, err error) string {
+	if err == nil {
+		return summary
+	}
+	return summary + "; vulnerability scan failed: " + err.Error()
+}
+
 func refreshStatus(outdated, drift, upgraded, unchanged, failed int) string {
 	if upgraded+unchanged+failed == 0 {
 		return fmt.Sprintf("%d outdated, %d drift; scanning vulnerabilities...", outdated, drift)

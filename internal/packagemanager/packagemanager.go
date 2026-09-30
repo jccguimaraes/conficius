@@ -426,9 +426,11 @@ func normalizeScopes(scopes []Scope) ([]Scope, error) {
 }
 
 func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {
-	if options.Required == nil {
-		options.Required = make(map[string]bool)
+	required := make(map[string]bool, len(options.Required))
+	for manager, enabled := range options.Required {
+		required[manager] = enabled
 	}
+	options.Required = required
 	manifests := []struct {
 		name    string
 		manager string

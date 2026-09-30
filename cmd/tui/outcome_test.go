@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
@@ -24,6 +25,14 @@ func TestReconcileUpgradeOutcomes(t *testing.T) {
 	}
 	if len(data.attempted) != 0 {
 		t.Fatalf("attempted = %#v", data.attempted)
+	}
+}
+
+func TestVulnerabilityStatusIncludesScanFailure(t *testing.T) {
+	got := vulnerabilityStatus("1 vulnerable", errors.New("OSV scan: timeout"))
+	want := "1 vulnerable; vulnerability scan failed: OSV scan: timeout"
+	if got != want {
+		t.Fatalf("status = %q; want %q", got, want)
 	}
 }
 

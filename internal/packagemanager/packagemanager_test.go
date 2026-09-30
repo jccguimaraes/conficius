@@ -132,6 +132,32 @@ func TestManifestConflictsAreDeduplicatedAcrossEquivalentScopes(t *testing.T) {
 	}
 }
 
+func TestConcurrentManifestChecksDoNotMutateSharedOptions(t *testing.T) {
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := QueryOptions{Required: map[string]bool{}}
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			<-start
+			_, err := requireManifestManagers(options, []Scope{{Kind: "project", Path: project}})
+			errs <- err
+		}()
+	}
+	close(start)
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(options.Required) != 0 {
+		t.Fatalf("shared required managers = %#v", options.Required)
+	}
+}
+
 func TestManifestInspectionErrorsAreReturned(t *testing.T) {
 	project := t.TempDir()
 	manifest := filepath.Join(project, "package.json")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -92,10 +93,20 @@ func TestAppendCollisionStatusReportsCompetingGlobalCommands(t *testing.T) {
 	}
 }
 
-func TestAppendManagerStatusReportsDisabledDetectedManager(t *testing.T) {
-	statuses := []packagemanager.ManagerStatus{{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}}}
-	if got, want := appendManagerStatus("0 outdated", statuses), "0 outdated; managers: npm disabled"; got != want {
+func TestAppendManagerStatusReportsConfiguredAndRequiredManagersOnly(t *testing.T) {
+	statuses := []packagemanager.ManagerStatus{
+		{Name: "uv", Status: packagemanager.StatusUnavailable},
+		{Name: "npm", Status: packagemanager.StatusDisabled, Evidence: packagemanager.ManagerEvidence{Executable: true}},
+		{Name: "mise", Status: packagemanager.StatusError, Evidence: packagemanager.ManagerEvidence{GlobalConfig: true}},
+	}
+	if got, want := appendManagerStatus("0 outdated", statuses), "0 outdated; managers: npm disabled, mise error"; got != want {
 		t.Fatalf("summary = %q; want %q", got, want)
+	}
+}
+
+func TestQueryStatusHidesRawMultilineManagerErrors(t *testing.T) {
+	if got, want := queryStatus(errors.New("mise: Set a global default version\n mise use -g go@1.27.1")), "Package inspection failed. Run `conficius packages doctor`."; got != want {
+		t.Fatalf("status = %q; want %q", got, want)
 	}
 }
 

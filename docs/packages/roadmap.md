@@ -4,7 +4,7 @@ Work in small tested commits. Finish one item before starting next.
 
 ## Next
 
-Start adapter expansion with one manager whose structured output covers inventory and outdated checks.
+Choose one item from Mutation gaps, Platform gaps, or Product gaps. Adapter expansion baseline is complete.
 
 ## Adapter expansion
 
