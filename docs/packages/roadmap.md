@@ -21,7 +21,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Go tools: journal-backed global inventory exists. Expose journal command ownership records before update support.
+- Go tools: journal-backed global inventory and command ownership exist. Add outdated and update support only with a trusted freshness source.
 
 Each adapter requires:
 

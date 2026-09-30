@@ -25,6 +25,9 @@ func TestGoAdapterReadsJournaledGlobalInventory(t *testing.T) {
 	if len(result.Packages) != 1 || result.Packages[0].Name != "golang.org/x/tools/gopls" || result.Packages[0].Version != "v0.20.0" || result.Packages[0].Role != RoleDevelopmentTool {
 		t.Fatalf("packages = %#v", result.Packages)
 	}
+	if len(result.Commands) != 1 || result.Commands[0] != (ExposedCommand{Package: PackageIdentity{Manager: PM_GO, Name: "golang.org/x/tools/gopls"}, Name: "gopls", Scope: "global"}) {
+		t.Fatalf("commands = %#v", result.Commands)
+	}
 }
 
 func TestGoAdapterTreatsMissingJournalAsEmptyInventory(t *testing.T) {

@@ -369,6 +369,10 @@ func installedNPM(ctx context.Context, executable string, scope Scope) ([]Instal
 }
 
 func collectInventoryCommands(ctx context.Context, packages []InstalledPackage, statuses []ManagerStatus) ([]ExposedCommand, error) {
+	commands, err := collectGoExposedCommands(packages)
+	if err != nil {
+		return nil, err
+	}
 	hasGlobalNPM := false
 	for _, pkg := range packages {
 		if pkg.Manager == PM_NPM && pkg.Scope == "global" {
@@ -392,7 +396,35 @@ func collectInventoryCommands(ctx context.Context, packages []InstalledPackage, 
 				}
 			}
 		}
-		return collectNPMExposedCommands(commandPackages)
+		npmCommands, err := collectNPMExposedCommands(commandPackages)
+		return append(commands, npmCommands...), err
+	}
+	return commands, nil
+}
+
+func collectGoExposedCommands(packages []InstalledPackage) ([]ExposedCommand, error) {
+	for _, pkg := range packages {
+		if pkg.Manager != PM_GO || pkg.Scope != "global" {
+			continue
+		}
+		path, err := GoToolJournalPath()
+		if err != nil {
+			return nil, err
+		}
+		journal, err := ReadGoToolJournal(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, nil
+			}
+			return nil, parserError(fmt.Errorf("read Go tool journal: %w", err))
+		}
+		commands := make([]ExposedCommand, 0)
+		for _, imported := range journal.Imports {
+			for _, name := range imported.Commands {
+				commands = append(commands, ExposedCommand{Package: PackageIdentity{Manager: PM_GO, Name: imported.Module}, Name: name, Scope: "global"})
+			}
+		}
+		return commands, nil
 	}
 	return nil, nil
 }
