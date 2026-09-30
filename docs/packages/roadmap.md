@@ -21,7 +21,7 @@ Completed adapters:
 
 Adapter in progress:
 
-- Go tools: journal-backed global inventory and command ownership exist. Add outdated and update support only with a trusted freshness source.
+- Go tools: journal-backed global inventory and command ownership exist. Verify structured module freshness before adding outdated support.
 
 Each adapter requires:
 

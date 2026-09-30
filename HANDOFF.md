@@ -4,7 +4,7 @@
 
 Package audit and update work is active on `main`. Latest completed code commit:
 
-`ae3496a docs(packages): start go ownership slice`
+`84f2644 feat(packages): expose go tool commands`
 
 Package subsystem checks passed after that commit:
 
@@ -27,8 +27,8 @@ Do not load all package documents by default. Start with roadmap, then open one 
 
 ## Next slice
 
-Finish Go command ownership commit. Then assess trusted freshness source before adding outdated or update support. Native installed-tool inventory is unavailable.
+Verify Go module freshness metadata. Add outdated support only if command output is structured and fixture-testable. Native installed-tool inventory is unavailable.
 
 ## Working tree guard
 
-Working tree was clean after `ae3496a`.
+Working tree was clean after `84f2644`.
