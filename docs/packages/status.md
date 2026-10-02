@@ -28,7 +28,7 @@
 - Poetry authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered pnpm adapter for project inventory, outdated checks, and selected-package update plans.
 - pnpm authentication, network, rate-limit, and changed-output parser failure fixtures.
-- Registered Cargo adapter for global `cargo install` inventory and project `Cargo.lock` registry dependency inventory; outdated checks and updates report unsupported.
+- Registered Cargo adapter for global `cargo install` inventory and project `Cargo.lock` registry dependency inventory with native `crates.io` OSV identities; outdated checks and updates report unsupported.
 - Cargo command and changed-output parser failure fixtures.
 - Registered Yarn adapter for project inventory; outdated checks and updates report unsupported.
 - Yarn command and changed-output parser failure fixtures.

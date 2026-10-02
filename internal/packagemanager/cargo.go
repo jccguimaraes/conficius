@@ -60,7 +60,7 @@ func cargoLockfileInventory(path string) ([]InstalledPackage, error) {
 		if pkg.Name == "" || pkg.Version == "" || pkg.Source == "" {
 			continue
 		}
-		packages = append(packages, InstalledPackage{Manager: PM_CARGO, Name: pkg.Name, Version: pkg.Version, Role: RoleLibrary, Manifest: path})
+		packages = append(packages, InstalledPackage{Manager: PM_CARGO, Name: pkg.Name, Version: pkg.Version, Role: RoleLibrary, Manifest: path, OSVEcosystem: "crates.io", OSVName: pkg.Name})
 	}
 	return packages, nil
 }

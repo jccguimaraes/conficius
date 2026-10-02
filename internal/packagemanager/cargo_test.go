@@ -61,7 +61,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_CARGO, Name: "serde", Version: "1.0.219", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "Cargo.lock")}}
+	want := []InstalledPackage{{Manager: PM_CARGO, Name: "serde", Version: "1.0.219", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "Cargo.lock"), OSVEcosystem: "crates.io", OSVName: "serde"}}
 	if len(result.Packages) != 1 || result.Packages[0] != want[0] {
 		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
 	}
