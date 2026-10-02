@@ -36,6 +36,7 @@ Choose one roadmap item. Current working tree contains uncommitted TUI and secur
 - skip npm project inventory, freshness, and doctor checks unless that scope contains `package.json`;
 - ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions;
 - hide unmapped security count from primary TUI status. CLI and report data retain it.
+- Cargo project inventory reads registry-sourced dependencies from `Cargo.lock`. Cargo outdated and update stay unsupported.
 
 ## Working tree guard
 

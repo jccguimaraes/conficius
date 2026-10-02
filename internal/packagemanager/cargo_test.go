@@ -36,6 +36,37 @@ if [ "$1" = "--version" ]; then printf 'cargo 1.98.1'; else printf 'cargo-edit v
 	}
 }
 
+func TestCargoAdapterReadsProjectLockfileInventory(t *testing.T) {
+	project := t.TempDir()
+	lockfile := `version = 4
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = ["serde"]
+
+[[package]]
+name = "serde"
+version = "1.0.219"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+`
+	if err := os.WriteFile(filepath.Join(project, "Cargo.lock"), []byte(lockfile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, PM_CARGO), "#!/bin/sh\nprintf 'cargo 1.98.1'\n")
+	t.Setenv("PATH", dir)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_CARGO}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []InstalledPackage{{Manager: PM_CARGO, Name: "serde", Version: "1.0.219", Role: RoleLibrary, Scope: "project", Path: project, Manifest: filepath.Join(project, "Cargo.lock")}}
+	if len(result.Packages) != 1 || result.Packages[0] != want[0] {
+		t.Fatalf("packages = %#v; want %#v", result.Packages, want)
+	}
+}
+
 func TestCargoInventoryClassifiesCommandFailure(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, PM_CARGO), `#!/bin/sh

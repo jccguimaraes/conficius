@@ -15,7 +15,7 @@ Completed adapters:
 - `pipx`: global inventory, outdated checks, selected-package updates, and failure fixtures.
 - Poetry: project inventory, outdated checks, selected-package updates, and failure fixtures.
 - pnpm: project inventory, outdated checks, selected-package updates, and failure fixtures.
-- Cargo: global inventory, unsupported outdated/update outcomes, and failure fixtures.
+- Cargo: global `cargo install` inventory, project `Cargo.lock` inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Bun: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Go tools: journal-backed global inventory, command ownership, structured freshness, exact install updates, recovery, and failure fixtures.

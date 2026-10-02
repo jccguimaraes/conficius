@@ -60,7 +60,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_PIPX:   {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
 		PM_POETRY: {CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate},
 		PM_PNPM:   {CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate},
-		PM_CARGO:  {CapabilityGlobalInventory},
+		PM_CARGO:  {CapabilityGlobalInventory, CapabilityProjectInventory},
 		PM_YARN:   {CapabilityProjectInventory},
 		PM_BUN:    {CapabilityProjectInventory},
 		PM_GO:     {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},

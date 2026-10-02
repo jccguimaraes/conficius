@@ -432,10 +432,16 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 	if scope.Kind != "project" && scope.Kind != "workspace" {
 		return true
 	}
-	if adapter.name() != PM_NPM {
+	manifest := ""
+	switch adapter.name() {
+	case PM_NPM:
+		manifest = "package.json"
+	case PM_CARGO:
+		manifest = "Cargo.lock"
+	default:
 		return true
 	}
-	info, err := os.Stat(filepath.Join(scope.Path, "package.json"))
+	info, err := os.Stat(filepath.Join(scope.Path, manifest))
 	return err == nil && !info.IsDir()
 }
 
