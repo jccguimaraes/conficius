@@ -2,11 +2,13 @@
 
 ## State
 
-Package audit and update work is active on `main`. Latest completed code commit:
+Package work is complete through current signed commit:
 
-`e1ad16c test(packages): cover go update execution`
+`4d72a3f fix(tui): count actionable unknown findings`
 
-Package subsystem checks passed after that commit:
+Working tree was clean after this commit.
+
+Required checks passed:
 
 ```sh
 go test -race ./... --cover
@@ -15,30 +17,96 @@ go build ./cmd/cli ./cmd/tui
 git diff --check
 ```
 
+Tests use fake executables and temporary manifests. Do not use live package-manager mutations in tests.
+
 ## Read by task
 
-- Product behavior or safety rule: [`docs/packages/design.md`](docs/packages/design.md)
-- Code boundary or data flow: [`docs/packages/architecture.md`](docs/packages/architecture.md)
+- Product behavior and safety: [`docs/packages/design.md`](docs/packages/design.md)
+- Code boundaries: [`docs/packages/architecture.md`](docs/packages/architecture.md)
 - Implemented state: [`docs/packages/status.md`](docs/packages/status.md)
-- Missing work and next slice: [`docs/packages/roadmap.md`](docs/packages/roadmap.md)
-- Domain vocabulary: [`CONTEXT.md`](CONTEXT.md)
+- Deferred work: [`docs/packages/roadmap.md`](docs/packages/roadmap.md)
+- Domain terms: [`CONTEXT.md`](CONTEXT.md)
 
-Do not load all package documents by default. Start with roadmap, then open one linked document needed for task.
+Start with roadmap. Read only linked document needed for current slice.
 
-## Next slice
+## Recent signed commits
 
-Choose one roadmap item. Current working tree contains uncommitted TUI and security fixes:
+```text
+4d72a3f fix(tui): count actionable unknown findings
+aa491aa fix(tui): hide unactionable vulnerability rows
+fd40cb9 feat(security): scan Cargo crates with OSV
+cf82be3 feat(packages): inventory Cargo lockfiles
+9a334a9 fix(tui): hide unmapped security count
+7cd857b fix(doctor): skip non-npm projects
+1de8315 fix(packages): gate npm project checks
+8f68a2b fix(tui): retain inspection failures
+5ed8beb fix(packages): stabilize TUI inspection
+e1ad16c test(packages): cover go update execution
+839483a docs(packages): complete go adapter
+```
 
-- clone `QueryOptions.Required` before manifest checks so concurrent TUI inventory and outdated queries cannot write same map;
-- retain vulnerability scan errors and inspection failure guidance in final TUI status;
-- hide optional unavailable managers and replace raw multiline inspection errors with `conficius packages doctor` guidance;
-- recognize `Cargo.toml` as project scope evidence;
-- skip npm project inventory, freshness, and doctor checks unless that scope contains `package.json`;
-- ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions;
-- hide unmapped security count from primary TUI status. CLI and report data retain it.
-- Cargo project inventory reads registry-sourced dependencies from `Cargo.lock`, with native `crates.io` OSV identity. Cargo outdated and update stay unsupported.
-- TUI hides advisoryless diagnostics and unknown findings without EUVD rules. Primary status counts only visible rule-backed unknown findings.
+## Current package behavior
 
-## Working tree guard
+### TUI
 
-Do not discard current uncommitted package fixes.
+- Concurrent inventory and freshness queries clone `QueryOptions.Required`. No shared map write.
+- TUI keeps package-inspection failure guidance after security scan completes.
+- Optional unavailable managers do not fill status bar.
+- Raw multiline manager errors become `conficius packages doctor` guidance.
+- Primary status hides unmapped security count.
+- Vulnerability list hides clean, advisoryless, and ruleless unknown findings.
+- Primary unknown count includes only visible unknown findings with advisory and unsupported EUVD rule.
+
+### Rust and Cargo
+
+- `Cargo.toml` creates current-project scope alongside global scope.
+- npm project inventory, freshness, and doctor checks run only when `package.json` exists.
+- Cargo project inventory reads registry-sourced dependencies from `Cargo.lock`.
+- Cargo root package and path packages are excluded from project inventory.
+- Cargo crates have native OSV identity: `crates.io` plus crate name.
+- Cargo outdated and update remain unsupported.
+
+### EUVD
+
+- EUVD product entries without `product_version` do not emit unknown or vulnerable findings.
+- This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` results for current releases.
+
+### Go tools
+
+- Go installed-binary ownership comes only from XDG journal records.
+- Import command:
+
+  ```sh
+  conficius packages go-tools import MODULE VERSION COMMAND...
+  ```
+
+- Freshness uses `go list -m -json MODULE@latest`.
+- One update plan per module runs `go install MODULE@VERSION`.
+- Successful verification rewrites journal version.
+
+## Decisions
+
+- No top-level combined `audit` command. Keep commands separate to avoid duplicate network scans:
+
+  ```sh
+  conficius packages outdated
+  conficius packages vulnerabilities
+  conficius packages doctor
+  ```
+
+- Unknown security state is not healthy.
+- Doctor remains read-only.
+- Use one small tested slice per signed commit.
+- Update this file, `docs/packages/status.md`, and `docs/packages/roadmap.md` before each package commit.
+
+## Next work
+
+Pick one roadmap item. Best candidates:
+
+1. Cargo freshness only after verified stable structured Cargo output. Otherwise keep unsupported.
+2. Add safe OSV identities for other native package inventories.
+3. Package mutation gaps: install/remove planning, dependency impact, update modes.
+4. Platform gaps: Windows support and Linux system managers.
+5. Product and release readiness.
+
+Do not start several adapter expansions in one slice.
