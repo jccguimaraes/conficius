@@ -126,8 +126,9 @@ func TestVulnerabilityRowsHideCleanAndAdvisorylessDiagnostics(t *testing.T) {
 		{Package: "clean", Status: security.StatusClean},
 		{Package: "unmapped", Status: security.StatusUnmapped},
 		{Package: "failed", Status: security.StatusError},
-		{Package: "unknown-rule", Status: security.StatusUnknown, Advisory: "CVE-1"},
-		{Package: "affected", Status: security.StatusVulnerable, Advisory: "CVE-2"},
+		{Package: "unknown-without-rule", Status: security.StatusUnknown, Advisory: "CVE-1"},
+		{Package: "unknown-rule", Status: security.StatusUnknown, Advisory: "CVE-2", Rules: []string{">=20"}},
+		{Package: "affected", Status: security.StatusVulnerable, Advisory: "CVE-3"},
 	})
 	if len(rows) != 2 || rows[0].Package != "unknown-rule" || rows[1].Package != "affected" {
 		t.Fatalf("rows = %#v", rows)

@@ -519,7 +519,7 @@ func appendCollisionStatus(summary string, commands []packagemanager.ExposedComm
 func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, 0, len(evidence))
 	for _, item := range evidence {
-		if item.Status == security.StatusClean || item.Advisory == "" {
+		if item.Status == security.StatusClean || item.Advisory == "" || (item.Status == security.StatusUnknown && len(item.Rules) == 0) {
 			continue
 		}
 		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version, RuleCount: fmt.Sprint(len(item.Rules))})

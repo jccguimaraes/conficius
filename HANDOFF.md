@@ -37,6 +37,7 @@ Choose one roadmap item. Current working tree contains uncommitted TUI and secur
 - ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions;
 - hide unmapped security count from primary TUI status. CLI and report data retain it.
 - Cargo project inventory reads registry-sourced dependencies from `Cargo.lock`, with native `crates.io` OSV identity. Cargo outdated and update stay unsupported.
+- TUI hides advisoryless diagnostics and unknown findings without EUVD rules.
 
 ## Working tree guard
 
