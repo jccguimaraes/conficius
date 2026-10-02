@@ -80,6 +80,7 @@ e1ad16c test(packages): cover go update execution
   conficius packages go-tools import MODULE VERSION COMMAND...
   ```
 
+- Manager inspection uses `go version`; generic `--version` is invalid for Go.
 - Freshness uses `go list -m -json MODULE@latest`.
 - One update plan per module runs `go install MODULE@VERSION`.
 - Successful verification rewrites journal version.

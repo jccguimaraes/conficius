@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestGoInspectionUsesVersionSubcommand(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	writeExecutable(t, filepath.Join(dir, PM_GO), "#!/bin/sh\nprintf '%s' \"$*\" >\"$ARGS_FILE\"\nprintf 'go version go1.27.1'\n")
+	t.Setenv("PATH", dir)
+	t.Setenv("ARGS_FILE", argsFile)
+
+	statuses, err := Inspect([]string{PM_GO})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statuses[0].ManagerVersion != "1.27.1" || string(args) != "version" {
+		t.Fatalf("statuses = %#v, args = %q", statuses, args)
+	}
+}
+
 func TestGoAdapterReadsJournaledGlobalInventory(t *testing.T) {
 	dir := t.TempDir()
 	state := t.TempDir()

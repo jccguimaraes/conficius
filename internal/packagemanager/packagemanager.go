@@ -268,7 +268,7 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		}
 
 		status := ManagerStatus{Name: pm, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
-		output, versionErr := runOutput(context.Background(), executables[0], "--version")
+		output, versionErr := runOutput(context.Background(), executables[0], managerVersionArgs(pm)...)
 		if versionErr != nil {
 			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
 		} else {
@@ -603,6 +603,13 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	return statuses, nil
 }
 
+func managerVersionArgs(manager string) []string {
+	if manager == PM_GO {
+		return []string{"version"}
+	}
+	return []string{"--version"}
+}
+
 func inspectExecutable(manager, executable string, adapter managerAdapter) ManagerStatus {
 	status := ManagerStatus{Name: manager, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
 	info, err := os.Stat(executable)
@@ -612,7 +619,7 @@ func inspectExecutable(manager, executable string, adapter managerAdapter) Manag
 		status.Error = "configured executable is unavailable"
 		return status
 	}
-	output, err := runOutput(context.Background(), executable, "--version")
+	output, err := runOutput(context.Background(), executable, managerVersionArgs(manager)...)
 	if err != nil {
 		status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(err.Error()))
 		return status

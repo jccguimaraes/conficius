@@ -656,7 +656,7 @@ func ManagerPackages(ctx context.Context, statuses []ManagerStatus) ([]Installed
 		if status.Status != StatusAvailable || len(status.Executables) == 0 {
 			continue
 		}
-		output, err := runOutput(ctx, status.Executables[0], "--version")
+		output, err := runOutput(ctx, status.Executables[0], managerVersionArgs(status.Name)...)
 		if err != nil {
 			versionErrors = append(versionErrors, fmt.Errorf("read %s version: %w", status.Name, err))
 			continue
@@ -734,7 +734,7 @@ func versionInRange(version string, tested VersionRange) bool {
 
 func firstVersion(output string) string {
 	for _, field := range strings.Fields(output) {
-		candidate := strings.TrimPrefix(field, "v")
+		candidate := strings.TrimPrefix(strings.TrimPrefix(field, "v"), "go")
 		if candidate != "" && candidate[0] >= '0' && candidate[0] <= '9' && strings.Contains(candidate, ".") {
 			return strings.TrimRight(candidate, ",;")
 		}

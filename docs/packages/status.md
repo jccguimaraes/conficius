@@ -37,7 +37,7 @@
 - Read-only Go tool journal parser rejects unsupported schemas and ambiguous command ownership.
 - `packages go-tools import` records explicit Go module/version/command ownership without running `go install`.
 - Registered Go adapter with journal-backed global inventory and exposed-command ownership. Missing journal means empty inventory.
-- Go global outdated checks use structured `go list -m -json MODULE@latest` metadata.
+- Go manager inspection uses `go version`; global outdated checks use structured `go list -m -json MODULE@latest` metadata.
 - Go updates run one exact `go install module@version` plan per tool, write verified versions to journal, and use fake-executable execution coverage.
 - Bun command and changed-output parser failure fixtures.
 - Bun command and changed-output parser failure fixtures.
