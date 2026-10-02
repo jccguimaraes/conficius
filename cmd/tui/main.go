@@ -474,8 +474,8 @@ func driftStatusColor(status string) glyph.Color {
 }
 
 func vulnerabilitySummary(outdated, drift int, summary security.Summary) string {
-	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unmapped, %d unknown, %d errors", outdated, drift,
-		summary.Vulnerable, summary.Unmapped, summary.Unknown, summary.Errors)
+	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unknown, %d errors", outdated, drift,
+		summary.Vulnerable, summary.Unknown, summary.Errors)
 }
 
 func queryStatus(err error) string {

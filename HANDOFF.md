@@ -34,7 +34,8 @@ Choose one roadmap item. Current working tree contains uncommitted TUI and secur
 - hide optional unavailable managers and replace raw multiline inspection errors with `conficius packages doctor` guidance;
 - recognize `Cargo.toml` as project scope evidence;
 - skip npm project inventory, freshness, and doctor checks unless that scope contains `package.json`;
-- ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions.
+- ignore EUVD product entries with no version rule. This removes false GoReleaser `EUVD-2024-0363` / `CVE-2024-23840` findings for current versions;
+- hide unmapped security count from primary TUI status. CLI and report data retain it.
 
 ## Working tree guard
 

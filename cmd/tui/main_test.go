@@ -76,7 +76,7 @@ func TestEvidenceRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 
 func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
 	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1})
-	want := "3 outdated, 2 drift; 1 vulnerable, 1 unmapped, 2 unknown, 1 errors"
+	want := "3 outdated, 2 drift; 1 vulnerable, 2 unknown, 1 errors"
 	if got != want {
 		t.Fatalf("summary = %q", got)
 	}

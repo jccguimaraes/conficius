@@ -106,6 +106,7 @@
 - TUI provides read-only profile, scope, outdated, drift, vulnerability, and command-collision summaries.
 - TUI concurrent inventory and outdated queries use isolated required-manager options.
 - TUI keeps inspection failure guidance after vulnerability scans, reports vulnerability scan failure, hides optional unavailable managers, and replaces raw multiline inspection errors with doctor guidance.
+- TUI primary status hides unmapped security count. CLI and report data retain it.
 - CLI and TUI summaries report disabled detected managers.
 
 ## Verification state
