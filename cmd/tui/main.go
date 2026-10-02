@@ -435,7 +435,7 @@ func refresh(data *model, app *glyph.App) {
 				return
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary), err, scanErr)
+			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary, report.Evidence), err, scanErr)
 			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
 		})
 	}()
@@ -473,9 +473,15 @@ func driftStatusColor(status string) glyph.Color {
 	}
 }
 
-func vulnerabilitySummary(outdated, drift int, summary security.Summary) string {
+func vulnerabilitySummary(outdated, drift int, summary security.Summary, evidence []security.Evidence) string {
+	unknown := 0
+	for _, item := range evidence {
+		if item.Status == security.StatusUnknown && item.Advisory != "" && len(item.Rules) > 0 {
+			unknown++
+		}
+	}
 	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unknown, %d errors", outdated, drift,
-		summary.Vulnerable, summary.Unknown, summary.Errors)
+		summary.Vulnerable, unknown, summary.Errors)
 }
 
 func queryStatus(err error) string {

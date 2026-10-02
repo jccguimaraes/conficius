@@ -74,9 +74,13 @@ func TestEvidenceRowsShowCurrentAndUpgradeVersion(t *testing.T) {
 	}
 }
 
-func TestVulnerabilitySummarySeparatesStatuses(t *testing.T) {
-	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1})
-	want := "3 outdated, 2 drift; 1 vulnerable, 2 unknown, 1 errors"
+func TestVulnerabilitySummaryCountsActionableUnknownFindings(t *testing.T) {
+	evidence := []security.Evidence{
+		{Status: security.StatusUnknown, Advisory: "CVE-1"},
+		{Status: security.StatusUnknown, Advisory: "CVE-2", Rules: []string{">=20"}},
+	}
+	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1}, evidence)
+	want := "3 outdated, 2 drift; 1 vulnerable, 1 unknown, 1 errors"
 	if got != want {
 		t.Fatalf("summary = %q", got)
 	}
