@@ -462,6 +462,27 @@ func TestNPMDependencyClassesUseDeterministicPrecedence(t *testing.T) {
 	}
 }
 
+func TestQueryInstalledUsesNPMProjectLockfileInventory(t *testing.T) {
+	dir := t.TempDir()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"react":"^19"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+[ "$*" = "ls --package-lock-only --json" ] || { printf 'unexpected args: %s' "$*" >&2; exit 1; }
+printf '{"dependencies":{"react":{"version":"19.0.0"}}}'
+`)
+	t.Setenv("PATH", dir)
+
+	result, err := QueryInstalledScopes(context.Background(), []string{PM_NPM}, []Scope{{Kind: "project", Path: project}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != 1 || result.Packages[0].Name != "react" || result.Packages[0].DependencyClass != "runtime" {
+		t.Fatalf("packages = %#v", result.Packages)
+	}
+}
+
 func TestQueryInstalledClassifiesUnlistedNPMDependencyAsExtraneous(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

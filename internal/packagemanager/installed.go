@@ -334,7 +334,7 @@ func miseConfigPath(root string) string {
 }
 
 func installedNPM(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
-	args := []string{"ls", "--depth=0", NPMFlagJSON}
+	args := []string{"ls", "--package-lock-only", NPMFlagJSON}
 	if scope.Kind == "global" {
 		args = []string{"ls", NPMFlagGlobal, "--depth=0", NPMFlagJSON}
 	}

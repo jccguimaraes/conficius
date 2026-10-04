@@ -95,7 +95,7 @@ npm dependency classes:
 
 Class precedence for manifest overlap is development, optional, peer, then runtime. An installed scoped npm package absent from manifest is extraneous. Nested packages are transitive.
 
-Project profile can select npm classes. `--transitive` explicitly returns full npm graph and overrides configured class filtering for that request.
+Project profile can select npm classes. Project inventory uses `npm ls --package-lock-only --json` and does not require `node_modules`. `--transitive` explicitly returns full npm graph and overrides configured class filtering for that request.
 
 ## Inspection behavior
 

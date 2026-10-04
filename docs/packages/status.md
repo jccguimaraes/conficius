@@ -8,6 +8,7 @@
 - CLI, environment, project config, selected profile, and default resolution.
 - Global, project, Cargo, and npm workspace inspection.
 - npm project inventory, freshness, and doctor checks run only where `package.json` exists.
+- npm project inventory uses `npm ls --package-lock-only --json`; global inventory reads installed packages.
 - Absolute scope paths, symlink-aware deduplication, and workspace precedence.
 - Manager and package allowlist/denylist policy.
 - Exact desired-version drift.

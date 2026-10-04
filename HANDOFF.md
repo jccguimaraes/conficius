@@ -61,6 +61,7 @@ e1ad16c test(packages): cover go update execution
 
 - `Cargo.toml` creates current-project scope alongside global scope.
 - npm project inventory, freshness, and doctor checks run only when `package.json` exists.
+- npm project inventory uses `npm ls --package-lock-only --json`, so absent `node_modules` does not cause `ELSPROBLEMS`. Global inventory still reads installed packages.
 - Cargo project inventory reads registry-sourced dependencies from `Cargo.lock`.
 - Cargo root package and path packages are excluded from project inventory.
 - Cargo crates have native OSV identity: `crates.io` plus crate name.
