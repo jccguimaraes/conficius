@@ -22,6 +22,15 @@ func TestResultViewRendersPackageIdentity(t *testing.T) {
 	assertRenderedContains(t, component, "typescript")
 }
 
+func TestResultViewShowsFullUpdateHint(t *testing.T) {
+	pkg := packagemanager.Package{Manager: "brew", Name: "notion", Scope: "global"}
+	message := "brew (/opt/homebrew/bin/brew): Homebrew app conflict.\nInspect both app copies before repair.\nConficius did not attempt automatic repair."
+	data := &model{rows: outdatedRows([]packagemanager.Package{pkg}, nil, map[string]string{packageKey("global", "", "brew", "notion"): message}), updateErrorLines: strings.Split(message, "\n")}
+	component, _ := updateErrorView(data)
+	assertRenderedContains(t, component, "Inspect both app copies before repair.")
+	assertRenderedContains(t, component, "Conficius did not attempt automatic repair.")
+}
+
 func TestResultViewRendersMarkedPackage(t *testing.T) {
 	pkg := packagemanager.Package{Manager: "npm", Name: "typescript", Scope: "global"}
 	selected := map[string]bool{packageKey("global", "", "npm", "typescript"): true}
@@ -80,7 +89,7 @@ func TestVulnerabilitySummaryCountsActionableUnknownFindings(t *testing.T) {
 		{Status: security.StatusUnknown, Advisory: "CVE-2", Rules: []string{">=20"}},
 	}
 	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1}, evidence)
-	want := "3 outdated, 2 drift; 1 vulnerable, 1 unknown, 1 errors"
+	want := "3 outdated, 2 drift; 1 vulnerable, 1 unknown, 1 security errors"
 	if got != want {
 		t.Fatalf("summary = %q", got)
 	}

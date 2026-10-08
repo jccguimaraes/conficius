@@ -932,12 +932,26 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 		cmd.Dir = plan.Directory
 		cmd.Env = managerEnvironment(plan.Directory)
 		cmd.Stdin = stdin
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
+		var standardOutput, errorOutput bytes.Buffer
+		cmd.Stdout = &standardOutput
+		if stdout != nil {
+			cmd.Stdout = io.MultiWriter(stdout, &standardOutput)
+		}
+		cmd.Stderr = &errorOutput
+		if stderr != nil {
+			cmd.Stderr = io.MultiWriter(stderr, &errorOutput)
+		}
 		err := cmd.Run()
 		var classified error
 		if err != nil {
-			classified = classifyOperationError(planContext, err, "")
+			message := strings.TrimSpace(errorOutput.String() + "\n" + standardOutput.String())
+			if plan.Manager == PM_HOMEBREW && strings.Contains(message, "It seems there is already an App at '") {
+				// ponytail: explain this conflict only. Repair needs an explicit, safe backup plan.
+				err = fmt.Errorf("Homebrew app conflict.\nInspect both app copies before repair.\nConficius did not attempt automatic repair.\nHomebrew may have changed files before the failure.\n%s\n%w", strings.TrimSpace(message), err)
+			} else if message != "" {
+				err = fmt.Errorf("%s\n%w", message, err)
+			}
+			classified = classifyOperationError(planContext, err, message)
 		}
 		cancel()
 		if err != nil {

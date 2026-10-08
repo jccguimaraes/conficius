@@ -14,6 +14,27 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 )
 
+func TestApplyUpdatesReportsHomebrewAppConflict(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "brew")
+	message := "Error: notion: It seems there is already an App at '/opt/homebrew/Caskroom/notion/7.36.1/Notion.app'."
+	writeExecutable(t, executable, "#!/bin/sh\nprintf '%s\\n' \"$CONFLICT\"\nexit 1\n")
+	t.Setenv("CONFLICT", message)
+	var output bytes.Buffer
+	outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), []UpdatePlan{{Manager: PM_HOMEBREW, Executable: executable, Args: []string{"upgrade", "notion"}}}, false, nil, &output, nil)
+	if err == nil || len(outcomes) != 1 || outcomes[0].Status != "failed" {
+		t.Fatalf("outcomes = %#v, error = %v", outcomes, err)
+	}
+	for _, text := range []string{message, "Inspect both app copies before repair.", "Conficius did not attempt automatic repair.", "Homebrew may have changed files before the failure."} {
+		if !strings.Contains(err.Error(), text) || !strings.Contains(outcomes[0].Error, text) {
+			t.Fatalf("missing %q: outcomes = %#v, error = %v", text, outcomes, err)
+		}
+	}
+	if !strings.Contains(output.String(), message) {
+		t.Fatalf("original output missing: %q", output.String())
+	}
+}
+
 func TestInspectWithOptionsReportsDisabledManagerAndExecutableEvidence(t *testing.T) {
 	dir := t.TempDir()
 	executable := filepath.Join(dir, PM_NPM)

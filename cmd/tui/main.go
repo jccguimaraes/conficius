@@ -35,32 +35,33 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
-	profile        config.ResolvedProfile
-	scopes         []config.Scope
-	active         *config.Scope
-	packages       []packagemanager.Package
-	rows           []outdatedRow
-	query          packagemanager.QueryResult
-	selected       map[string]bool
-	failed         map[string]string
-	attempted      map[string]string
-	plans          []packagemanager.UpdatePlan
-	preview        string
-	commands       []commandRow
-	planSummary    string
-	updating       bool
-	runInteractive bool
-	drift          []config.PackageState
-	findings       []vulnerabilityRow
-	detail         vulnerabilityRow
-	mappings       []config.VulnerabilityMapping
-	euvdMaps       []config.EUVDMapping
-	osvClient      vulnerability.Queryer
-	euvdClient     euvd.Queryer
-	status         string
-	loading        bool
-	cancel         context.CancelFunc
-	generation     uint64
+	profile          config.ResolvedProfile
+	scopes           []config.Scope
+	active           *config.Scope
+	packages         []packagemanager.Package
+	rows             []outdatedRow
+	query            packagemanager.QueryResult
+	selected         map[string]bool
+	failed           map[string]string
+	attempted        map[string]string
+	plans            []packagemanager.UpdatePlan
+	preview          string
+	commands         []commandRow
+	planSummary      string
+	updateErrorLines []string
+	updating         bool
+	runInteractive   bool
+	drift            []config.PackageState
+	findings         []vulnerabilityRow
+	detail           vulnerabilityRow
+	mappings         []config.VulnerabilityMapping
+	euvdMaps         []config.EUVDMapping
+	osvClient        vulnerability.Queryer
+	euvdClient       euvd.Queryer
+	status           string
+	loading          bool
+	cancel           context.CancelFunc
+	generation       uint64
 }
 
 func main() {
@@ -129,6 +130,12 @@ func runSession(data *model, startView string) error {
 		Handle("r", func() { refresh(data, app) }).
 		Handle("d", func() { app.Go("drift") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
+		Handle("<Enter>", func() {
+			if row := packageList.Selected(); row != nil && row.Failed {
+				data.updateErrorLines = strings.Split(row.Error, "\n")
+				app.Go("update-error")
+			}
+		}).
 		Handle("<down>", packageList.Down).
 		Handle("<up>", packageList.Up).
 		Handle("j", packageList.Down).
@@ -137,6 +144,12 @@ func runSession(data *model, startView string) error {
 		Handle("a", func() { toggleAll(data); app.RequestRender() }).
 		Handle("u", func() { prepareUpgrade(data, app, false) }).
 		Handle("U", func() { prepareUpgrade(data, app, true) })
+	errorComponent, errorList := updateErrorView(data)
+	app.View("update-error", errorComponent).
+		Handle("q", app.Stop).
+		Handle("<Esc>", func() { app.Go("results") }).
+		Handle("<down>", errorList.Down).
+		Handle("<up>", errorList.Up)
 	driftComponent, driftList := driftView(data)
 	app.View("drift", driftComponent).
 		Handle("q", app.Stop).
@@ -232,13 +245,23 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 		MaxVisible(1000)
 	header := glyph.HBox.Gap(2)(
 		glyph.Text("Mark").Width(3).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
-		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(), glyph.Text("Error").Width(30).Bold(),
+		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(),
 	)
 	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
 		header,
 		loadingContent(&data.loading, list),
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Space mark  a mark all  u upgrade marked  U upgrade all  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k move  Enter error details  Space mark  a mark all  u upgrade marked  U upgrade all  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
+	), list
+}
+
+func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
+	list := glyph.List(&data.updateErrorLines).Render(func(line *string) glyph.Component {
+		return glyph.Text(line).FG(glyph.Red)
+	})
+	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Update error")(
+		list,
+		glyph.Text("↑/↓ scroll  Esc back  q quit").Dim(),
 	), list
 }
 
@@ -436,6 +459,9 @@ func refresh(data *model, app *glyph.App) {
 			}
 			data.findings = vulnerabilityRows(report.Evidence)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary, report.Evidence), err, scanErr)
+			if len(data.failed) > 0 {
+				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
+			}
 			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
 		})
 	}()
@@ -480,7 +506,7 @@ func vulnerabilitySummary(outdated, drift int, summary security.Summary, evidenc
 			unknown++
 		}
 	}
-	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unknown, %d errors", outdated, drift,
+	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unknown, %d security errors", outdated, drift,
 		summary.Vulnerable, unknown, summary.Errors)
 }
 
