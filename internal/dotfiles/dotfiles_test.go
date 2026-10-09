@@ -2,6 +2,7 @@ package dotfiles
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,9 +169,12 @@ func TestApplyRollbackRestoresLinksAndRemovesCreatedDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 	createdTarget := filepath.Join(homeDir, ".config", "nested", "second")
-	items := []prepared{
-		{entry: Entry{Name: "first"}, source: newSource, target: replacedTarget, state: StateWrongLink},
-		{entry: Entry{Name: "second"}, source: secondSource, target: createdTarget, state: StateMissing},
+	items, err := prepare([]Entry{
+		{Name: "first", Source: newSource, Target: replacedTarget},
+		{Name: "second", Source: secondSource, Target: createdTarget},
+	}, Options{ConfigDir: configDir, HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	ops := osOperations()
@@ -203,7 +207,10 @@ func TestApplyDoesNotRemoveTargetCreatedAfterValidation(t *testing.T) {
 	source := filepath.Join(configDir, "source")
 	target := filepath.Join(homeDir, ".target")
 	writeFile(t, source)
-	item := prepared{entry: Entry{Name: "tool"}, source: source, target: target, state: StateMissing}
+	items, err := prepare([]Entry{{Name: "tool", Source: source, Target: target}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ops := osOperations()
 	ops.symlink = func(_, path string) error {
@@ -213,7 +220,7 @@ func TestApplyDoesNotRemoveTargetCreatedAfterValidation(t *testing.T) {
 		return errors.New("target appeared")
 	}
 
-	if err := apply([]prepared{item}, ops); err == nil {
+	if err := apply(items, ops); err == nil {
 		t.Fatal("apply succeeded; want error")
 	}
 	content, err := os.ReadFile(target)
@@ -276,4 +283,346 @@ func sameFile(t *testing.T, left, right string) bool {
 		t.Fatal(err)
 	}
 	return os.SameFile(leftInfo, rightInfo)
+}
+
+func TestInspectRepairEligibility(t *testing.T) {
+	configDir, homeDir := testDirs(t)
+	writeFile(t, filepath.Join(configDir, "source"))
+	writeFile(t, filepath.Join(homeDir, "file"))
+	for name, destination := range map[string]string{"owned": filepath.Join(configDir, "old"), "outside": filepath.Join(t.TempDir(), "old"), "healthy": filepath.Join(configDir, "source")} {
+		if err := os.Symlink(destination, filepath.Join(homeDir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, want := range map[string]bool{"missing": true, "owned": true, "outside": false, "healthy": false, "file": false} {
+		results, err := Inspect([]Entry{{Name: name, Source: "source", Target: name}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+		if err != nil || results[0].Repairable != want {
+			t.Fatalf("%s: results = %+v, error = %v", name, results, err)
+		}
+	}
+}
+
+func TestLinkRejectsStalePreview(t *testing.T) {
+	for _, change := range []string{"source removed", "source outside", "target file", "wrong destination", "parent outside"} {
+		t.Run(change, func(t *testing.T) {
+			configDir, homeDir := testDirs(t)
+			source := filepath.Join(configDir, "source")
+			target := filepath.Join(homeDir, "parent", "target")
+			writeFile(t, source)
+			if err := os.Mkdir(filepath.Dir(target), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if change == "wrong destination" {
+				if err := os.Symlink(filepath.Join(configDir, "old-one"), target); err != nil {
+					t.Fatal(err)
+				}
+			}
+			entries := []Entry{{Name: "tool", Source: source, Target: target}}
+			options := Options{ConfigDir: configDir, HomeDir: homeDir, Force: true}
+			preview, err := Link(entries, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch change {
+			case "source removed", "source outside":
+				if err := os.Remove(source); err != nil {
+					t.Fatal(err)
+				}
+				if change == "source outside" {
+					outside := filepath.Join(t.TempDir(), "source")
+					writeFile(t, outside)
+					if err := os.Symlink(outside, source); err != nil {
+						t.Fatal(err)
+					}
+				}
+			case "target file":
+				writeFile(t, target)
+			case "wrong destination":
+				if err := os.Remove(target); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(configDir, "old-two"), target); err != nil {
+					t.Fatal(err)
+				}
+			case "parent outside":
+				if err := os.Remove(filepath.Dir(target)); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(t.TempDir(), filepath.Dir(target)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			options.Apply = true
+			options.Preview = preview
+			if _, err := Link(entries, options); err == nil {
+				t.Fatal("stale preview accepted")
+			}
+			if change == "wrong destination" {
+				if got, err := os.Readlink(target); err != nil || got != filepath.Join(configDir, "old-two") {
+					t.Fatalf("changed symlink overwritten: %q, %v", got, err)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyTypedRollbackError(t *testing.T) {
+	for _, rollbackFails := range []bool{false, true} {
+		t.Run(fmt.Sprint(rollbackFails), func(t *testing.T) {
+			configDir, homeDir := testDirs(t)
+			writeFile(t, filepath.Join(configDir, "source"))
+			items, err := prepare([]Entry{{Name: "a", Source: "source", Target: "a"}, {Name: "b", Source: "source", Target: "b"}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cause := errors.New("injected create failure")
+			rollbackCause := errors.New("injected rollback failure")
+			ops := osOperations()
+			symlink := ops.symlink
+			ops.symlink = func(source, target string) error {
+				if target == items[1].target {
+					return cause
+				}
+				return symlink(source, target)
+			}
+			if rollbackFails {
+				ops.remove = func(string) error { return rollbackCause }
+			}
+			err = apply(items, ops)
+			var failure *ApplyError
+			if !errors.As(err, &failure) || !errors.Is(err, cause) || failure.Action != "create symlink" || failure.Path != items[1].target || !failure.RollbackAttempted {
+				t.Fatalf("failure = %+v, error = %v", failure, err)
+			}
+			if len(failure.AffectedPaths) != 1 || failure.AffectedPaths[0] != items[0].target || (failure.RollbackError != nil) != rollbackFails || errors.Is(err, rollbackCause) != rollbackFails {
+				t.Fatalf("rollback metadata = %+v", failure)
+			}
+		})
+	}
+}
+
+func TestApplyRevalidatesBeforeMutation(t *testing.T) {
+	for _, change := range []string{"source", "target", "parent"} {
+		t.Run(change, func(t *testing.T) {
+			configDir, homeDir := testDirs(t)
+			writeFile(t, filepath.Join(configDir, "source"))
+			items, err := prepare([]Entry{{Name: "tool", Source: "source", Target: "parent/target"}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ops := osOperations()
+			mkdir := ops.mkdir
+			ops.mkdir = func(path string, mode os.FileMode) error {
+				if err := mkdir(path, mode); err != nil {
+					return err
+				}
+				switch change {
+				case "source":
+					if err := os.Remove(items[0].source); err != nil {
+						t.Fatal(err)
+					}
+				case "target":
+					writeFile(t, items[0].target)
+				case "parent":
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(t.TempDir(), path); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return nil
+			}
+			err = apply(items, ops)
+			var failure *ApplyError
+			if !errors.As(err, &failure) || failure.Action != "revalidate" || !failure.RollbackAttempted {
+				t.Fatalf("error = %v", err)
+			}
+			if change == "target" {
+				if _, err := os.ReadFile(items[0].target); err != nil {
+					t.Fatalf("regular file removed: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestTargetSnapshotRejectsSameStateChanges(t *testing.T) {
+	for _, change := range []string{"identity", "destination"} {
+		for _, preview := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/preview=%t", change, preview), func(t *testing.T) {
+				configDir, homeDir := testDirs(t)
+				writeFile(t, filepath.Join(configDir, "source"))
+				writeFile(t, filepath.Join(configDir, "old"))
+				writeFile(t, filepath.Join(configDir, "other"))
+				middle := filepath.Join(configDir, "middle")
+				if err := os.Symlink("old", middle); err != nil {
+					t.Fatal(err)
+				}
+				target := filepath.Join(homeDir, "target")
+				if err := os.Symlink(middle, target); err != nil {
+					t.Fatal(err)
+				}
+				entries := []Entry{{Name: "a", Source: "source", Target: "target"}, {Name: "b", Source: "source", Target: "untouched/target"}}
+				options := Options{ConfigDir: configDir, HomeDir: homeDir, Force: true}
+				items, err := prepare(entries, options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				results, err := Inspect(entries, options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if change == "identity" {
+					// Retain old inode so replacement identity differs deterministically.
+					if err := os.Rename(target, target+".old"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(middle, target); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if err := os.Remove(middle); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink("other", middle); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if preview {
+					options.Apply, options.Preview = true, results
+					_, err = Link(entries, options)
+				} else {
+					err = apply(items, osOperations())
+				}
+				if err == nil || !strings.Contains(err.Error(), "stale dotfile preview") {
+					t.Fatalf("error = %v", err)
+				}
+				if _, err := os.Lstat(filepath.Join(homeDir, "untouched")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("mutation before validation: %v", err)
+				}
+				if text, err := os.Readlink(target); err != nil || text != middle {
+					t.Fatalf("target changed: %q, %v", text, err)
+				}
+			})
+		}
+	}
+}
+
+func TestRegularSwapBeforeCaptureIsPreserved(t *testing.T) {
+	for _, rollbackSwap := range []bool{false, true} {
+		t.Run(fmt.Sprint(rollbackSwap), func(t *testing.T) {
+			configDir, homeDir := testDirs(t)
+			writeFile(t, filepath.Join(configDir, "source"))
+			target := filepath.Join(homeDir, "a")
+			if !rollbackSwap {
+				if err := os.Symlink(filepath.Join(configDir, "old"), target); err != nil {
+					t.Fatal(err)
+				}
+			}
+			items, err := prepare([]Entry{{Name: "a", Source: "source", Target: "a"}, {Name: "b", Source: "source", Target: "b"}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ops := osOperations()
+			readlink := ops.readlink
+			swapped := false
+			ops.readlink = func(path string) (string, error) {
+				text, err := readlink(path)
+				if path == target && !swapped && err == nil {
+					swapped = true
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte("user data"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return text, err
+			}
+			if rollbackSwap {
+				symlink := ops.symlink
+				ops.symlink = func(source, path string) error {
+					if path == items[1].target {
+						return errors.New("injected failure")
+					}
+					return symlink(source, path)
+				}
+			}
+			err = apply(items, ops)
+			if err == nil || !strings.Contains(err.Error(), "captured object retained at") {
+				t.Fatalf("error = %v", err)
+			}
+			if rollbackSwap {
+				var failure *ApplyError
+				if !errors.As(err, &failure) || failure.RollbackError == nil {
+					t.Fatalf("rollback claimed complete: %v", err)
+				}
+			}
+			content, err := os.ReadFile(target)
+			if err != nil || string(content) != "user data" {
+				t.Fatalf("regular target lost: %q, %v", content, err)
+			}
+		})
+	}
+}
+
+func TestRollbackNonemptyDirectoryReportsPath(t *testing.T) {
+	configDir, homeDir := testDirs(t)
+	writeFile(t, filepath.Join(configDir, "source"))
+	items, err := prepare([]Entry{{Name: "tool", Source: "source", Target: "parent/target"}}, Options{ConfigDir: configDir, HomeDir: homeDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := osOperations()
+	ops.symlink = func(_, target string) error {
+		writeFile(t, filepath.Join(filepath.Dir(target), "user-file"))
+		return errors.New("injected failure")
+	}
+	err = apply(items, ops)
+	var failure *ApplyError
+	parent := filepath.Dir(items[0].target)
+	if !errors.As(err, &failure) || failure.RollbackError == nil || !strings.Contains(failure.RollbackError.Error(), parent) {
+		t.Fatalf("rollback claimed complete: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "user-file")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCaptureDoesNotOverwriteConcurrentRestoreTarget(t *testing.T) {
+	_, homeDir := testDirs(t)
+	target := filepath.Join(homeDir, "target")
+	if err := os.Symlink("old", target); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := osOperations()
+	rename := ops.rename
+	var captured string
+	ops.rename = func(source, destination string) error {
+		if err := os.Remove(source); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(source, []byte("captured data"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := rename(source, destination); err != nil {
+			return err
+		}
+		captured = destination
+		return os.WriteFile(source, []byte("new data"), 0o600)
+	}
+	err = removeLink(target, info, "old", ops)
+	if err == nil || !strings.Contains(err.Error(), captured) {
+		t.Fatalf("error = %v", err)
+	}
+	for path, want := range map[string]string{target: "new data", captured: "captured data"} {
+		content, err := os.ReadFile(path)
+		if err != nil || string(content) != want {
+			t.Fatalf("%s: got %q, %v; want %q", path, content, err, want)
+		}
+	}
 }

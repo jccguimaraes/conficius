@@ -380,3 +380,22 @@ func mustWrite(t *testing.T, path, contents string) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoadRejectsDuplicateNormalizedTargets(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, links := range []string{
+		`[tools.a]
+links = [{ source = "one", target = "$HOME/nested/../target" }, { source = "two", target = "$HOME/target" }]`,
+		`[tools.a]
+links = [{ source = "one", target = "$HOME/target", platforms = ["linux"] }]
+[tools.b]
+links = [{ source = "two", target = "$HOME/./target", platforms = ["darwin"] }]`,
+	} {
+		root := t.TempDir()
+		path := filepath.Join(root, FileName)
+		mustWrite(t, path, "version = 1\n"+links)
+		if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "same target") {
+			t.Fatalf("error = %v, want duplicate target rejection", err)
+		}
+	}
+}

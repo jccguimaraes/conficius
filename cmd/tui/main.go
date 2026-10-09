@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -35,33 +36,49 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
-	profile          config.ResolvedProfile
-	scopes           []config.Scope
-	active           *config.Scope
-	packages         []packagemanager.Package
-	rows             []outdatedRow
-	query            packagemanager.QueryResult
-	selected         map[string]bool
-	failed           map[string]string
-	attempted        map[string]string
-	plans            []packagemanager.UpdatePlan
-	preview          string
-	commands         []commandRow
-	planSummary      string
-	updateErrorLines []string
-	updating         bool
-	runInteractive   bool
-	drift            []config.PackageState
-	findings         []vulnerabilityRow
-	detail           vulnerabilityRow
-	mappings         []config.VulnerabilityMapping
-	euvdMaps         []config.EUVDMapping
-	osvClient        vulnerability.Queryer
-	euvdClient       euvd.Queryer
-	status           string
-	loading          bool
-	cancel           context.CancelFunc
-	generation       uint64
+	dotfiles          *dotfileState
+	homeCards         []homeCard
+	localLoading      bool
+	localChecked      bool
+	localErr          error
+	installedCount    int
+	networkPending    bool
+	outdatedChecked   bool
+	outdatedErr       error
+	securityScanning  bool
+	securityChecked   bool
+	securityErr       error
+	securitySummary   security.Summary
+	securityCount     int
+	dotfileGeneration uint64
+	dotfileCancel     context.CancelFunc
+	profile           config.ResolvedProfile
+	scopes            []config.Scope
+	active            *config.Scope
+	packages          []packagemanager.Package
+	rows              []outdatedRow
+	query             packagemanager.QueryResult
+	selected          map[string]bool
+	failed            map[string]string
+	attempted         map[string]string
+	plans             []packagemanager.UpdatePlan
+	preview           string
+	commands          []commandRow
+	planSummary       string
+	updateErrorLines  []string
+	updating          bool
+	runInteractive    bool
+	drift             []config.PackageState
+	findings          []vulnerabilityRow
+	detail            vulnerabilityRow
+	mappings          []config.VulnerabilityMapping
+	euvdMaps          []config.EUVDMapping
+	osvClient         vulnerability.Queryer
+	euvdClient        euvd.Queryer
+	status            string
+	loading           bool
+	cancel            context.CancelFunc
+	generation        uint64
 }
 
 func main() {
@@ -72,29 +89,48 @@ func main() {
 }
 
 func run() error {
-	project, err := config.LoadDiscovered("")
-	if err != nil && !errors.Is(err, config.ErrNotFound) {
+	configFlag, err := parseStartupFlags(os.Args[1:], os.Stdout)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
-	if project == nil {
+	path, discoverErr := config.Discover(configFlag)
+	if path == "" {
+		path = "(not found)"
+	}
+	project, configErr := config.LoadDiscovered(configFlag)
+	configErr = errors.Join(discoverErr, configErr)
+	dotfiles := newDotfileState(project, configErr, path)
+	if configErr != nil || project == nil {
 		project = &config.Project{Version: config.CurrentVersion}
 	}
 	profile, err := project.ResolveProfile("", false)
 	if err != nil {
-		return err
+		dotfiles.configErr = err
+		project = &config.Project{Version: config.CurrentVersion}
+		profile, _ = project.ResolveProfile("", false)
 	}
 	scopes, err := config.ResolveScopes(project, profile, false, nil, nil)
 	if err != nil {
-		return err
+		dotfiles.configErr = errors.Join(dotfiles.configErr, err)
+		project = &config.Project{Version: config.CurrentVersion}
+		profile, _ = project.ResolveProfile("", false)
+		scopes, err = config.ResolveScopes(project, profile, false, nil, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	data := &model{
+		dotfiles: dotfiles, networkPending: true,
 		profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD,
 		osvClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
 		euvdClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
 		status:     "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string),
 	}
-	startView := "scopes"
+	startView := "home"
 	if encoded := os.Getenv(restartStateEnv); encoded != "" {
 		state, decodeErr := decodeRestartState(encoded)
 		if decodeErr != nil {
@@ -116,10 +152,19 @@ func runSession(data *model, startView string) error {
 	app := glyph.NewApp()
 	app.HideCursor()
 	app.JumpKey("f")
+	if startView == "results" {
+		refresh(data, app)
+	} else {
+		refreshLocal(data, app)
+	}
+	if data.dotfiles != nil {
+		registerDotfiles(data.dotfiles, app)
+	}
+	registerHome(data, app)
 	scopeComponent, scopeList := scopeView(data, app)
 	app.View("scopes", scopeComponent).
 		Handle("q", app.Stop).
-		Handle("<Esc>", app.Stop).
+		Handle("<Esc>", func() { updateHome(data); app.Go("home") }).
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
@@ -189,8 +234,10 @@ func runSession(data *model, startView string) error {
 	app.View("vulnerability-detail", vulnerabilityDetailView(data, app)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
-	refresh(data, app)
 	defer func() {
+		if data.dotfileCancel != nil {
+			data.dotfileCancel()
+		}
 		if data.cancel != nil {
 			data.cancel()
 		}
@@ -214,7 +261,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 		glyph.Text("Scopes").Underline(),
 		list,
 		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Enter open  r refresh  q quit").Dim(),
+		glyph.Text("↑/↓ or j/k move  Enter open  r full refresh  Esc Home  q quit").Dim(),
 	), list
 }
 
@@ -363,6 +410,14 @@ func openURL(rawURL string) error {
 }
 
 func refresh(data *model, app *glyph.App) {
+	refreshPackages(data, app, true)
+}
+
+func refreshLocal(data *model, app *glyph.App) {
+	refreshPackages(data, app, false)
+}
+
+func refreshPackages(data *model, app *glyph.App, full bool) {
 	if data.cancel != nil {
 		data.cancel()
 	}
@@ -371,7 +426,12 @@ func refresh(data *model, app *glyph.App) {
 	data.generation++
 	generation := data.generation
 	data.loading = true
-	data.status = ""
+	data.localLoading, data.localChecked, data.localErr = true, false, nil
+	data.networkPending, data.outdatedChecked, data.outdatedErr = true, false, nil
+	data.securityScanning, data.securityChecked, data.securityErr = false, false, nil
+	data.findings = nil
+	data.status = "Local inventory loading; outdated unknown; security unknown (network pending)"
+	updateHome(data)
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
@@ -392,32 +452,56 @@ func refresh(data *model, app *glyph.App) {
 			err    error
 		}
 		outdatedCh, inventoryCh := make(chan outdatedResult, 1), make(chan inventoryResult, 1)
-		go func() {
-			result, err := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
-			outdatedCh <- outdatedResult{result, err}
-		}()
+		if full {
+			go func() {
+				result, err := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
+				outdatedCh <- outdatedResult{result, err}
+			}()
+		}
 		go func() {
 			result, err := packagemanager.QueryInstalledScopesWithOptions(ctx, nil, scopes, options)
 			inventoryCh <- inventoryResult{result, err}
 		}()
-		outdatedData, inventoryData := <-outdatedCh, <-inventoryCh
-		result, outdatedErr := outdatedData.result, outdatedData.err
+		inventoryData := <-inventoryCh
 		inventory, inventoryErr := inventoryData.result, inventoryData.err
+		var managerPackages []packagemanager.InstalledPackage
 		if includesGlobal(scopeSelection) {
-			managerPackages, managerErr := packagemanager.ManagerPackages(ctx, inventory.Managers)
+			var managerErr error
+			managerPackages, managerErr = packagemanager.ManagerPackages(ctx, inventory.Managers)
 			inventory.Packages = append(inventory.Packages, managerPackages...)
+			inventoryErr = errors.Join(inventoryErr, managerErr)
+		}
+		selected, drift := evaluateInventory(profile, inventory.Packages)
+		if ctx.Err() != nil {
+			return
+		}
+		app.Apply(func() {
+			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
+				return
+			}
+			data.localLoading, data.localChecked, data.localErr = false, true, inventoryErr
+			data.installedCount, data.drift = len(inventory.Packages), drift
+			if !full {
+				data.loading = false
+			}
+			data.status = appendCollisionStatus(appendManagerStatus(fmt.Sprintf("%d installed, %d drift; outdated unknown; security unknown (network pending)", len(inventory.Packages), len(drift)), inventory.Managers), inventory.Commands)
+			if inventoryErr != nil {
+				data.status = queryStatus(inventoryErr) + "; outdated unknown; security unknown (network pending)"
+			}
+			updateHome(data)
+		})
+		if !full {
+			return
+		}
+		outdatedData := <-outdatedCh
+		result, outdatedErr := outdatedData.result, outdatedData.err
+		if includesGlobal(scopeSelection) {
 			managerUpdates, managerUpdateErr := packagemanager.ManagerUpdates(ctx, inventory.Managers, managerPackages)
 			packagemanager.MergePackages(result.Packages, managerUpdates)
-			inventoryErr = errors.Join(inventoryErr, managerErr, managerUpdateErr)
+			outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 		}
 		securityTargets := packagemanager.Records(result.Packages)
-		packages := append([]packagemanager.Package(nil), securityTargets...)
-		installed := make([]config.InstalledVersion, len(inventory.Packages))
-		for i, pkg := range inventory.Packages {
-			installed[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
-		}
-		selected, drift := config.EvaluatePackages(profile, installed)
-		packages = filterOutdated(packages, selected)
+		packages := filterOutdated(append([]packagemanager.Package(nil), securityTargets...), selected)
 		scanPackages := inventory.Packages
 		if profile.SecurityScope == "selected" {
 			scanPackages = filterInstalled(inventory.Packages, selected)
@@ -427,10 +511,12 @@ func refresh(data *model, app *glyph.App) {
 		}
 		err := errors.Join(outdatedErr, inventoryErr)
 		app.Apply(func() {
-			if !isCurrentGeneration(data.generation, generation) {
+			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
 			data.loading = false
+			data.networkPending, data.outdatedChecked, data.outdatedErr = false, true, outdatedErr
+			data.securityScanning = true
 			data.query = result
 			data.packages = packages
 			for key := range data.selected {
@@ -445,6 +531,8 @@ func refresh(data *model, app *glyph.App) {
 			if err != nil {
 				data.status = queryStatus(err)
 			}
+			data.status += "; security unknown (scanning)"
+			updateHome(data)
 		})
 		report, scanErr := security.Scan(ctx, scanPackages, security.Options{
 			Outdated: securityTargets, OSVMappings: mappings, EUVDMappings: euvdMaps,
@@ -454,15 +542,18 @@ func refresh(data *model, app *glyph.App) {
 			return
 		}
 		app.Apply(func() {
-			if !isCurrentGeneration(data.generation, generation) {
+			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
+			data.securityScanning, data.securityChecked, data.securityErr = false, true, scanErr
+			data.securitySummary, data.securityCount = report.Summary, len(scanPackages)
 			data.findings = vulnerabilityRows(report.Evidence)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary, report.Evidence), err, scanErr)
 			if len(data.failed) > 0 {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
 			}
 			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
+			updateHome(data)
 		})
 	}()
 }

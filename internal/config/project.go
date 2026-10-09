@@ -281,7 +281,14 @@ func (project *Project) normalize() error {
 		}
 	}
 
-	for toolName, tool := range project.Tools {
+	targets := make(map[string]string)
+	toolNames := make([]string, 0, len(project.Tools))
+	for name := range project.Tools {
+		toolNames = append(toolNames, name)
+	}
+	sort.Strings(toolNames)
+	for _, toolName := range toolNames {
+		tool := project.Tools[toolName]
 		if strings.TrimSpace(toolName) == "" {
 			return errors.New("tool name must not be empty")
 		}
@@ -294,6 +301,10 @@ func (project *Project) normalize() error {
 			if err := normalizeLink(link, project.Root, resolvedRoot, home, resolvedHome); err != nil {
 				return fmt.Errorf("tool %q link %d: %w", toolName, i+1, err)
 			}
+			if previous, exists := targets[link.Target]; exists {
+				return fmt.Errorf("tool %q link %d and %s use the same target: %s", toolName, i+1, previous, link.Target)
+			}
+			targets[link.Target] = fmt.Sprintf("tool %q link %d", toolName, i+1)
 		}
 		project.Tools[toolName] = tool
 	}
