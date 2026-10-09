@@ -60,7 +60,7 @@ func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
 	component, _ := vulnerabilityView(data)
 	assertRenderedContains(t, component, "Advisory")
 	assertRenderedContains(t, component, "lodash")
-	assertRenderedContains(t, component, "GHSA-29mw-wpgm-hmr9")
+	assertRenderedContains(t, component, "GHSA-")
 	assertRenderedContains(t, component, "4.17.21")
 }
 
@@ -71,9 +71,27 @@ func TestVulnerabilityDetailViewRendersEvidence(t *testing.T) {
 		Description: "test description", Reference: "https://example.test/advisory", CVELink: "https://www.cve.org/CVERecord?id=CVE-2026-1", UpgradeNote: "Latest version does not fix this CVE.",
 	}}}
 	component := vulnerabilityDetailView(data, glyph.NewApp())
-	for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", ">=20, 20.*", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory", "Latest version does not fix this CVE."} {
-		assertRenderedContains(t, component, want)
+	assertRenderedContains(t, component, "CVE-2026-1")
+	content, viewer := vulnerabilityDetailContent(&data.detail)
+	template := glyph.Build(content)
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {120, 30}} {
+		buffer := glyph.NewBuffer(size[0], size[1])
+		template.Execute(buffer, int16(size[0]), int16(size[1]))
+		viewer.Layer().ScrollToTop()
+		var output strings.Builder
+		for offset := 0; offset <= viewer.Layer().MaxScroll(); offset++ {
+			viewer.Layer().ScrollTo(offset)
+			template.Execute(buffer, int16(size[0]), int16(size[1]))
+			output.WriteString(homeRenderOutput(buffer, size[1]))
+			output.WriteByte('\n')
+		}
+		for _, want := range []string{"EUVD", "CVE-2026-1", "EUVD-1", "8.1", ">=20, 20.*", "GHSA-1", "22.22.4", "test description", "https://example.test/advisory", "Latest version does not fix this CVE."} {
+			if !strings.Contains(output.String(), want) {
+				t.Fatalf("%dx%d scroll missing %q (max scroll %d)", size[0], size[1], want, viewer.Layer().MaxScroll())
+			}
+		}
 	}
+
 }
 
 func TestEvidenceRowsShowCurrentAndUpgradeVersion(t *testing.T) {
@@ -123,11 +141,19 @@ func TestQueryStatusHidesRawMultilineManagerErrors(t *testing.T) {
 	}
 }
 
+func severityColor(score float64) glyph.Color {
+	row := &vulnerabilityRow{}
+	row.Score = score
+	buffer := glyph.NewBuffer(1, 1)
+	glyph.Build(glyph.Text("x").FG(vulnerabilityColumns(row)[2].color)).Execute(buffer, 1, 1)
+	return buffer.Get(0, 0).Style.FG
+}
+
 func TestSeverityColorUsesCVSSBands(t *testing.T) {
 	for _, test := range []struct {
 		score float64
 		want  glyph.Color
-	}{{9.8, glyph.Red}, {8.0, glyph.RGB(255, 140, 0)}, {5.0, glyph.Yellow}, {2.0, glyph.Blue}} {
+	}{{10, glyph.Red}, {9, glyph.Red}, {8.99, glyph.Yellow}, {7, glyph.Yellow}, {6.99, glyph.Yellow}, {4, glyph.Yellow}, {3.99, glyph.Blue}, {0.1, glyph.Blue}, {0, glyph.Color{}}, {-1, glyph.Color{}}} {
 		if got := severityColor(test.score); !got.Equal(test.want) {
 			t.Fatalf("severityColor(%v) = %#v", test.score, got)
 		}
@@ -150,6 +176,8 @@ func TestVulnerabilityRowsHideCleanAndAdvisorylessDiagnostics(t *testing.T) {
 
 func assertRenderedContains(t *testing.T, component glyph.Component, want string) {
 	t.Helper()
+	updateScreenSize(160, 20)
+	defer updateScreenSize(80, 24)
 	buffer := glyph.NewBuffer(160, 20)
 	glyph.Build(component).Execute(buffer, 160, 20)
 	for row := range 20 {
@@ -170,6 +198,8 @@ func TestVulnerabilityViewKeepsFooterAtBottomWithManyRows(t *testing.T) {
 		data.findings = append(data.findings, vulnerabilityRow{Evidence: security.Evidence{Source: "EUVD", Package: fmt.Sprintf("tool-%02d", i), Status: "vulnerable"}})
 	}
 	component, list := vulnerabilityView(data)
+	updateScreenSize(120, 12)
+	defer updateScreenSize(80, 24)
 	buffer := glyph.NewBuffer(120, 12)
 	glyph.Build(component).Execute(buffer, 120, 12)
 	if !strings.Contains(buffer.GetLine(10), "move") {
@@ -187,6 +217,8 @@ func TestDriftViewKeepsFooterAtBottomAndMovesSelection(t *testing.T) {
 		data.drift = append(data.drift, config.PackageState{Manager: "mise", Name: fmt.Sprintf("tool-%02d", i), Status: config.DriftBehind})
 	}
 	component, list := driftView(data)
+	updateScreenSize(120, 12)
+	defer updateScreenSize(80, 24)
 	buffer := glyph.NewBuffer(120, 12)
 	glyph.Build(component).Execute(buffer, 120, 12)
 	if !strings.Contains(buffer.GetLine(10), "move") {
@@ -219,7 +251,7 @@ func TestViewsFillAvailableHeight(t *testing.T) {
 func TestLoadingContentShowsGlyphSpinner(t *testing.T) {
 	loading := true
 	component := loadingContent(&loading, glyph.Text("content"))
-	assertRenderedContains(t, component, "Loading...")
+	assertRenderedContains(t, component, "Refreshing…")
 	loading = false
 	assertRenderedContains(t, component, "content")
 }

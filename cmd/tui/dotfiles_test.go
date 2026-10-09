@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -277,8 +278,36 @@ func TestDotfileLinksRenderer(t *testing.T) {
 		if x < 0 || (buffer.Get(x, y).Style.Attr&glyph.AttrDim != 0) != dim {
 			t.Fatalf("row %d dim=%t: %q", y, dim, line)
 		}
+		wantColor := glyph.Color{}
+		if y == state.selection {
+			wantColor = glyph.Cyan
+		}
+		for _, offset := range []int{x, strings.LastIndex(line, state.visible[y].basename)} {
+			if buffer.Get(offset, y).Style.FG != wantColor || buffer.Get(offset, y).Style.BG.Mode != glyph.ColorDefault {
+				t.Fatalf("identifier color/background at %d: %q", offset, line)
+			}
+		}
+		if y < 2 {
+			x = strings.Index(line, "Missing")
+			if x < 0 || buffer.Get(x, y).Style.FG != glyph.Yellow {
+				t.Fatalf("actionable label not yellow: %q", line)
+			}
+		}
 	}
-	state.selection = 1
+	list.Down(nil)
+	buffer = glyph.NewBuffer(160, 20)
+	template.Execute(buffer, 160, 20)
+	for y := range 2 {
+		line := buffer.GetLine(y)
+		x := strings.Index(line, state.visible[y].entry.Name)
+		want := glyph.DefaultColor()
+		if y == state.selection {
+			want = glyph.Cyan
+		}
+		if buffer.Get(x, y).Style.FG != want || buffer.Get(strings.Index(line, "Missing"), y).Style.FG != glyph.Yellow {
+			t.Fatalf("navigation changed identifier/status colors: %q", line)
+		}
+	}
 	state.filter = 1
 	state.rebuild()
 	buffer = glyph.NewBuffer(40, 8)
@@ -310,6 +339,14 @@ func TestDotfileEnvironmentRenderer(t *testing.T) {
 	template.Execute(buffer, 160, 20)
 	if !strings.Contains(buffer.GetLine(0), "error changed finding") {
 		t.Fatal(buffer.GetLine(0))
+	}
+	x := strings.Index(buffer.GetLine(0), "error")
+	if buffer.Get(x, 0).Style.FG != glyph.Red {
+		t.Fatal("live error label not red")
+	}
+	x = strings.Index(buffer.GetLine(0), "changed finding")
+	if buffer.Get(x, 0).Style.FG == glyph.Red {
+		t.Fatal("finding message inherits severity color")
 	}
 }
 
@@ -384,8 +421,14 @@ func TestDotfileAsyncRefreshGeneration(t *testing.T) {
 	if err := os.WriteFile(state.configPath, []byte("version = 1\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	state.rows = []dotfileRow{state.inspect(dotfileTestEntry(state, "stale"))}
+	state.rebuild()
+	state.toggle(&state.visible[0])
 	app := glyph.NewApp()
 	registerDotfiles(state, app)
+	if len(state.visible) != 1 || state.visible[0].mark != "[ ]" || !strings.Contains(state.status, "stale") {
+		t.Fatal("refresh lost stale rows or retained marks")
+	}
 	if !state.refreshing || state.project == nil || state.generation != 1 {
 		t.Fatal("registration did not schedule refresh")
 	}
@@ -440,5 +483,158 @@ func TestDotfileWorkerSnapshotIsolation(t *testing.T) {
 	state.publish(work)
 	if state.mode != layout.ModeOSNative || len(state.marks) != 0 {
 		t.Fatal("publication overwrote live mode or marks")
+	}
+}
+
+func TestDotfileScreensAtTerminalSizes(t *testing.T) {
+	state := dotfileTestState(t)
+	originalSize := screenSize
+	t.Cleanup(func() { updateScreenSize(originalSize.Width, originalSize.Height) })
+	state.configPath = strings.Repeat("/long-config", 12) + "/config.toml"
+	state.status = "Refreshing · stale rows"
+	state.environment, state.links = "2 findings", "3 mappings"
+	for _, name := range []string{"alpha", "beta", "excluded"} {
+		entry := dotfileTestEntry(state, name)
+		if name == "excluded" {
+			entry.Platforms = []string{"other-platform"}
+		}
+		state.rows = append(state.rows, state.inspect(entry))
+	}
+	state.rebuild()
+	state.findings = []audit.Finding{{Severity: audit.SeverityWarning, Message: "Check environment"}}
+	state.detailText = "Source:\nrepository/source\n\nTarget:\nhome/target\n\nRecommendation:\nCreate link."
+	state.toggle(&state.visible[0])
+	if err := state.preparePreview(); err != nil {
+		t.Fatal(err)
+	}
+	landing, menu := dotfileLanding(state)
+	glyph.Build(landing).Execute(glyph.NewBuffer(80, 24), 80, 24)
+	menu.Down(nil)
+	if selected := menu.Selected(); selected == nil || selected.name != "Links" || state.menuSelection != 1 {
+		t.Fatal("landing selection lost")
+	}
+	menu.Up(nil)
+	if selected := menu.Selected(); selected == nil || selected.name != "Environment" || state.menuSelection != 0 {
+		t.Fatal("landing selection lost")
+	}
+	views := []struct {
+		title   string
+		content glyph.Component
+		help    string
+		want    []string
+	}{
+		{"Dotfiles", landing, "Enter open  Esc Home  q quit", []string{"Environment", "Links"}},
+		{"Dotfiles / Links", dotfileLinksContent(state, dotfileLinksList(state)), "Space mark  l preview  Esc back  q quit", []string{"[x]", "alpha", "beta", "exclude", "Missing", "Not applicable"}},
+		{"Dotfiles / Environment", glyph.VBox.Grow(1)(glyph.Text(&state.environment), dotfileEnvironmentList(state)), "Enter details  m mode  Esc back  q quit", []string{"2 findings", "warning", "Check environment"}},
+		{"Dotfiles / Links / Details", glyph.TextView(&state.detailText).Grow(1), "↑/↓ scroll  Esc back  q quit", []string{"Source:"}},
+		{"Dotfiles / Links / Confirm", dotfilePreviewContent(state, styleList(glyph.List(&state.previewLines)).Render(func(line *string) glyph.Component { return glyph.TextBlock(line).CharWrap() })), "y apply  n/Esc cancel  q quit", []string{"Apply 1 links", "Regular files", "unchanged."}},
+		{"Dotfiles / Links / Applying", glyph.VBox(glyph.Text("Applying marked links").Bold(), glyph.Text("Quit waits for completion.")), "q quit when done", []string{"Applying marked links", "Quit waits"}},
+	}
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {120, 30}} {
+		updateScreenSize(size[0], size[1])
+		for _, view := range views {
+			buffer := glyph.NewBuffer(size[0], size[1])
+			context := func() string { return "Config: " + state.configPath }
+			component := screenFrame(view.title, context, &state.status, view.content, view.help)
+			glyph.Build(component).Execute(buffer, int16(size[0]), int16(size[1]))
+			var lines []string
+			for y := range size[1] {
+				lines = append(lines, buffer.GetLine(y))
+			}
+			text := strings.Join(lines, "\n")
+			for _, want := range append(view.want, "? help", "Refreshing", "config.toml") {
+				if !strings.Contains(text, want) {
+					t.Fatalf("%s at %dx%d missing %q:\n%s", view.title, size[0], size[1], want, text)
+				}
+			}
+			for y, want := range map[int]string{1: string([]rune("Conficius / " + view.title)[:min(len([]rune("Conficius / "+view.title)), size[0]-6)]), 2: screenContext(context), size[1] - 3: state.status, size[1] - 2: screenFooter(view.help)} {
+				if !strings.Contains(buffer.GetLine(y), want) {
+					t.Fatalf("%s at %dx%d clipped chrome row %d, want %q:\n%s", view.title, size[0], size[1], y, want, text)
+				}
+			}
+		}
+	}
+}
+
+func TestDotfileLandingSelectionBinding(t *testing.T) {
+	state := dotfileTestState(t)
+	state.environment, state.links = "environment-summary", "links-summary"
+	landing, menu := dotfileLanding(state)
+	template := glyph.Build(landing)
+	render := func() string {
+		buffer := glyph.NewBuffer(80, 12)
+		template.Execute(buffer, 80, 12)
+		var lines []string
+		for y := range 12 {
+			lines = append(lines, buffer.GetLine(y))
+		}
+		return strings.Join(lines, "\n")
+	}
+	text := render()
+	for _, want := range []string{"› Environment", "environment-summary", "Links", "links-summary"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("landing missing %q:\n%s", want, text)
+		}
+	}
+	menu.Down(nil)
+	if state.menu[0].nameColor != glyph.DefaultColor() || state.menu[1].nameColor != glyph.Cyan {
+		t.Fatal("menu navigation did not update name colors")
+	}
+	if state.menuSelection != 1 || menu.Selected() != &state.menu[1] || !strings.Contains(render(), "› Links") {
+		t.Fatal("navigation, bound selection, and marker disagree")
+	}
+	state.menuSelection = 0
+	state.updateMenu()
+	if menu.Selected() != &state.menu[0] || !strings.Contains(render(), "› Environment") {
+		t.Fatal("external selection not reflected in menu")
+	}
+	state.menuSelection = 1
+	state.publish(&dotfileState{environment: "new-environment", links: "new-links"})
+	text = render()
+	for _, want := range []string{"new-environment", "new-links", "› Links"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("refreshed landing missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "environment-summary") || strings.Contains(text, "links-summary") {
+		t.Fatal("landing retained stale summaries")
+	}
+	for _, selection := range []int{0, 1, 0} {
+		state.menuSelection = selection
+		state.updateMenu()
+		buffer := glyph.NewBuffer(80, 12)
+		template.Execute(buffer, 80, 12)
+		for y := range 12 {
+			line := buffer.GetLine(y)
+			for i, item := range state.menu {
+				if x := strings.Index(line, item.name); x >= 0 {
+					want := glyph.Color{}
+					if i == selection {
+						want = glyph.Cyan
+					}
+					if buffer.Get(x, y).Style.FG != want || buffer.Get(x, y).Style.BG.Mode != glyph.ColorDefault {
+						t.Fatalf("menu identifier selection=%d: %q", selection, line)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestDotfilePublishKeepsFocusFilterClearsMarks(t *testing.T) {
+	state := dotfileTestState(t)
+	for _, name := range []string{"b", "c"} {
+		state.rows = append(state.rows, state.inspect(dotfileTestEntry(state, name)))
+	}
+	state.filter = 1
+	state.rebuild()
+	state.selection = 1
+	state.menuSelection = 1
+	state.toggle(&state.visible[1])
+	work := state.workerSnapshot()
+	work.rows = append(slices.Clone(state.rows), state.inspect(dotfileTestEntry(state, "a")))
+	state.publish(work)
+	if state.filter != 1 || state.selection != 2 || state.menuSelection != 1 || state.visible[state.selection].entry.Name != "c" || len(state.marks) != 0 {
+		t.Fatalf("publication lost focus/filter or kept marks: %+v", state)
 	}
 }

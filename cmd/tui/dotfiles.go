@@ -25,6 +25,9 @@ type dotfileRow struct {
 	result                                 dotfiles.Result
 	group                                  int
 	label, reason, current, mark, basename string
+	statusLabel                            string
+	statusStyle                            glyph.Style
+	nameStyle                              glyph.Style
 	style                                  glyph.Style
 }
 
@@ -32,6 +35,12 @@ type dotfileStamp struct {
 	result                              dotfiles.Result
 	source                              os.FileInfo
 	resolvedSource, destination, parent string
+}
+
+type dotfileMenuItem struct {
+	name      string
+	summary   string
+	nameColor glyph.Color
 }
 
 type dotfileState struct {
@@ -45,7 +54,9 @@ type dotfileState struct {
 	mode                                    layout.Mode
 	reports                                 map[layout.Mode]audit.Report
 	environment, links, status, filterLabel string
-	detailText                              string
+	detailText, previewSummary              string
+	menu                                    []dotfileMenuItem
+	menuSelection                           int
 	detail, previewLines                    []string
 	findings                                []audit.Finding
 	previewEntries                          []dotfiles.Entry
@@ -128,7 +139,9 @@ func (state *dotfileState) refresh(app *glyph.App) {
 		return
 	}
 	state.refreshing = true
-	state.status = "Refreshing dotfiles…"
+	state.marks = map[string]bool{}
+	state.rebuild()
+	state.status = "Refreshing · stale rows"
 	go func() {
 		work.load()
 		app.Apply(func() {
@@ -242,6 +255,7 @@ func (state *dotfileState) environmentSummary() {
 	}
 	state.findings = report.Findings
 	state.environment = fmt.Sprintf("Environment: %s · %d findings · %d warnings · %d errors", state.mode, len(report.Findings), warnings, failures)
+	state.updateMenu()
 }
 
 func (state *dotfileState) rebuild() {
@@ -269,6 +283,19 @@ func (state *dotfileState) rebuild() {
 		}
 		row.basename = filepath.Base(row.result.Target)
 		row.style = glyph.Style{}
+		row.statusLabel = row.label
+		row.statusStyle = glyph.Style{}
+		switch row.group {
+		case 0:
+			row.statusStyle.FG = glyph.Yellow
+		case 1:
+			row.statusLabel = "Blocked"
+			row.statusStyle.FG = glyph.Red
+		case 2:
+			row.statusStyle.FG = glyph.Green
+		case 3:
+			row.statusStyle = row.statusStyle.Dim()
+		}
 		if row.group == 3 {
 			row.style = row.style.Dim()
 		}
@@ -282,7 +309,15 @@ func (state *dotfileState) rebuild() {
 		state.visible = append(state.visible, row)
 	}
 	state.selection = min(max(0, state.selection), max(0, len(state.visible)-1))
+	for i := range state.visible {
+		state.visible[i].nameStyle = state.visible[i].style
+		state.visible[i].nameStyle.FG = glyph.DefaultColor()
+		if i == state.selection {
+			state.visible[i].nameStyle.FG = glyph.Cyan
+		}
+	}
 	state.filterLabel = "Filter: " + dotfileFilters[state.filter]
+	state.updateMenu()
 }
 
 func (state *dotfileState) toggle(row *dotfileRow) {
@@ -401,7 +436,15 @@ func (state *dotfileState) preparePreview() error {
 	if err != nil {
 		return err
 	}
+	state.previewSummary = fmt.Sprintf("Apply %d links (%d hidden)", len(results), hidden)
 	state.previewLines = []string{fmt.Sprintf("%d marked links (%d hidden by filter)", len(results), hidden)}
+	state.previewLines = append(state.previewLines, "Regular files always unchanged.")
+	for _, result := range results {
+		if result.State == dotfiles.StateWrongLink {
+			state.previewLines = append(state.previewLines, "Replace only symlinks resolving inside repository; outside links stay unchanged.")
+			break
+		}
+	}
 	for _, result := range results {
 		if result.State != dotfiles.StateMissing && result.State != dotfiles.StateWrongLink {
 			return errors.New("link state changed; refresh and mark again")
@@ -457,20 +500,69 @@ func (state *dotfileState) applyPreview() (int, int, error) {
 }
 
 func dotfileLinksList(state *dotfileState) *glyph.ListC[dotfileRow] {
-	return glyph.List(&state.visible).Selection(&state.selection).Render(func(row *dotfileRow) glyph.Component {
+	return styleList(glyph.List(&state.visible).Selection(&state.selection)).Render(func(row *dotfileRow) glyph.Component {
 		return glyph.HBox.Gap(1)(
 			glyph.Text(&row.mark).Style(&row.style).Width(3),
-			glyph.HBox.WidthPct(0.24)(glyph.Text(&row.entry.Name).Style(&row.style)),
-			glyph.HBox.WidthPct(0.30)(glyph.Text(&row.basename).Style(&row.style)),
-			glyph.HBox.Grow(1)(glyph.Text(&row.label).Style(&row.style)),
+			glyph.HBox.WidthPct(0.22)(glyph.Text(&row.entry.Name).Style(&row.nameStyle)),
+			glyph.HBox.WidthPct(0.22)(glyph.Text(&row.basename).Style(&row.nameStyle)),
+			glyph.HBox.Grow(1)(glyph.Text(&row.statusLabel).Style(&row.statusStyle)),
 		)
+	}).OnSelect(func(selected *dotfileRow) {
+		for i := range state.visible {
+			state.visible[i].nameStyle.FG = glyph.DefaultColor()
+		}
+		selected.nameStyle.FG = glyph.Cyan
 	})
 }
 
 func dotfileEnvironmentList(state *dotfileState) *glyph.ListC[audit.Finding] {
-	return glyph.List(&state.findings).Render(func(finding *audit.Finding) glyph.Component {
-		return glyph.Textf((*string)(&finding.Severity), " ", &finding.Message)
+	return styleList(glyph.List(&state.findings)).Render(func(finding *audit.Finding) glyph.Component {
+		severity := (*string)(&finding.Severity)
+		color := glyph.If(severity).Eq(string(audit.SeverityError)).Then(glyph.Red).Else(
+			glyph.If(severity).Eq(string(audit.SeverityWarning)).Then(glyph.Yellow).Else(glyph.Green),
+		)
+		return glyph.HBox.Gap(1)(glyph.Text(severity).FG(color), glyph.Text(&finding.Message))
 	})
+}
+
+func (state *dotfileState) updateMenu() {
+	state.menu = []dotfileMenuItem{{name: "Environment", summary: state.environment}, {name: "Links", summary: state.links}}
+	for i := range state.menu {
+		state.menu[i].nameColor = glyph.DefaultColor()
+		if i == state.menuSelection {
+			state.menu[i].nameColor = glyph.Cyan
+		}
+	}
+}
+
+func dotfileLanding(state *dotfileState) (glyph.Component, *glyph.ListC[dotfileMenuItem]) {
+	state.updateMenu()
+	menu := styleList(glyph.List(&state.menu).Selection(&state.menuSelection)).Render(func(item *dotfileMenuItem) glyph.Component {
+		return glyph.VBox(glyph.Text(&item.name).Bold().FG(&item.nameColor), glyph.TextBlock(&item.summary), glyph.Space().Height(1))
+	}).OnSelect(func(selected *dotfileMenuItem) {
+		for i := range state.menu {
+			state.menu[i].nameColor = glyph.DefaultColor()
+		}
+		selected.nameColor = glyph.Cyan
+	})
+	return glyph.VBox.Grow(1)(menu), menu
+}
+
+func dotfileLinksContent(state *dotfileState, list *glyph.ListC[dotfileRow]) glyph.Component {
+	return glyph.VBox.Grow(1)(
+		glyph.Text(&state.filterLabel),
+		glyph.HBox.Gap(1)(
+			glyph.Text(" ").Width(5),
+			glyph.HBox.WidthPct(0.22)(glyph.Text("Name").Bold()),
+			glyph.HBox.WidthPct(0.22)(glyph.Text("Target").Bold()),
+			glyph.Text("State").Bold(),
+		),
+		glyph.HRule(), list,
+	)
+}
+
+func dotfilePreviewContent(state *dotfileState, preview *glyph.ListC[string]) glyph.Component {
+	return glyph.VBox.Grow(1)(glyph.Text(&state.previewSummary).Bold(), preview)
 }
 
 func registerDotfiles(state *dotfileState, app *glyph.App) {
@@ -483,14 +575,25 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 		app.Stop()
 	}
 	frame := func(title string, content glyph.Component, help string) glyph.Component {
-		return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title(title)(content, glyph.Text(&state.status).Dim(), glyph.Text(help).Dim())
+		context := func() string { return "Config: " + state.configPath }
+		return screenFrame(title, context, &state.status, content, help)
 	}
-	landing := glyph.VBox(glyph.Textf("Config: ", &state.configPath), glyph.Text(&state.environment), glyph.Text(&state.links))
-	app.View("dotfiles", frame("Dotfiles", landing, "e Environment  l Links  r refresh  Esc Home  q quit")).
+	landing, menu := dotfileLanding(state)
+	app.View("dotfiles", frame("Dotfiles", landing, "Enter open  Esc Home  q quit")).
+		Handle("<down>", menu.Down).Handle("<up>", menu.Up).Handle("j", menu.Down).Handle("k", menu.Up).
+		Handle("<Enter>", func() {
+			if selected := menu.Selected(); selected != nil {
+				if selected.name == "Environment" {
+					app.Go("dotfiles-environment")
+				} else {
+					app.Go("dotfiles-links")
+				}
+			}
+		}).
 		Handle("e", func() { app.Go("dotfiles-environment") }).Handle("l", func() { app.Go("dotfiles-links") }).
 		Handle("r", func() { state.refresh(app) }).Handle("<Esc>", func() { app.Go("home") }).Handle("q", stop).Handle("<C-c>", stop)
 	list := dotfileLinksList(state)
-	app.View("dotfiles-links", frame("Links", glyph.VBox.Grow(1)(glyph.Text(&state.filterLabel), list), "Tab filter  Space mark  a toggle visible  Enter details  l preview  r refresh  Esc back  q quit")).
+	app.View("dotfiles-links", frame("Dotfiles / Links", dotfileLinksContent(state, list), "Space mark  l preview  Esc back  q quit")).
 		Handle("<down>", list.Down).Handle("<up>", list.Up).Handle("j", list.Down).Handle("k", list.Up).
 		Handle("<Tab>", func() { state.filter = (state.filter + 1) % len(dotfileFilters); state.rebuild() }).
 		Handle("<Space>", func() { state.toggle(list.Selected()) }).Handle("a", state.toggleAll).
@@ -516,7 +619,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 	updateEnvironment := state.environmentSummary
 	updateEnvironment()
 	environmentList := dotfileEnvironmentList(state)
-	app.View("dotfiles-environment", frame("Environment", glyph.VBox.Grow(1)(glyph.Text(&state.environment), environmentList), "m toggle xdg/native  Enter details  r refresh  Esc back  q quit")).
+	app.View("dotfiles-environment", frame("Dotfiles / Environment", glyph.VBox.Grow(1)(glyph.Text(&state.environment), environmentList), "Enter details  m mode  Esc back  q quit")).
 		Handle("<down>", environmentList.Down).Handle("<up>", environmentList.Up).Handle("j", environmentList.Down).Handle("k", environmentList.Up).
 		Handle("m", func() {
 			if state.mode == layout.ModeXDG {
@@ -530,7 +633,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 		Handle("<Enter>", func() {
 			if finding := environmentList.Selected(); finding != nil {
 				report := state.reports[state.mode]
-				state.detail = []string{"Mode: " + string(state.mode), "Config root: " + report.Expected.ConfigRoot, "State: " + string(finding.Severity), "Code: " + finding.Code, finding.Message, "Recommendation: " + finding.Recommendation}
+				state.detail = []string{"Mode: " + string(state.mode), "Config root: " + report.Expected.ConfigRoot, "State: " + string(finding.Severity), "Code: " + finding.Code, "Finding: " + finding.Message, "Recommendation: " + finding.Recommendation}
 				state.detailText = strings.Join(state.detail, "\n\n")
 				app.Go("dotfiles-environment-detail")
 			}
@@ -538,11 +641,17 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 		Handle("<Esc>", func() { app.Go("dotfiles") }).Handle("q", stop).Handle("<C-c>", stop)
 	for name, back := range map[string]string{"dotfiles-detail": "dotfiles-links", "dotfiles-environment-detail": "dotfiles-environment", "dotfiles-failure": "dotfiles-links"} {
 		lines := glyph.TextView(&state.detailText).Grow(1).BindNav("<down>", "<up>").BindNav("j", "k").BindPageNav("<C-d>", "<C-u>")
-		app.View(name, frame("Details", lines, "↑/↓ j/k scroll  Esc back  q quit")).Handle("<Esc>", func() { app.Go(back) }).Handle("q", stop).Handle("<C-c>", stop)
+		title := "Dotfiles / Links / Details"
+		if back == "dotfiles-environment" {
+			title = "Dotfiles / Environment / Details"
+		} else if name == "dotfiles-failure" {
+			title = "Dotfiles / Links / Failure"
+		}
+		app.View(name, frame(title, lines, "↑/↓ scroll  Esc back  q quit")).Handle("<Esc>", func() { app.Go(back) }).Handle("q", stop).Handle("<C-c>", stop)
 	}
-	preview := glyph.List(&state.previewLines).Render(func(line *string) glyph.Component { return glyph.Text(line) })
+	preview := styleList(glyph.List(&state.previewLines)).Render(func(line *string) glyph.Component { return glyph.TextBlock(line).CharWrap() })
 	cancel := func() { state.previewEntries, state.previewStamps = nil, nil; app.Go("dotfiles-links") }
-	app.View("dotfiles-preview", frame("Confirm links", preview, "y apply  n/Esc cancel  ↑/↓ scroll")).Handle("<down>", preview.Down).Handle("<up>", preview.Up).Handle("n", cancel).Handle("<Esc>", cancel).Handle("q", stop).Handle("<C-c>", stop).
+	app.View("dotfiles-preview", frame("Dotfiles / Links / Confirm", dotfilePreviewContent(state, preview), "y apply  n/Esc cancel  q quit")).Handle("<down>", preview.Down).Handle("<up>", preview.Up).Handle("n", cancel).Handle("<Esc>", cancel).Handle("q", stop).Handle("<C-c>", stop).
 		Handle("y", func() {
 			if state.pending {
 				return
@@ -580,7 +689,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 				})
 			}()
 		})
-	app.View("dotfiles-pending", frame("Applying links", glyph.Text("Transaction pending. Quit waits for completion."), "")).Handle("q", stop).Handle("<C-c>", stop)
+	app.View("dotfiles-pending", frame("Dotfiles / Links / Applying", glyph.VBox(glyph.Text("Applying marked links").Bold(), glyph.Text("Quit waits for completion.")), "q quit when done")).Handle("q", stop).Handle("<C-c>", stop)
 }
 
 func dotfileFailureDetails(err error) string {

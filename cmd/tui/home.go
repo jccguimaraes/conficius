@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/audit"
@@ -14,8 +15,10 @@ import (
 )
 
 type homeCard struct {
-	name, view, summary string
-	color               glyph.Color
+	name, view, summary, label string
+	color                      glyph.Color
+	nameColor                  glyph.Color
+	gap                        bool
 }
 
 func parseStartupFlags(args []string, output io.Writer) (string, error) {
@@ -61,7 +64,7 @@ func dotfileHomeSummary(state *dotfileState) (string, glyph.Color) {
 			color = glyph.Yellow
 		}
 	}
-	parts := []string{"Config: " + state.configPath, state.environment, state.links}
+	parts := []string{strings.TrimPrefix(state.environment, "Environment: ") + " · " + state.links}
 	if state.configErr != nil {
 		parts = append(parts, "Configuration error: "+strings.SplitN(state.configErr.Error(), "\n", 2)[0])
 	}
@@ -69,20 +72,20 @@ func dotfileHomeSummary(state *dotfileState) (string, glyph.Color) {
 }
 
 func packageHomeSummary(data *model) (string, glyph.Color) {
-	local := "Local inventory: loading; drift unknown"
+	local := "Local: loading; drift unknown"
 	color := glyph.Cyan
 	if data.localChecked && !data.localLoading {
-		local = fmt.Sprintf("Local inventory: %d installed; %d drift", data.installedCount, len(data.drift))
+		local = fmt.Sprintf("Local: %d installed; %d drift", data.installedCount, len(data.drift))
 		color = glyph.Green
 		if len(data.drift) > 0 {
 			color = glyph.Yellow
 		}
 		if data.localErr != nil {
-			local += " (inspection failed; partial counts)"
+			local += " (partial; failed)"
 			color = glyph.Red
 		}
 	}
-	outdated := "Outdated: unknown (network pending)"
+	outdated := "Outdated: unknown"
 	if data.outdatedChecked {
 		outdated = fmt.Sprintf("Outdated: %d", len(data.packages))
 		if len(data.packages) > 0 && color != glyph.Red {
@@ -93,18 +96,18 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 			color = glyph.Red
 		}
 	}
-	security := "Security: unknown (network pending)"
+	security := "Security: unknown"
 	if data.securityScanning {
 		security = "Security: unknown (scanning)"
 	} else if data.securityChecked {
-		security = fmt.Sprintf("Security: %d packages checked; %d vulnerable; %d unknown; %d errors", data.securityCount, data.securitySummary.Vulnerable, data.securitySummary.Unknown, data.securitySummary.Errors)
+		security = fmt.Sprintf("Security: %d checked; %d vulnerable; %d unknown; %d errors", data.securityCount, data.securitySummary.Vulnerable, data.securitySummary.Unknown, data.securitySummary.Errors)
 		if data.securitySummary.Vulnerable > 0 || data.securitySummary.Errors > 0 || data.securityErr != nil {
 			color = glyph.Red
 		} else if data.securitySummary.Unknown > 0 && color != glyph.Red {
 			color = glyph.Yellow
 		}
 		if data.securityErr != nil {
-			security += " (scan failed; partial counts)"
+			security += " (partial; failed)"
 		}
 	}
 	return strings.Join([]string{local, outdated, security}, "\n"), color
@@ -116,31 +119,52 @@ func updateHome(data *model) {
 	}
 	data.homeCards[0].summary, data.homeCards[0].color = dotfileHomeSummary(data.dotfiles)
 	data.homeCards[1].summary, data.homeCards[1].color = packageHomeSummary(data)
+	for i := range data.homeCards {
+		card := &data.homeCards[i]
+		switch card.color {
+		case glyph.Green:
+			card.label = "Healthy"
+		case glyph.Yellow:
+			card.label = "Attention"
+		case glyph.Red:
+			card.label = "Error"
+		default:
+			card.label = "Loading"
+		}
+	}
 }
 
 func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCard]) {
-	data.homeCards = []homeCard{{name: "Dotfiles", view: "dotfiles"}, {name: "Packages", view: "scopes"}}
+	data.homeCards = []homeCard{{name: "Dotfiles", view: "dotfiles", nameColor: glyph.Cyan, gap: true}, {name: "Packages", view: "scopes"}}
 	updateHome(data)
-	cards := glyph.List(&data.homeCards).Render(func(card *homeCard) glyph.Component {
-		return glyph.VBox.Border(glyph.BorderRounded)(
-			glyph.Text(&card.name).Bold(),
-			glyph.TextBlock(&card.summary).CharWrap().FG(&card.color),
+	cards := styleList(glyph.List(&data.homeCards)).MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
+		return glyph.VBox(
+			glyph.HBox.Gap(1)(glyph.Text(&card.name).Bold().FG(&card.nameColor), glyph.Text(&card.label).FG(&card.color)),
+			glyph.TextBlock(&card.summary),
+			glyph.If(&card.gap).Then(glyph.Text("")),
 		)
+	}).OnSelect(func(selected *homeCard) {
+		for i := range data.homeCards {
+			data.homeCards[i].nameColor = glyph.DefaultColor()
+		}
+		selected.nameColor = glyph.Cyan
 	}).BindNav("j", "k").Handle("<Enter>", func(card *homeCard) {
 		if card.view == "dotfiles" && data.dotfileCancel != nil {
 			data.dotfileCancel()
 		}
 		app.Go(card.view)
 	})
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Conficius "+version)(
-		cards,
-		glyph.Text("↑/↓ or j/k move  Enter open  r full refresh  q quit").Dim(),
-	), cards
+	context := func() string {
+		if data.dotfiles == nil {
+			return "Config: unavailable"
+		}
+		return "Config: " + glyph.TruncateWidthEllipsis(filepath.Base(data.dotfiles.configPath), max(1, terminalWidth()-12))
+	}
+	return screenFrame("Home · "+version, context, nil, cards, "↑/↓ move  Enter open  r/q  ? help"), cards
 }
 
 func registerHome(data *model, app *glyph.App) {
 	view, cards := homeView(data, app)
-	// Dotfiles refresh applies asynchronously to the same bound state.
 	app.OnBeforeRender(func() { updateHome(data) })
 	app.View("home", view).Handle("<down>", cards.Down).Handle("<up>", cards.Up).
 		Handle("<Esc>", func() {}).Handle("q", app.Stop).

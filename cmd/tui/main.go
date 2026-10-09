@@ -65,6 +65,8 @@ type model struct {
 	preview           string
 	commands          []commandRow
 	planSummary       string
+	packageDetailText string
+	packageFocus      func(func())
 	updateErrorLines  []string
 	updating          bool
 	runInteractive    bool
@@ -151,7 +153,13 @@ func run() error {
 func runSession(data *model, startView string) error {
 	app := glyph.NewApp()
 	app.HideCursor()
-	app.JumpKey("f")
+	size := app.Size()
+	updateScreenSize(size.Width, size.Height)
+	app.Handle("f", func() {
+		if !terminalTooSmall() && (data.dotfiles == nil || !data.dotfiles.pending) {
+			app.EnterJumpMode()
+		}
+	})
 	if startView == "results" {
 		refresh(data, app)
 	} else {
@@ -176,15 +184,17 @@ func runSession(data *model, startView string) error {
 		Handle("d", func() { app.Go("drift") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("<Enter>", func() {
-			if row := packageList.Selected(); row != nil && row.Failed {
-				data.updateErrorLines = strings.Split(row.Error, "\n")
-				app.Go("update-error")
+			if row := packageList.Selected(); row != nil {
+				data.packageDetailText = packageDetails(row)
+				app.Go("package-detail")
 			}
 		}).
 		Handle("<down>", packageList.Down).
 		Handle("<up>", packageList.Up).
 		Handle("j", packageList.Down).
 		Handle("k", packageList.Up).
+		Handle("<C-d>", packageList.HalfPageDown).
+		Handle("<C-u>", packageList.HalfPageUp).
 		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()); app.RequestRender() }).
 		Handle("a", func() { toggleAll(data); app.RequestRender() }).
 		Handle("u", func() { prepareUpgrade(data, app, false) }).
@@ -207,8 +217,15 @@ func runSession(data *model, startView string) error {
 		Handle("j", driftList.Down).
 		Handle("k", driftList.Up).
 		Handle("<C-d>", driftList.HalfPageDown).
-		Handle("<C-u>", driftList.HalfPageUp)
+		Handle("<C-u>", driftList.HalfPageUp).
+		Handle("<Enter>", func() {
+			if row := driftList.Selected(); row != nil {
+				data.packageDetailText = driftDetails(row)
+				app.Go("drift-detail")
+			}
+		})
 	app.View("confirm", confirmView(data)).
+		Handle("q", app.Stop).
 		Handle("y", func() { applyUpgrades(data, app) }).
 		Handle("n", func() { app.Go("results") }).
 		Handle("<Esc>", func() { app.Go("results") })
@@ -234,6 +251,24 @@ func runSession(data *model, startView string) error {
 	app.View("vulnerability-detail", vulnerabilityDetailView(data, app)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
+	for name, back := range map[string]string{"package-detail": "results", "drift-detail": "drift"} {
+		details := glyph.TextView(&data.packageDetailText).WordWrap().Grow(1).BindNav("j", "k").BindNav("<down>", "<up>").BindPageNav("<C-d>", "<C-u>")
+		app.View(name, screenFrame("Packages / Details", "Profile: "+data.profile.Name, &data.status, details, "↑/↓ scroll  Esc back  q quit")).
+			Handle("<Esc>", func() { app.Go(back) }).Handle("q", app.Stop)
+	}
+	keepPackages := preserveListFocus(packageList, &data.rows, func(row *outdatedRow) string {
+		return packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+	})
+	keepDrift := preserveListFocus(driftList, &data.drift, func(row *config.PackageState) string {
+		return packageKey(row.Scope, row.Path, row.Manager, row.Name)
+	})
+	keepFindings := preserveListFocus(vulnerabilityList, &data.findings, func(row *vulnerabilityRow) string {
+		return packageKey(row.Scope, row.Path, row.Manager, row.Package) + "\x00" + row.Source + "\x00" + row.SourceID
+	})
+	data.packageFocus = func(update func()) { keepPackages(func() { keepDrift(func() { keepFindings(update) }) }) }
+	defer func() { data.packageFocus = nil }()
+	registerScreenHelp(app, data)
+	startView, _ = registerResizeView(app, data, startView)
 	defer func() {
 		if data.dotfileCancel != nil {
 			data.dotfileCancel()
@@ -243,160 +278,6 @@ func runSession(data *model, startView string) error {
 		}
 	}()
 	return app.RunFrom(startView)
-}
-
-func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[config.Scope]) {
-	list := glyph.List(&data.scopes).
-		Render(func(scope *config.Scope) glyph.Component {
-			return glyph.Textf(&scope.Kind, ":", &scope.Name, "  ", &scope.Path)
-		}).
-		BindNav("j", "k").
-		Handle("<Enter>", func(scope *config.Scope) {
-			selectScope(data, scope)
-			refresh(data, app)
-			app.Go("results")
-		})
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Conficius "+version)(
-		glyph.Text("Profile: "+data.profile.Name).Bold(),
-		glyph.Text("Scopes").Underline(),
-		list,
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Enter open  r full refresh  Esc Home  q quit").Dim(),
-	), list
-}
-
-func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
-	list := glyph.List(&data.rows).
-		Render(func(row *outdatedRow) glyph.Component {
-			color := glyph.White
-			if row.Failed {
-				color = glyph.Red
-			}
-			return glyph.HBox.Gap(2)(
-				glyph.Text(&row.Mark).Width(3).FG(color),
-				glyph.Text(&row.Package.Manager).Width(8).FG(color),
-				glyph.Text(&row.Package.Name).Width(26).FG(color),
-				glyph.Text(&row.Package.Current).Width(16).FG(color),
-				glyph.Text(&row.Package.Latest).Width(16).FG(func() glyph.Color {
-					if row.Failed {
-						return glyph.Red
-					}
-					return glyph.Green
-				}()),
-				glyph.Text(&row.Package.Scope).Width(10).FG(color),
-				glyph.Text(&row.Error).Width(30).FG(glyph.Red),
-			)
-		}).
-		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
-		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold}).
-		MaxVisible(1000)
-	header := glyph.HBox.Gap(2)(
-		glyph.Text("Mark").Width(3).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
-		glyph.Text("Current").Width(16).Bold(), glyph.Text("Latest").Width(16).Bold(), glyph.Text("Scope").Width(10).Bold(),
-	)
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Outdated packages")(
-		header,
-		loadingContent(&data.loading, list),
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Enter error details  Space mark  a mark all  u upgrade marked  U upgrade all  d drift  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
-	), list
-}
-
-func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
-	list := glyph.List(&data.updateErrorLines).Render(func(line *string) glyph.Component {
-		return glyph.Text(line).FG(glyph.Red)
-	})
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Update error")(
-		list,
-		glyph.Text("↑/↓ scroll  Esc back  q quit").Dim(),
-	), list
-}
-
-func confirmView(data *model) glyph.Component {
-	list := glyph.List(&data.commands).Render(func(row *commandRow) glyph.Component {
-		return glyph.VBox(
-			glyph.Textf(&row.Manager, "  ", &row.Scope, "  ", &row.Packages),
-			glyph.Text(&row.Command).FG(glyph.Cyan),
-		)
-	}).Marker("").MaxVisible(100)
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Confirm upgrades")(
-		glyph.Text(&data.planSummary).Bold(), loadingContent(&data.updating, list),
-		glyph.Text("y apply  n/Esc cancel").Dim(),
-	)
-}
-
-func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState]) {
-	list := glyph.List(&data.drift).
-		Render(func(row *config.PackageState) glyph.Component {
-			return glyph.HBox.Gap(2)(
-				glyph.Text(&row.Manager).Width(8),
-				glyph.Text(&row.Name).Width(26),
-				glyph.Text(&row.Installed).Width(16),
-				glyph.Text(&row.DesiredVersion).Width(16).FG(glyph.Green),
-				glyph.Text(&row.Status).Width(14).FG(func() glyph.Color { return driftStatusColor(row.Status) }),
-				glyph.Text(&row.Scope).Width(10),
-			)
-		}).
-		Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
-		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
-	header := glyph.HBox.Gap(2)(
-		glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(26).Bold(),
-		glyph.Text("Installed").Width(16).Bold(), glyph.Text("Desired").Width(16).Bold(),
-		glyph.Text("Status").Width(14).Bold(), glyph.Text("Scope").Width(10).Bold(),
-	)
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Profile drift")(
-		header,
-		loadingContent(&data.loading, list),
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  o outdated  v vulnerabilities  Esc back  r refresh  q quit").Dim(),
-	), list
-}
-
-func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerabilityRow]) {
-	list := glyph.List(&data.findings).
-		Render(func(row *vulnerabilityRow) glyph.Component {
-			return glyph.HBox.Gap(1)(
-				glyph.Text(&row.Source).Width(6), glyph.Text(&row.Manager).Width(8), glyph.Text(&row.Package).Width(22),
-				glyph.Text(&row.Current).Width(14), glyph.Text(&row.Status).Width(12), glyph.Text(&row.Score).Width(6).FG(severityColor(row.Score)), glyph.Text(&row.Advisory).Width(22).FG(severityColor(row.Score)),
-				glyph.Text(&row.RuleCount).Width(5), glyph.Text(&row.UpgradeTo).Width(14).FG(glyph.Green),
-			)
-		}).Marker("› ").MarkerStyle(glyph.Style{FG: glyph.Cyan}).
-		SelectedStyle(glyph.Style{BG: glyph.RGB(40, 48, 60), Attr: glyph.AttrBold})
-	header := glyph.HBox.Gap(1)(
-		glyph.Text("Source").Width(6).Bold(), glyph.Text("Manager").Width(8).Bold(), glyph.Text("Tool").Width(22).Bold(),
-		glyph.Text("Current").Width(14).Bold(), glyph.Text("Status").Width(12).Bold(), glyph.Text("CVSS").Width(6).Bold(), glyph.Text("CVE / Advisory").Width(22).Bold(),
-		glyph.Text("Rules").Width(5).Bold(), glyph.Text("Upgrade To").Width(14).Bold(),
-	)
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerabilities")(
-		header, loadingContent(&data.loading, list),
-		glyph.Text(&data.status).Dim(),
-		glyph.Text("↑/↓ or j/k move  Ctrl-d/u page  Enter details  o outdated  d drift  Esc back  r refresh  q quit").Dim(),
-	), list
-}
-
-func vulnerabilityDetailView(data *model, app *glyph.App) glyph.Component {
-	row := &data.detail
-	return glyph.VBox.Grow(1).Border(glyph.BorderRounded).Title("Vulnerability detail")(
-		glyph.Textf("Source: ", &row.Source),
-		glyph.HBox(glyph.Text("CVE/advisory: "), glyph.Jump(glyph.Text(&row.Advisory).FG(glyph.Cyan).Underline(), func() {
-			if err := openURL(row.CVELink); err != nil {
-				data.status = err.Error()
-				app.RequestRender()
-			}
-		})),
-		glyph.Textf("Source ID: ", &row.SourceID),
-		glyph.HBox(glyph.Text("CVSS: "), glyph.Text(&row.Score)),
-		glyph.Text("Unsupported rules: "+strings.Join(row.Rules, ", ")),
-		glyph.Text("Aliases: "+strings.Join(row.Aliases, ", ")),
-		glyph.Textf("Upgrade target: ", &row.UpgradeTo),
-		glyph.Textf("Upgrade note: ", &row.UpgradeNote),
-		glyph.Textf("Description: ", &row.Description),
-		glyph.Textf("Reference: ", &row.Reference),
-		glyph.Textf("Reason/error: ", &row.Reason),
-		glyph.Text(&data.status).FG(glyph.Red),
-		glyph.Space().Grow(1),
-		glyph.Text("f then link label open CVE  Esc back  q quit").Dim(),
-	)
 }
 
 func openURL(rawURL string) error {
@@ -429,7 +310,6 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	data.localLoading, data.localChecked, data.localErr = true, false, nil
 	data.networkPending, data.outdatedChecked, data.outdatedErr = true, false, nil
 	data.securityScanning, data.securityChecked, data.securityErr = false, false, nil
-	data.findings = nil
 	data.status = "Local inventory loading; outdated unknown; security unknown (network pending)"
 	updateHome(data)
 	scopeSelection := selectedScopes(data)
@@ -437,6 +317,15 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
 	euvdMaps := append([]config.EUVDMapping(nil), data.euvdMaps...)
 	app.RequestRender()
+	apply := func(update func()) {
+		app.Apply(func() {
+			if data.packageFocus != nil {
+				data.packageFocus(update)
+			} else {
+				update()
+			}
+		})
+	}
 	go func() {
 		scopes := make([]packagemanager.Scope, len(scopeSelection))
 		for i, scope := range scopeSelection {
@@ -475,7 +364,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		if ctx.Err() != nil {
 			return
 		}
-		app.Apply(func() {
+		apply(func() {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
@@ -510,7 +399,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			return
 		}
 		err := errors.Join(outdatedErr, inventoryErr)
-		app.Apply(func() {
+		apply(func() {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
@@ -541,7 +430,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		if ctx.Err() != nil {
 			return
 		}
-		app.Apply(func() {
+		apply(func() {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
@@ -556,38 +445,6 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			updateHome(data)
 		})
 	}()
-}
-
-func loadingContent(loading *bool, content glyph.Component) glyph.Component {
-	return glyph.VBox.Grow(1)(glyph.If(loading).
-		Then(glyph.HBox.Gap(1)(glyph.Spinner().FG(glyph.Cyan), glyph.Text("Loading...").FG(glyph.Cyan))).
-		Else(content))
-}
-
-func severityColor(score float64) glyph.Color {
-	switch {
-	case score >= 9:
-		return glyph.Red
-	case score >= 7:
-		return glyph.RGB(255, 140, 0)
-	case score >= 4:
-		return glyph.Yellow
-	case score > 0:
-		return glyph.Blue
-	default:
-		return glyph.White
-	}
-}
-
-func driftStatusColor(status string) glyph.Color {
-	switch status {
-	case config.DriftBehind, config.DriftMissing:
-		return glyph.Red
-	case config.DriftUnsupported:
-		return glyph.Yellow
-	default:
-		return glyph.Green
-	}
 }
 
 func vulnerabilitySummary(outdated, drift int, summary security.Summary, evidence []security.Evidence) string {
