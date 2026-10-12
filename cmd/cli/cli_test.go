@@ -10,6 +10,16 @@ import (
 	"github.com/jccguimaraes/conficius/internal/config"
 )
 
+func TestWisdomCommand(t *testing.T) {
+	var output bytes.Buffer
+	if err := New(&output, "test").Execute([]string{appName, "wisdom"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(output.String(), "Conficius says: ") || strings.Count(output.String(), "\n") != 1 {
+		t.Fatalf("unexpected wisdom: %q", output.String())
+	}
+}
+
 func TestInitCommandDefaultPath(t *testing.T) {
 	workingDirectory := t.TempDir()
 	withWorkingDirectory(t, workingDirectory)
