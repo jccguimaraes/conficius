@@ -10,7 +10,7 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
-## [0.1.0]
+## [0.0.1]
 
 ### ⛰️  Features
 

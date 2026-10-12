@@ -31,7 +31,7 @@ checksum:
 
 release:
   draft: false
-  prerelease: auto
+  prerelease: true
   name_template: "Conficius TUI {{.Env.CONFICIUS_VERSION}}"
 
 changelog:

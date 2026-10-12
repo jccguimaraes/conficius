@@ -1,28 +1,23 @@
+# generated-by: cinzel
+# cinzel-provider: github
+# cinzel-source: cinzel/ci.hcl
 name: CI
-
 on:
   pull_request:
   push:
-    branches: [main]
-
+    branches:
+      - main
 permissions:
   contents: read
-
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: "ci-${{ github.workflow }}-${{ github.ref }}"
 jobs:
   test:
-    name: Test (${{ matrix.os }})
+    name: "Test (${{ matrix.os }})"
     permissions:
       contents: read
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: "${{ matrix.os }}"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,8 +26,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
           cache-dependency-path: go.sum
+          go-version-file: go.mod
       - name: Test
         run: go test -race ./...
       - name: Vet
@@ -45,13 +40,18 @@ jobs:
         run: |
           ./bin/conficius --help >/dev/null
           ./bin/conficius packages pms --json >/dev/null
-
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    timeout-minutes: 15
   lint:
     name: Lint
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,3 +67,4 @@ jobs:
         run: |
           goreleaser check
           goreleaser check --config .goreleaser-tui.yaml
+    timeout-minutes: 15

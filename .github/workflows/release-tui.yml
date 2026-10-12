@@ -1,5 +1,7 @@
+# generated-by: cinzel
+# cinzel-provider: github
+# cinzel-source: cinzel/release-tui.hcl
 name: Release TUI
-
 on:
   push:
     tags:
@@ -7,30 +9,27 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
+        default: verify
         description: Type "publish" to release selected tag
         required: false
-        default: verify
         type: string
-
 permissions:
   contents: read
-
 jobs:
   verify:
     name: Verify TUI release
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate release tag
-        env:
-          TAG: ${{ github.ref_name }}
+      - env:
+          TAG: "${{ github.ref_name }}"
+        name: Validate release tag
         run: |
           if ! printf '%s\n' "$TAG" | grep -Eq '^tui-v(20[0-9]{2})\.(0[1-9]|1[0-2])\.([1-9][0-9]*)$'; then
             echo "invalid TUI release tag: $TAG" >&2
@@ -42,45 +41,47 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
           cache-dependency-path: go.sum
+          go-version-file: go.mod
       - name: Test
         run: go test -race ./...
       - name: Build snapshot
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
+          args: build --snapshot --clean --config .goreleaser-tui.yaml
           distribution: goreleaser
           version: v2.18.1
-          args: build --snapshot --clean --config .goreleaser-tui.yaml
-
+    timeout-minutes: 15
   publish:
+    if: "github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && startsWith(github.ref_name, 'tui-v') && inputs.confirm == 'publish'"
     name: Publish TUI release
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && startsWith(github.ref_name, 'tui-v') && inputs.confirm == 'publish'
-    needs: verify
+    needs:
+      - verify
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Set release version
-        env:
-          TAG: ${{ github.ref_name }}
-        run: echo "CONFICIUS_VERSION=${TAG#tui-v}" >> "$GITHUB_ENV"
+      - env:
+          TAG: "${{ github.ref_name }}"
+        name: Set release version
+        run: "echo \"CONFICIUS_VERSION=${TAG#tui-v}\" >> \"$GITHUB_ENV\""
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
           cache-dependency-path: go.sum
-      - name: Publish with GoReleaser
+          go-version-file: go.mod
+      - env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GORELEASER_CURRENT_TAG: "${{ github.ref_name }}"
+        name: Publish with GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
+          args: release --clean --skip=validate --config .goreleaser-tui.yaml
           distribution: goreleaser
           version: v2.18.1
-          args: release --clean --config .goreleaser-tui.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 15

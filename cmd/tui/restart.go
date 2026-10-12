@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 const restartStateEnv = "CONFICIUS_TUI_RESTART_STATE"
@@ -66,7 +68,7 @@ func restoreStdin(source, target int) error {
 		defer func() { _ = syscall.Close(duplicate) }()
 		source = duplicate
 	}
-	if err := syscall.Dup2(source, target); err != nil {
+	if err := unix.Dup2(source, target); err != nil {
 		return fmt.Errorf("restore stdin: %w", err)
 	}
 	return nil
