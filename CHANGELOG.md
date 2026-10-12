@@ -10,6 +10,16 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+## [0.0.2]
+
+### Features
+
+- Add `conficius wisdom` with random developer proverbs.
+
+### Documentation
+
+- Update installation, standalone TUI usage, and release instructions.
+
 ## [0.0.1]
 
 ### ⛰️  Features
