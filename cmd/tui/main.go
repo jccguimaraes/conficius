@@ -38,6 +38,8 @@ type vulnerabilityRow struct {
 type model struct {
 	dotfiles          *dotfileState
 	homeCards         []homeCard
+	wisdom            string
+	showWisdom        bool
 	localLoading      bool
 	localChecked      bool
 	localErr          error

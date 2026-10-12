@@ -101,6 +101,31 @@ func TestEvaluateInventorySharesProfileSelection(t *testing.T) {
 	}
 }
 
+func TestHomeWisdomStaysFixedAcrossResize(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	data := &model{}
+	component, _ := homeView(data, glyph.NewApp())
+	picked := data.wisdom
+	if !strings.HasPrefix(picked, "Conficius says: ") {
+		t.Fatalf("unexpected wisdom: %q", picked)
+	}
+	template := glyph.Build(component)
+	for _, width := range []int{120, 40, 80, 120} {
+		updateScreenSize(width, 30)
+		updateHome(data)
+		buffer := glyph.NewBuffer(width, 30)
+		template.Execute(buffer, int16(width), 30)
+		output := homeRenderOutput(buffer, 30)
+		if strings.Contains(output, "Conficius says:") != (width >= 80) {
+			t.Fatalf("wrong wisdom visibility at width %d:\n%s", width, output)
+		}
+		if data.wisdom != picked {
+			t.Fatal("refresh changed wisdom")
+		}
+	}
+}
+
 func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 	previous := screenSize
 	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
@@ -108,7 +133,7 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
 			updateScreenSize(size.Width, size.Height)
 			path := "/tmp/" + strings.Repeat("long-config-directory/", 8) + "conficius.toml"
-			data := &model{dotfiles: &dotfileState{project: &config.Project{}, configPath: path, environment: "Environment: xdg", links: "Links: 1 healthy"}, localLoading: true}
+			data := &model{wisdom: "Conficius says: To make a mistake and not roll it back is the real mistake.", dotfiles: &dotfileState{project: &config.Project{}, configPath: path, environment: "Environment: xdg", links: "Links: 1 healthy"}, localLoading: true}
 			component, cards := homeView(data, glyph.NewApp())
 			template := glyph.Build(component)
 			buffer := glyph.NewBuffer(size.Width, size.Height)

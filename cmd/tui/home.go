@@ -11,6 +11,7 @@ import (
 	"github.com/jccguimaraes/conficius/internal/audit"
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
+	"github.com/jccguimaraes/conficius/internal/wisdom"
 	glyph "github.com/kungfusheep/glyph"
 )
 
@@ -114,6 +115,7 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 }
 
 func updateHome(data *model) {
+	data.showWisdom = terminalWidth() >= 80 && screenSize.Height >= 16
 	if len(data.homeCards) != 2 {
 		return
 	}
@@ -135,6 +137,9 @@ func updateHome(data *model) {
 }
 
 func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCard]) {
+	if data.wisdom == "" {
+		data.wisdom = wisdom.Random()
+	}
 	data.homeCards = []homeCard{{name: "Dotfiles", view: "dotfiles", nameColor: glyph.Cyan, gap: true}, {name: "Packages", view: "scopes"}}
 	updateHome(data)
 	cards := styleList(glyph.List(&data.homeCards)).MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
@@ -160,7 +165,13 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		}
 		return "Config: " + glyph.TruncateWidthEllipsis(filepath.Base(data.dotfiles.configPath), max(1, terminalWidth()-12))
 	}
-	return screenFrame("Home · "+version, context, nil, cards, "↑/↓ move  Enter open  r/q  ? help"), cards
+	content := glyph.VBox.Grow(1)(
+		glyph.If(&data.showWisdom).Then(glyph.VBox(glyph.Text(func() string {
+			return glyph.TruncateWidthEllipsis(data.wisdom, max(1, terminalWidth()-4))
+		}).Dim(), glyph.Text(""))),
+		cards,
+	)
+	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  r/q  ? help"), cards
 }
 
 func registerHome(data *model, app *glyph.App) {
