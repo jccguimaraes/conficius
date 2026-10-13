@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Conficius manages dotfiles, checks outdated packages and vulnerabilities, and previews package updates on macOS and Linux. Separate CLI and TUI binaries, built with Go.">
+  <meta name="theme-color" content="#111716">
+  <title>Conficius — Keep your setup in order</title>
+  <link rel="icon" href="assets/conficius-gopher.png" type="image/png">
+  <style>
+    :root { color-scheme: dark; --bg: #111716; --panel: #192220; --line: #33413b; --text: #f2f0e6; --muted: #b8c3b9; --accent: #c1e697; }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 2rem; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.65 system-ui, sans-serif; }
+    a { color: inherit; text-underline-offset: .25em; }
+    a:hover { color: var(--accent); }
+    a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
+    .wrap { width: min(1120px, calc(100% - 3rem)); margin-inline: auto; }
+    .skip { position: absolute; top: -100px; left: 1rem; padding: .5rem 1rem; background: var(--accent); color: var(--bg); z-index: 1; }
+    .skip:focus { top: 1rem; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
+    .brand { font: bold 1.2rem ui-monospace, monospace; text-decoration: none; }
+    .brand span { color: var(--accent); }
+    nav { display: flex; flex-wrap: wrap; gap: 1.5rem; font-size: .9rem; }
+    nav a { text-decoration: none; }
+    .hero { display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 3rem; padding-block: 5rem; }
+    .eyebrow { color: var(--accent); font: .78rem ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { font-size: clamp(3rem, 6vw, 5rem); line-height: 1.04; letter-spacing: -.055em; margin: 1.4rem 0; }
+    h1 span { color: var(--accent); }
+    .lead { color: var(--muted); font-size: 1.15rem; max-width: 36rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-block: 2rem 1rem; }
+    .button { display: inline-block; padding: .75rem 1.2rem; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; font-weight: 650; }
+    .button.primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+    .button:hover { border-color: var(--accent); }
+    .button.primary:hover { background: #d3efb5; }
+    .small { font-size: .85rem; color: var(--muted); }
+    figure { margin: 0; }
+    .mascot { display: block; width: 100%; height: auto; border-radius: 50%; }
+    figcaption { text-align: center; margin-top: 1rem; font: .8rem ui-monospace, monospace; color: var(--muted); }
+    section { padding-block: 3.5rem; border-top: 1px solid var(--line); }
+    h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); line-height: 1.2; letter-spacing: -.035em; margin: .8rem 0 1.5rem; }
+    h3 { font-size: 1.15rem; margin: 0 0 .6rem; }
+    p { margin: 0 0 1rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .card { padding: 1.5rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .card p { color: var(--muted); margin-bottom: 0; }
+    .number { display: block; color: var(--accent); font: .8rem ui-monospace, monospace; margin-bottom: 1.5rem; }
+    .split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 3rem; align-items: start; }
+    code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { font-size: .88em; color: var(--accent); overflow-wrap: anywhere; }
+    pre { margin: 0; padding: 1.5rem; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #0c1210; font-size: .85rem; line-height: 1.9; }
+    pre code { font-size: inherit; overflow-wrap: normal; }
+    .terminal-title { padding: .65rem 1rem; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--muted); font: .8rem ui-monospace, monospace; }
+    .terminal-title + pre { border-radius: 0 0 8px 8px; }
+    .note { margin-top: 1.2rem; color: var(--muted); font-size: .9rem; }
+    ul { padding-left: 1.2rem; }
+    li { margin-block: .5rem; }
+    details { border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem 1.5rem; margin-top: 1.5rem; }
+    summary { cursor: pointer; font-weight: 600; }
+    details pre { margin-top: 1rem; }
+    dl { margin: 0; }
+    dl div { display: grid; grid-template-columns: 9rem 1fr; gap: 1rem; border-bottom: 1px solid var(--line); padding-block: .85rem; }
+    dt { color: var(--accent); }
+    dd { margin: 0; color: var(--muted); }
+    kbd { font-size: .85rem; }
+    footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding-block: 2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+    footer p { margin: 0; }
+    @media (max-width: 760px) {
+      .wrap { width: calc(100% - 2rem); }
+      header { align-items: flex-start; flex-direction: column; }
+      nav { gap: 1rem; }
+      .hero, .split, .grid { grid-template-columns: 1fr; gap: 1.5rem; }
+      .hero { padding-block: 3rem; }
+      figure { max-width: 320px; margin-inline: auto; }
+      section { padding-block: 2.5rem; }
+      dl div { grid-template-columns: 7rem 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="wrap">
+    <a class="brand" href="#main"><span>~/</span> conficius</a>
+    <nav aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#usage">Usage</a>
+      <a href="https://github.com/jccguimaraes/conficius">GitHub ↗</a>
+    </nav>
+  </header>
+  <main id="main" class="wrap">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">macOS + Linux · Built with Go · Early beta</p>
+        <h1>Keep your setup<br><span>in order.</span></h1>
+        <p class="lead">Dotfiles, package updates, and vulnerability checks. Conficius brings them into your terminal, with previews before changes.</p>
+        <div class="actions">
+          <a class="button primary" href="#install">Get Conficius</a>
+          <a class="button" href="https://github.com/jccguimaraes/conficius">Explore the source ↗</a>
+        </div>
+        <p class="small">Separate CLI and TUI binaries. Choose either, or use both.</p>
+      </div>
+      <figure>
+        <img class="mascot" src="assets/conficius-gopher.png" alt="Conficius gopher wearing a robe and sporting a long white beard" width="1024" height="1024" fetchpriority="high">
+        <figcaption>A little wisdom for your workstation.</figcaption>
+      </figure>
+    </div>
+    <section id="features" aria-labelledby="features-title">
+      <p class="eyebrow">Know what needs attention</p>
+      <h2 id="features-title">Less guesswork. Explicit changes.</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="number">01 / DOTFILES</span>
+          <h3>A home for your config</h3>
+          <p>Audit XDG or OS-native conventions. Preview configured symlinks before applying them. Existing regular files are never overwritten.</p>
+        </article>
+        <article class="card">
+          <span class="number">02 / PACKAGES</span>
+          <h3>See what’s out of date</h3>
+          <p>Inspect global tools and project dependencies. Filter package managers, review available updates, then choose what to apply.</p>
+        </article>
+        <article class="card">
+          <span class="number">03 / VULNERABILITIES</span>
+          <h3>Check installed versions</h3>
+          <p>Query OSV for known vulnerabilities. npm packages map directly; Homebrew and mise packages need explicit identity mappings.</p>
+        </article>
+      </div>
+      <p class="note">Manager capabilities vary. Run <code>conficius packages pms</code> to see supported inventory, outdated, and update operations.</p>
+    </section>
+    <section id="install" aria-labelledby="install-title">
+      <div class="split">
+        <div>
+          <p class="eyebrow">Start here</p>
+          <h2 id="install-title">Your terminal. Your choice.</h2>
+          <p>Download a CLI or TUI archive from GitHub releases. Both currently ship as prereleases; the TUI runs without the CLI.</p>
+          <a class="button primary" href="https://github.com/jccguimaraes/conficius/releases">Download releases ↗</a>
+        </div>
+        <div class="card">
+          <h3>Install a release</h3>
+          <ol>
+            <li>Choose <code>conficius_VERSION_OS_ARCH.tar.gz</code> for the CLI, or <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code> for the TUI.</li>
+            <li>Use <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code> for your CPU.</li>
+            <li>Verify your download against the release’s <code>checksums.txt</code>, extract it, and put the binary on your <code>PATH</code>.</li>
+          </ol>
+          <p class="small">Package operations need the corresponding package manager installed. Online checks need network access.</p>
+        </div>
+      </div>
+      <details>
+        <summary>Prefer to build from source?</summary>
+        <p class="note">Use Go 1.26.8 or newer. Run these commands from the repository root:</p>
+        <pre aria-label="Build from source commands"><code>git clone https://github.com/jccguimaraes/conficius.git
+cd conficius
+go build -o ./bin/conficius ./cmd/cli
+go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
+      </details>
+    </section>
+    <section id="usage" aria-labelledby="usage-title">
+      <div class="split">
+        <div>
+          <p class="eyebrow">CLI</p>
+          <h2 id="usage-title">Inspect first.<br>Apply when ready.</h2>
+          <p>Start with <code>conficius init</code> to create a configuration. Dotfile linking and package updates preview changes by default; <code>--apply</code> makes them real.</p>
+          <p>Use <code>--config FILE</code> for an explicit configuration. Otherwise, Conficius searches the current directory and its parents, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code>.</p>
+          <p class="small">Inspection commands support schema-versioned JSON with <code>--json</code>.</p>
+        </div>
+        <div>
+          <div class="terminal-title">conficius / quick start</div>
+          <pre aria-label="CLI quick start commands"><code>conficius init
+conficius dotfiles audit --xdg
+conficius dotfiles link
+conficius packages pms
+conficius packages outdated
+conficius packages vulnerabilities --pm npm --project ./my-app
+conficius packages update</code></pre>
+          <p class="note">Vulnerability findings do not change exit status; inventory or query failures do. Missing package mappings are not evidence that a package is clean.</p>
+        </div>
+      </div>
+      <details>
+        <summary>Configure dotfile links with TOML</summary>
+        <p class="note">Schema version 2. Sources are relative to the config file; target environment variables expand when the config loads. Set <code>ZDOTDIR</code> before using this example.</p>
+        <pre aria-label="TOML configuration example"><code>version = 2
+
+[profiles.default]
+mode = "denylist"
+manager_order = ["mise", "brew", "npm"]
+
+[[tools.zsh.links]]
+source = "zsh/.zshrc"
+target = "$ZDOTDIR/.zshrc"
+platforms = ["darwin", "linux"]</code></pre>
+        <p class="note">After reviewing <code>conficius dotfiles link</code>, run <code>conficius dotfiles link --apply</code> to create the links.</p>
+      </details>
+    </section>
+    <section id="tui" aria-labelledby="tui-title">
+      <div class="split">
+        <div>
+          <p class="eyebrow">TUI</p>
+          <h2 id="tui-title">Stay in the terminal.</h2>
+          <p>Run <code>conficius-tui</code> for keyboard-driven package views, dotfile audits, and linking. Inspect outdated versions, configured version drift, and vulnerability findings.</p>
+          <p>Marked upgrades get a command preview. Confirmed upgrades run in the terminal, then return to the TUI.</p>
+          <p class="small">Use <code>conficius-tui -config FILE</code> to select a configuration explicitly.</p>
+        </div>
+        <dl aria-label="TUI keyboard shortcuts">
+          <div><dt><kbd>↑ ↓ / j k</kbd></dt><dd>Move through items</dd></div>
+          <div><dt><kbd>Enter / Esc</kbd></dt><dd>Open details / go back</dd></div>
+          <div><dt><kbd>Space / a</kbd></dt><dd>Mark a package / toggle all in outdated packages</dd></div>
+          <div><dt><kbd>u / U</kbd></dt><dd>Preview marked / all upgrades in the current scope</dd></div>
+          <div><dt><kbd>y / n</kbd></dt><dd>Apply / cancel in the command preview</dd></div>
+          <div><dt><kbd>v / d / o</kbd></dt><dd>Vulnerabilities / drift / outdated packages</dd></div>
+          <div><dt><kbd>r / ? / q</kbd></dt><dd>Refresh / screen help / quit</dd></div>
+        </dl>
+      </div>
+    </section>
+  </main>
+  <footer class="wrap">
+    <p>Conficius · Early beta · <a href="https://github.com/jccguimaraes/conficius/issues">Report an issue</a></p>
+    <p>Mascot inspired by the <a href="https://go.dev/doc/gopher">Go gopher</a> created by Renee French.</p>
+  </footer>
+</body>
+</html>
