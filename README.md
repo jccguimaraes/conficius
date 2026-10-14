@@ -4,6 +4,8 @@ Conficius manages dotfiles, checks outdated packages and vulnerabilities, and pr
 
 Early beta. Feedback and bug reports are welcome through GitHub issues.
 
+[Project site](https://jccguimaraes.github.io/conficius/) · [Releases](https://github.com/jccguimaraes/conficius/releases)
+
 <p align="center">
   <img src="./docs/assets/conficius-gopher.png" alt="Conficius Gopher" width="300">
 </p>
