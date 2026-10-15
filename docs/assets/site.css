@@ -1,0 +1,151 @@
+    :root { color-scheme: dark; --paper: #191a1b; --ink: #fafafa; --muted: #c4c4cc; --rule: #85858f; --accent: #79c9a3; --wash: #29292d; --leaf: #facc15; --sun: #ef6654; }
+    :root[data-theme="light"] { color-scheme: light; --paper: #edf4df; --ink: #102e20; --muted: #365b3b; --rule: #628357; --accent: #a02e49; --wash: #d0e6bd; --leaf: #287b45; --sun: #a02e49; }
+    .theme-control { display: flex; align-items: center; gap: .5rem; }
+    .theme-control[hidden] { display: none; }
+    .theme-control button { display: grid; place-items: center; width: 44px; height: 44px; padding: .6rem; color: var(--ink); background: none; border: 1px solid var(--rule); cursor: pointer; }
+    .theme-control button:hover, .theme-control button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+    .theme-control svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    * { box-sizing: border-box; }
+    html { font-size: 20px; scroll-padding-top: 1rem; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 1.05rem/1.75 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    ::selection { background: var(--ink); color: var(--paper); }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: .22em; }
+    a:hover { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+    .skip { position: absolute; top: -100px; left: 1rem; padding: .5rem 1rem; background: var(--ink); color: var(--paper); z-index: 2; }
+    .skip:focus { top: 1rem; }
+    .sheet { width: min(1180px, calc(100% - 6rem)); margin: 2.5rem auto; }
+    .masthead { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 0 0 1.5rem; font-size: .72rem; }
+    .masthead p { margin: 0; }
+    .layout { display: block; }
+    .rail { padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+    .rail-inner { position: static; }
+    .rail nav { display: flex; flex-wrap: wrap; gap: .75rem 2rem; font-size: .75rem; }
+    .rail nav a { text-decoration: none; }
+    .rail nav span { color: var(--accent); margin-right: .6rem; }
+    .intro figure { margin: 0; }
+    .intro img { display: block; width: 100%; height: auto; }
+    main { min-width: 0; }
+    .intro { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 3rem; padding: 3.5rem 0; }
+    .intro-copy { min-width: 0; }
+    .label { margin: 0 0 1rem; color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+    h1 { margin: 0 0 1.5rem -.06em; font-size: clamp(2.6rem, 6.8vw, 5.4rem); line-height: 1; font-weight: 500; letter-spacing: -.08em; }
+    .intro .description { max-width: 36rem; margin-bottom: 1.5rem; font: 1.35rem/1.55 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    .stamp { display: inline-block; color: var(--accent); font-size: .68rem; letter-spacing: .08em; }
+    .intro .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; color: var(--muted); font-size: .75rem; }
+    section { display: grid; grid-template-columns: 210px minmax(0, 1fr); column-gap: 3rem; padding: 3rem 0; }
+    section > * { grid-column: 2; min-width: 0; }
+    .section-head { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+    .section-head h2 { margin: .75rem 0 1.5rem; }
+    .section-head > span { color: var(--accent); font-size: .75rem; }
+    h2 { font-size: 1.15rem; line-height: 1.3; font-weight: 600; margin: 0; }
+    h3 { font-size: .85rem; margin: 1.5rem 0 .6rem; }
+    p { margin: 0 0 1rem; }
+    code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { font-size: .9em; overflow-wrap: anywhere; }
+    pre { background: var(--wash); padding: 1rem 1.2rem; margin: 1rem 0; font-size: .78rem; line-height: 1.9; overflow-x: auto; }
+    pre code { font-size: inherit; overflow-wrap: normal; }
+    .command { margin-block: 0; padding: .6rem 0; border: 0; background: none; font-size: .82rem; }
+    .command::before { content: "$ "; color: var(--accent); }
+    .entry { padding: 1rem 0; }
+    .entry p { margin: 0; color: var(--muted); font-size: .82rem; }
+    .entry h3 { margin: 0; font-size: .7rem; font-weight: 400; color: var(--accent); }
+    .note { margin-top: 1.5rem; color: var(--muted); font-size: .8rem; }
+    .note strong { color: var(--ink); }
+    .small { font-size: .78rem; color: var(--muted); }
+    .table-scroll { overflow-x: auto; margin-block: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .75rem; text-align: left; }
+    caption { text-align: left; color: var(--accent); margin-bottom: .75rem; }
+    th, td { padding: .7rem .6rem; vertical-align: top; }
+    thead { background: var(--wash); }
+    tbody th { font-weight: 500; }
+    tbody tr:nth-child(even) { background: var(--wash); }
+    ol, ul { padding-left: 1.4rem; }
+    li { padding-left: .3rem; margin-block: .8rem; }
+    li::marker { color: var(--accent); }
+    details { margin-top: 1.5rem; }
+    summary { cursor: pointer; text-decoration: underline; text-underline-offset: .25em; font-size: .82rem; }
+    details > p:first-of-type { margin-top: 1rem; }
+    footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem 2rem; border-top: 1px solid var(--rule); padding: 1.5rem 0; font-size: .68rem; color: var(--muted); }
+    footer p { margin: 0; }
+    .masthead, .rail nav, .label, .meta, .section-head > span, table, summary, footer { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    h1 { margin-left: 0; line-height: 1.1; font-weight: 400; letter-spacing: -.055em; }
+    h2 { font-size: 1.6rem; font-weight: 400; }
+    .theme-control button { border: 0; }
+    .theme-control button[aria-pressed="true"] { background: var(--wash); }
+    .intro { position: relative; isolation: isolate; padding-top: 5rem; }
+    .intro-copy, .intro figure { position: relative; z-index: 1; }
+    .landscape { position: absolute; inset: auto 0 0; width: 100%; height: 70%; color: var(--muted); opacity: .12; pointer-events: none; }
+    .ink-garden { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
+    .intro figure { padding: 2rem; }
+    .intro img { mask-image: radial-gradient(ellipse 65% 65% at 50% 50%, #000 57%, transparent 78%); }
+    .intro figure { isolation: isolate; }
+    .intro img { position: relative; z-index: 1; }
+    .intro { overflow: clip; }
+    .title-line { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .title-line h1 { margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; }
+    .calligraphy { display: flex; align-items: flex-end; gap: .5rem; color: var(--accent); }
+    .calligraphy span { writing-mode: vertical-rl; font: 2.4rem/1.1 "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", serif; letter-spacing: .12em; }
+    .calligraphy small { writing-mode: vertical-rl; font: .55rem/1.4 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .section-head h2 { font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif; }
+    .chapter { display: block; margin-top: 1rem; color: var(--accent); font: 1.8rem/1.2 "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", serif; }
+    @media (max-width: 800px) {
+      .sheet { width: calc(100% - 2rem); margin: 1rem auto; }
+      section { grid-template-columns: 150px minmax(0, 1fr); column-gap: 1.5rem; }
+      .intro { gap: 1.5rem; }
+      .rail { padding: 2.5rem 0; font-size: .8rem; }
+      .intro, section { padding: 2.5rem 0; }
+    }
+    @media (max-width: 580px) {
+      .sheet { width: calc(100% - 1rem); margin: .5rem auto; }
+      .masthead { flex-wrap: wrap; padding: .75rem 1rem; font-size: .65rem; }
+      .layout { display: block; }
+      .rail { padding: 1.5rem 1rem; border-bottom: 1px solid var(--rule); }
+      .rail-inner { position: static; }
+      .rail nav { display: flex; flex-wrap: wrap; gap: .6rem 1rem; }
+      .intro { grid-template-columns: 1fr; }
+      .title-line { gap: 1rem; }
+      .calligraphy span { font-size: 1.8rem; }
+      .calligraphy small { display: none; }
+      .chapter { display: none; }
+      .intro figure { width: min(100%, 300px); justify-self: center; }
+      section { display: block; }
+      .intro, section { padding: 1.75rem 1rem; }
+      .intro .description { font-size: 1.15rem; }
+      footer { padding-inline: 1rem; }
+    }
+    @media print {
+      .sheet { width: 100%; border: 0; margin: 0; }
+      .layout { display: block; }
+      .rail, .skip { display: none; }
+      section { display: block; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+      details::details-content { content-visibility: visible; }
+    }
+    .intro .description { color: var(--ink); }
+    .intro-copy > p:not(.description):not(.label) { color: var(--muted); }
+    .overview { border-top: 0; padding-block: 3.5rem; }
+    .overview h2 { font-size: 2rem; }
+    .overview > p { max-width: 34rem; }
+    .manager-list { display: flex; flex-wrap: wrap; gap: .5rem .8rem; padding: 0; list-style: none; }
+    .manager-list li { margin: 0; padding: .2rem .6rem; background: var(--wash); font: .8rem/1.8 "Avenir Next", Avenir, sans-serif; }
+    .source-line { color: var(--muted); }
+    .reading-link { display: inline-block; color: var(--accent); font-size: .9rem; }
+    .overview:nth-of-type(even) { position: relative; }
+    .overview:nth-of-type(even)::before { content: ""; position: absolute; inset: 1rem -1.5rem; background: var(--wash); opacity: .35; z-index: -1; }
+    .documentation-intro { max-width: 42rem; padding-block: 3rem; }
+    .documentation-intro h1 { font-family: "Iowan Old Style", Palatino, serif; font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: -.04em; }
+    .doc-page section { display: block; padding-block: 2.5rem; max-width: 48rem; }
+    .doc-page h2 { margin-bottom: 1.5rem; }
+    .doc-page h3 { font-size: 1.1rem; }
+    .doc-page table { font-size: .8rem; }
+    .doc-page dt { color: var(--accent); margin-top: 1rem; }
+    .doc-page dd { margin: .3rem 0 1rem; }
+    @media (max-width: 580px) { .title-line h1 { font-size: clamp(2.8rem, 12vw, 4rem); } .overview:nth-of-type(even)::before { inset-inline: 0; } }
+    .doc-page .rail nav ul { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; list-style: none; padding: 0; margin: 0; }
+    .doc-page .rail nav li { margin: 0; padding: 0; }
+    .doc-page h1 { font-family: "Iowan Old Style", Palatino, serif; font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: -.04em; }
+    .doc-page .section-head { padding: 0; }
+    .doc-page .rail { padding-block: 1rem; }
+    .small, .note, .entry p, summary { font-size: .9rem; }
+    .rail nav, .meta, table { font-size: .85rem; }
