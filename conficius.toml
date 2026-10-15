@@ -1,5 +1,0 @@
-# Project-local Conficius configuration.
-# Add [[tools.<name>.links]] entries for managed dotfiles.
-# Add [[vulnerabilities.mappings]] entries for mise/Homebrew OSV identity.
-# See README.md.
-version = 1
