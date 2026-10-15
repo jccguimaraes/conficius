@@ -127,8 +127,6 @@
     .overview { border-top: 0; padding-block: 3.5rem; }
     .overview h2 { font-size: 2rem; }
     .overview > p { max-width: 34rem; }
-    .manager-list { display: flex; flex-wrap: wrap; gap: .5rem .8rem; padding: 0; list-style: none; }
-    .manager-list li { margin: 0; padding: .2rem .6rem; background: var(--wash); font: .8rem/1.8 "Avenir Next", Avenir, sans-serif; }
     .source-line { color: var(--muted); }
     .reading-link { display: inline-block; color: var(--accent); font-size: .9rem; }
     .overview:nth-of-type(even) { position: relative; }
@@ -142,10 +140,30 @@
     .doc-page dt { color: var(--accent); margin-top: 1rem; }
     .doc-page dd { margin: .3rem 0 1rem; }
     @media (max-width: 580px) { .title-line h1 { font-size: clamp(2.8rem, 12vw, 4rem); } .overview:nth-of-type(even)::before { inset-inline: 0; } }
-    .doc-page .rail nav ul { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; list-style: none; padding: 0; margin: 0; }
+    .doc-page .sheet { width: min(1400px, calc(100% - 4rem)); }
+    .doc-page .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 3rem; align-items: start; }
+    .doc-page .rail-inner { position: sticky; top: 1.5rem; max-height: calc(100dvh - 3rem); overflow-y: auto; }
+    .doc-page .rail { align-self: stretch; border-bottom: 0; }
+    .doc-page .rail nav { display: block; }
+    .doc-page .rail nav ul { display: grid; gap: .35rem; list-style: none; padding: 0; margin: 0; }
+    .doc-page .rail nav a { display: block; padding: .55rem .75rem; font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    .doc-page .rail nav a:hover, .doc-page .rail nav a:focus-visible { background: var(--wash); color: var(--accent); }
+    .doc-page main { width: 100%; }
+    .doc-page .table-scroll { max-width: 100%; }
     .doc-page .rail nav li { margin: 0; padding: 0; }
     .doc-page h1 { font-family: "Iowan Old Style", Palatino, serif; font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: -.04em; }
     .doc-page .section-head { padding: 0; }
     .doc-page .rail { padding-block: 1rem; }
     .small, .note, .entry p, summary { font-size: .9rem; }
     .rail nav, .meta, table { font-size: .85rem; }
+    @media (max-width: 900px) {
+      .doc-page .sheet { width: calc(100% - 2rem); }
+      .doc-page .layout { grid-template-columns: 200px minmax(0, 1fr); gap: 1.5rem; }
+    }
+    @media (max-width: 700px) {
+      .doc-page .layout { display: block; }
+      .doc-page .rail-inner { position: static; max-height: none; overflow: visible; }
+      .doc-page .rail nav ul { display: flex; flex-wrap: wrap; gap: .25rem; }
+      .doc-page .rail nav a { padding: .5rem; }
+    }
+    @media print { .doc-page .layout { display: block; } .doc-page .sheet { width: 100%; } }
