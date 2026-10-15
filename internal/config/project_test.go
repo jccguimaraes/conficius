@@ -352,8 +352,15 @@ func TestInitWritesLoadableExampleAndRefusesExisting(t *testing.T) {
 	if !strings.Contains(string(contents), "# Conficius") {
 		t.Fatal("example has no comments")
 	}
-	if _, err := Load(path); err != nil {
+	project, err := Load(path)
+	if err != nil {
 		t.Fatalf("generated config is invalid: %v", err)
+	}
+	if len(project.Tools) != 0 || len(project.Vulnerabilities.Mappings) != 0 || len(project.Profiles["default"].Managers) != 0 {
+		t.Fatalf("generated config enables optional examples: %+v", project)
+	}
+	if project.Version != CurrentVersion || project.Profiles["default"].Mode != "denylist" {
+		t.Fatalf("generated config defaults: %+v", project)
 	}
 	if _, err := Init(path); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("second Init error = %v", err)

@@ -29,23 +29,24 @@ version = 2
 mode = "denylist"
 manager_order = ["mise", "brew", "npm"]
 
-[profiles.default.managers.npm]
-expected_global_prefix = "${HOME}/.npm-global"
+# [profiles.default.managers.npm]
+# expected_global_prefix = "${HOME}/.npm-global"
 
-# Tool names are free-form. Source paths are relative to this file's directory.
+# Tool names are free-form. Source files or folders are relative to this file's directory.
 # Targets support $VAR and ${VAR}; standard HOME and XDG variables have defaults.
 # Omit platforms or use an empty list to enable a link on every platform.
-[tools.example]
-links = [
-  { source = "dotfiles/example.conf", target = "$HOME/.config/example/example.conf", platforms = ["linux", "darwin"] },
-]
+# Uncomment links only after setting paths to existing sources.
+# [tools.example]
+# links = [
+#   { source = "dotfiles/example.conf", target = "$HOME/.config/example/example.conf", platforms = ["linux", "darwin"] },
+# ]
 
 # Optional OSV mappings enable reliable scans for mise/Homebrew packages.
-[[vulnerabilities.mappings]]
-manager = "mise"
-package = "example"
-ecosystem = "Go"
-name = "example.org/module"
+# [[vulnerabilities.mappings]]
+# manager = "mise"
+# package = "example"
+# ecosystem = "Go"
+# name = "example.org/module"
 `
 
 type Project struct {

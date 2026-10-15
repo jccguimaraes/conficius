@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Conficius CLI reference: configuration, dotfile links, package inventory, vulnerability checks, safe updates, and supported package managers.">
+  <meta name="theme-color" content="#191a1b">
+  <title>CLI reference — Conficius</title>
+  <script>
+    try {
+      if (localStorage.getItem('conficius-theme') === 'light') {
+        document.documentElement.dataset.theme = 'light';
+        document.querySelector('meta[name="theme-color"]').content = '#edf4df';
+      }
+    } catch {}
+  </script>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body class="doc-page">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="sheet">
+    <header class="masthead">
+      <a href="index.html">Conficius — back to overview</a>
+      <span class="small">CLI documentation</span>
+      <div class="theme-control" role="group" aria-label="Theme" hidden>
+        <button type="button" data-theme="light" aria-label="Light theme" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        </button>
+        <button type="button" data-theme="dark" aria-label="Dark theme" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="layout">
+      <aside class="rail">
+        <div class="rail-inner">
+          <nav aria-label="CLI reference sections">
+            <ul>
+              <li><a href="#overview">Overview &amp; shared flags</a></li>
+              <li><a href="#config">Configuration</a></li>
+              <li><a href="#dotfiles">Dotfiles</a></li>
+              <li><a href="#packages">Package inspection</a></li>
+              <li><a href="#vulnerabilities">Vulnerabilities</a></li>
+              <li><a href="#updates">Updates &amp; safeguards</a></li>
+              <li><a href="#logs">Logs &amp; Go tool records</a></li>
+              <li><a href="#managers">Manager support matrix</a></li>
+            </ul>
+          </nav>
+        </div>
+      </aside>
+      <main id="main">
+        <section id="overview" aria-labelledby="overview-title">
+          <div class="section-head"><h1 id="overview-title">CLI reference</h1></div>
+          <p>Conficius manages configured dotfile links and inspects installed package tools. Package updates and dotfile linking are previews unless you pass <code>--apply</code>. Preview commands can still run package-manager queries and contact network services; a dry run is not an offline mode.</p>
+          <pre><code>conficius [global options] command [command options]
+conficius --help
+conficius packages update --help
+conficius help packages</code></pre>
+          <h2>Install and start</h2>
+          <p>Download a CLI or TUI archive from <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>. Choose <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code>. Verify against the release’s <code>checksums.txt</code>, extract, and put the binary on your <code>PATH</code>.</p>
+          <p>CLI archives use <code>conficius_VERSION_OS_ARCH.tar.gz</code>; TUI archives use <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code>. Either binary runs independently.</p>
+          <pre><code>conficius init
+conficius dotfiles link
+conficius packages pms
+conficius packages outdated</code></pre>
+          <p>Edit the commented examples in <code>conficius.toml</code> before linking. To build from source, use Go 1.26.8 or newer:</p>
+          <pre><code>git clone https://github.com/jccguimaraes/conficius.git
+cd conficius
+go build -o ./bin/conficius ./cmd/cli
+go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
+          <h2>Global options</h2>
+          <dl>
+            <dt><code>--config FILE</code></dt><dd>Use an explicit configuration file. Put this before the command in examples. May be supplied only once.</dd>
+            <dt><code>--help</code>, <code>-h</code></dt><dd>Show help. Available on subcommands too.</dd>
+            <dt><code>--version</code>, <code>-v</code></dt><dd>Print the CLI version.</dd>
+          </dl>
+          <h2>Command index</h2>
+          <ul>
+            <li><code>init</code>; <code>config resolve</code>; <code>config migrate</code></li>
+            <li><code>dotfiles audit</code>; <code>dotfiles link [tools...]</code></li>
+            <li><code>packages pms</code>; <code>packages doctor</code>; <code>packages outdated</code></li>
+            <li><code>packages vulnerabilities</code>; <code>packages update</code></li>
+            <li><code>packages go-tools import MODULE VERSION COMMAND [COMMAND...]</code></li>
+            <li><code>wisdom</code> prints a random Conficius proverb: a parody, not a Confucius quote. No command-specific options.</li>
+            <li><code>help</code> (alias <code>h</code>) lists commands or shows help for a command.</li>
+          </ul>
+          <p class="small">The <code>config</code>, <code>dotfiles</code>, <code>packages</code>, and <code>packages go-tools</code> groups organize the subcommands below; use their help to browse available operations.</p>
+        </section>
+
+        <section id="config" aria-labelledby="config-title">
+          <div class="section-head"><h2 id="config-title">Configuration</h2></div>
+          <p>Configuration is TOML. Discovery checks <code>--config FILE</code> first, then <code>conficius.toml</code> in the working directory and each parent, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code> (normally <code>~/.config/conficius/conficius.toml</code>). Relative link sources are based on the configuration file’s directory, not the working directory.</p>
+          <h3><code>init</code></h3>
+          <p>Create a commented version-2 <code>conficius.toml</code> in the working directory, or at <code>--config FILE</code>. This writes immediately; it has no <code>--apply</code> option and refuses to overwrite an existing file.</p>
+          <pre><code>conficius init
+conficius --config ./conficius.toml config resolve --verbose</code></pre>
+          <h3><code>config resolve</code></h3>
+          <dl>
+            <dt><code>--profile NAME</code></dt><dd>Select a package profile. Selection order: command flag, <code>CONFICIUS_PROFILE</code>, top-level <code>profile</code> in the configuration, then <code>default</code>. Named non-default profiles require version 2.</dd>
+            <dt><code>--json</code></dt><dd>Print the resolved profile as JSON, rather than the package-output envelope.</dd>
+            <dt><code>--verbose</code></dt><dd>Include provenance showing where resolved settings came from.</dd>
+          </dl>
+          <h3><code>config migrate</code></h3>
+          <p>Print a version-2 migration preview by default. <code>--apply</code> creates a backup and replaces the configuration atomically.</p>
+          <pre><code>conficius config migrate
+conficius config migrate --apply</code></pre>
+          <h3>Minimal link configuration</h3>
+          <p>Create the source files or directories before linking. Tool names are free-form; one tool can have several links.</p>
+          <pre><code>version = 2
+
+[tools.zsh]
+links = [
+  { source = "dotfiles/zsh/.zshrc", target = "$HOME/.zshrc", platforms = ["linux", "darwin"] },
+]
+
+[tools.nvim]
+links = [
+  { source = "dotfiles/nvim", target = "$XDG_CONFIG_HOME/nvim" },
+]</code></pre>
+          <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
+          <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
+          <h3>Profiles and project updates</h3>
+          <p>Profiles control manager order, package selection, project roots, and desired-version drift. <code>mode = "denylist"</code> includes packages unless excluded; <code>mode = "allowlist"</code> selects explicitly included packages. Desired versions describe policy and drift; they do not turn every manager update command into an exact-version installer.</p>
+          <pre><code>[profiles.work]
+mode = "denylist"
+manager_order = ["npm"]
+
+[[profiles.work.projects]]
+name = "app"
+path = "./app"
+allow_manifest_changes = true</code></pre>
+          <p>Configured project paths resolve relative to the configuration directory. Project mutation requires <code>allow_manifest_changes = true</code> for the matching configured project; command-line Git overrides do not replace that permission.</p>
+        </section>
+
+        <section id="dotfiles" aria-labelledby="dotfiles-title">
+          <div class="section-head"><h2 id="dotfiles-title">Dotfiles</h2></div>
+          <h3><code>dotfiles audit</code></h3>
+          <p>Audit environment layout, Zsh configuration when the detected shell is Zsh, and configured link state. This does not repair files.</p>
+          <dl>
+            <dt><code>--xdg</code> or <code>--os-native</code></dt><dd>Exactly one layout choice is required. Use XDG directories or OS-native configuration directories. Environment alternatives: <code>CONFICIUS_XDG</code> and <code>CONFICIUS_OS_NATIVE</code>; do not enable both.</dd>
+            <dt><code>--strict</code></dt><dd>Return nonzero when the audit contains warnings or errors.</dd>
+            <dt><code>--json</code></dt><dd>Write an audit report with <code>schema_version: 1</code>.</dd>
+          </dl>
+          <pre><code>conficius dotfiles audit --xdg
+conficius dotfiles audit --os-native --strict --json</code></pre>
+          <h3><code>dotfiles link [tools...]</code></h3>
+          <p>Preview links for all configured tools by default. Positional tool names select a subset; platform filters still apply.</p>
+          <dl>
+            <dt><code>--exclude TOOL</code></dt><dd>Exclude a configured tool. Repeat for multiple exclusions.</dd>
+            <dt><code>--apply</code></dt><dd>Create missing parent directories and symlinks after validation.</dd>
+            <dt><code>--force</code></dt><dd>Allow replacement of a conflicting symlink only when its destination resolves inside this configuration repository. Does not authorize replacing real files, real directories, or unrelated external symlinks.</dd>
+            <dt><code>--json</code></dt><dd>Write link results in a <code>schema_version: 1</code> envelope with <code>data</code>.</dd>
+          </dl>
+          <pre><code>conficius dotfiles link
+conficius dotfiles link zsh nvim --exclude nvim
+conficius dotfiles link zsh --apply</code></pre>
+          <p class="note">Sources must exist and resolve inside the configuration directory. Targets must remain inside the home directory, including existing parent symlinks. Duplicate targets and unsafe paths are rejected. Existing correct links are left alone; move conflicting real files yourself after backing them up. Link application revalidates state and attempts rollback on failure; inspect any reported rollback error before retrying.</p>
+        </section>
+
+        <section id="packages" aria-labelledby="packages-title">
+          <div class="section-head"><h2 id="packages-title">Package inspection</h2></div>
+          <h3>Shared package options</h3>
+          <p>These options apply to <code>packages doctor</code>, <code>packages outdated</code>, <code>packages vulnerabilities</code>, and <code>packages update</code>, not to every command in the group.</p>
+          <dl>
+            <dt><code>--pm NAME</code></dt><dd>Limit managers; repeat to select more than one, for example <code>--pm mise --pm npm</code>. Supported names appear in the <a href="#managers">matrix</a>. Without this flag, manager discovery is not restricted by a CLI filter; resolved profile settings still affect queries and selection.</dd>
+            <dt><code>--global</code></dt><dd>Select global installations only. Cannot be combined with <code>--project</code>. Use scope selectors separately rather than mixing global, path, and named-project selection.</dd>
+            <dt><code>--project PATH</code></dt><dd>Select a project path; repeat for multiple roots. Relative CLI paths are based on the working directory.</dd>
+            <dt><code>--profile NAME</code></dt><dd>Select a configured profile; also reads <code>CONFICIUS_PROFILE</code>.</dd>
+            <dt><code>--profile-project NAME</code></dt><dd>Select a named project in the resolved profile; repeat for multiple projects. Named-project selection takes precedence over explicit project paths.</dd>
+            <dt><code>--json</code></dt><dd>Write JSON with <code>schema_version: 1</code>, <code>snapshot</code> (timestamp, platform, architecture, CLI version), and command-specific <code>data</code>.</dd>
+          </dl>
+          <p>Without scope selectors, queries include global packages plus all configured profile projects. If no projects are configured, the working directory is included when it contains <code>package.json</code>, <code>Cargo.toml</code>, <code>mise.toml</code>, or <code>.mise.toml</code>; otherwise only global packages are inspected. Recognized npm workspaces are expanded. A missing discovered config is allowed for package inspection; invalid configuration is not ignored.</p>
+          <h3><code>packages pms</code></h3>
+          <p>List all 12 supported managers and availability. Its only command-specific flag is <code>--json</code>. Reports can include resolved executable, manager version, tested-version status, and capabilities; support does not mean a manager is installed.</p>
+          <h3><code>packages doctor</code></h3>
+          <p>Check manager environment integrity and selected project roots without freshness queries. Accepts the shared package options. Use this to investigate executable paths, prefixes, and project setup before updating.</p>
+          <h3><code>packages outdated</code></h3>
+          <p>Query available updates and report profile drift. Accepts the shared package options plus:</p>
+          <dl>
+            <dt><code>--offline</code></dt><dd>Read installed inventory without network freshness checks. Reports freshness as <code>unknown</code>, not up-to-date. Offline output can include command collision candidates and PATH resolution. It does not establish update availability or desired-version drift.</dd>
+            <dt><code>--check</code></dt><dd>For online queries: exit 0 when no updates or drift are found, 1 when updates or drift exist, and 2 on query failure. Without this flag, finding updates is not itself an error.</dd>
+          </dl>
+          <pre><code>conficius packages pms --json
+conficius packages doctor --pm npm --global
+conficius packages outdated --project ./app --pm npm
+conficius packages outdated --global --check
+conficius packages outdated --offline --json</code></pre>
+          <p class="small">Offline <code>--check</code> cannot detect updates: successful inventory exits normally. The offline text branch maps query failures to exit 2 with <code>--check</code>; the offline JSON branch returns the query error directly. Do not treat either offline success as a freshness assertion.</p>
+          <p>Profile <code>npm_dependency_classes</code> can filter npm selection by <code>runtime</code>, <code>development</code>, <code>optional</code>, <code>peer</code>, <code>transitive</code>, or <code>extraneous</code>. Reported class filters explain why selection differs from a manager’s full inventory.</p>
+        </section>
+
+        <section id="vulnerabilities" aria-labelledby="vulnerabilities-title">
+          <div class="section-head"><h2 id="vulnerabilities-title">Vulnerability checks</h2></div>
+          <h3><code>packages vulnerabilities</code></h3>
+          <p>Check exact installed versions using OSV and EUVD evidence. Accepts the shared package options plus <code>--transitive</code>, which requests transitive inventory where the adapter supports it. The command also queries available updates to annotate findings. It has no offline mode and does not install fixes.</p>
+          <pre><code>conficius packages vulnerabilities --global --pm npm
+conficius packages vulnerabilities --project ./app --transitive --json</code></pre>
+          <ul>
+            <li><strong>OSV requires reliable ecosystem identity.</strong> Built-in inventory metadata supplies identities where available; npm has a direct mapping. Other packages may require explicit <code>[[vulnerabilities.mappings]]</code> entries. Never map an OS runtime or distribution package to an unrelated same-named registry package merely to obtain results.</li>
+            <li><strong>EUVD requires product and vendor identity.</strong> Built-in identities or <code>[[vulnerabilities.euvd]]</code> mappings identify the product. Results are checked against vendor, product, and installed version; unsupported version rules produce unknown evidence, not a clean result.</li>
+            <li>Unmapped, unknown, and error results are coverage gaps. An empty advisory list is not proof that a package is safe. Inventory-only adapters can still contribute scan data without supporting outdated queries or updates.</li>
+            <li>Global scans also inspect available package-manager binaries. Profile <code>security_scope = "selected"</code> filters ordinary package inventory through profile rules; otherwise scanning is not limited to update selection.</li>
+            <li>OSV and EUVD evidence stays separate; the same CVE can appear from both sources. Summary counts describe evidence, not necessarily unique vulnerabilities.</li>
+            <li>An available upgrade is not necessarily a security fix. Review advisory ranges and upgrade notes; the latest available version can still be affected.</li>
+            <li>Findings alone do not provide a dedicated CI failure threshold. Inventory, freshness, or scan errors can return nonzero even when JSON evidence was emitted; inspect both the exit status and report.</li>
+          </ul>
+          <pre><code># Add only after verifying identity against the advisory source.
+[[vulnerabilities.mappings]]
+manager = "mise"
+package = "example"
+ecosystem = "Go"
+name = "example.org/module"
+
+[[vulnerabilities.euvd]]
+manager = "mise"
+package = "node"
+product = "Node"
+vendor = "nodejs"</code></pre>
+          <p class="note"><code>CONFICIUS_OSV_URL</code> and <code>CONFICIUS_EUVD_URL</code> override service endpoints. These services receive package identity and version-related queries. Use trusted endpoints; endpoint overrides are not CLI flags.</p>
+        </section>
+
+        <section id="updates" aria-labelledby="updates-title">
+          <div class="section-head"><h2 id="updates-title">Updates and safeguards</h2></div>
+          <h3><code>packages update</code></h3>
+          <p>Preview manager-specific update plans by default, after profile filtering. Plans show commands, scope, state hashes, and mutation impact. Accepts the shared package options plus:</p>
+          <dl>
+            <dt><code>--include PACKAGE</code></dt><dd>Include a package by <code>manager:name</code> or a globally unique name. Repeat for multiple selections.</dd>
+            <dt><code>--exclude PACKAGE</code></dt><dd>Exclude a package using the same selector syntax. Repeat as needed.</dd>
+            <dt><code>--apply</code></dt><dd>Execute update commands interactively. Requires explicit scope intent through <code>--global</code>, <code>--project PATH</code>, <code>--profile NAME</code>, or <code>--profile-project NAME</code>.</dd>
+            <dt><code>--yes</code></dt><dd>Use accepted plan hashes for non-interactive CLI execution. Requires <code>--apply</code>. This is not blanket approval for changed plans and does not guarantee that underlying tools never prompt.</dd>
+            <dt><code>--accept-plan HASH</code></dt><dd>Accept an exact state hash; repeat for every selected plan. Requires <code>--yes</code>. Missing, extra, stale, or no-longer-selected hashes are rejected.</dd>
+            <dt><code>--best-effort</code></dt><dd>Continue to later plans after a plan fails. Requires <code>--apply</code>. Default behavior stops after failure; continuing does not make failures successful.</dd>
+            <dt><code>--allow-dirty</code></dt><dd>Permit project mutation when the containing Git repository has uncommitted changes.</dd>
+            <dt><code>--allow-unversioned</code></dt><dd>Permit project mutation outside a Git repository.</dd>
+            <dt><code>--allow-untested-manager</code></dt><dd>Allow application with manager versions outside declared tested ranges. Does not add missing adapter capabilities.</dd>
+          </dl>
+          <pre><code># Preview first; no package updates are executed.
+conficius packages update --global --pm npm --include npm:typescript
+conficius packages update --global --pm npm --include npm:typescript --json
+
+# Apply the reviewed selection interactively.
+conficius packages update --global --pm npm --include npm:typescript --apply
+
+# For automation, replace HASH_FROM_PREVIEW with each reviewed plan hash.
+conficius packages update --global --pm npm --include npm:typescript \
+  --apply --yes --accept-plan HASH_FROM_PREVIEW</code></pre>
+          <ol>
+            <li>Inspect manager status and preview the exact intended scope. <code>--json</code> works for previews but is rejected with <code>--apply</code>.</li>
+            <li>For project mutation, explicitly allow manifest changes in the matching profile project. By default its containing Git repository must be clean. <code>--allow-dirty</code> and <code>--allow-unversioned</code> bypass only their respective Git checks.</li>
+            <li>Application checks manager version ranges, then re-queries available updates and rebuilds plans. Fresh-query failures abort execution. Automation must accept the refreshed plans exactly; if state changed, preview and review again.</li>
+            <li>A durable update log is written before execution. Failure to create it prevents updates. Commands run through the native managers; permission prompts and service impacts depend on the manager.</li>
+            <li>Execution outcomes are verified against installed state and the log is finalized. Partial changes can remain after failure; review outcomes and any recovery guidance before retrying.</li>
+          </ol>
+          <p class="note"><strong>No universal rollback.</strong> Native package updates can alter manifests, lockfiles, installed binaries, and services. Keep recoverable configuration and project backups. A dry run avoids executing update commands, but it can still query registries and run manager inspection commands.</p>
+        </section>
+
+        <section id="logs" aria-labelledby="logs-title">
+          <div class="section-head"><h2 id="logs-title">Logs and Go tool records</h2></div>
+          <p>State lives in <code>$XDG_STATE_HOME/conficius</code>, falling back to <code>~/.local/state/conficius</code>.</p>
+          <h3>Update logs</h3>
+          <p>Applied updates write timestamp-named JSON files under <code>updates/</code>. Logs contain start/completion times, status, plans, outcomes, and error text. Status starts as <code>planned</code> and is finalized as <code>completed</code>, <code>failed</code>, or <code>interrupted</code>. Abrupt termination can leave an unfinished planned log.</p>
+          <p>The newest 30 JSON logs are retained. New log directories use mode <code>0700</code>; log files use <code>0600</code>. Home-directory prefixes in plan directories and package paths become <code>${HOME}</code>. Error redaction replaces home paths and common <code>token=</code>, <code>password=</code>, <code>passwd=</code>, <code>secret=</code>, and API-key assignments. Redaction is limited; review logs before sharing. Logs are not a full transcript or automatic restore point.</p>
+          <h3><code>packages go-tools import MODULE VERSION COMMAND [COMMAND...]</code></h3>
+          <p>Immediately append an ownership record to <code>go-tools.json</code> in the state directory. Supply a module, version, and at least one command. No command-specific flags; no <code>--apply</code> needed. This records ownership only: it neither installs tools nor changes installed binaries.</p>
+          <pre><code>conficius packages go-tools import golang.org/x/tools v0.30.0 stringer</code></pre>
+          <p>The Go adapter uses ownership and installed build metadata to reason about tools. An import record is not proof that the recorded binary/version is installed. Verify module, version, and command ownership before recording them.</p>
+        </section>
+
+        <section id="managers" aria-labelledby="managers-title">
+          <div class="section-head"><h2 id="managers-title">Package-manager support</h2></div>
+          <p>These are the capabilities declared by the 12 registered adapters, not features offered by the upstream tools themselves. “No” means Conficius does not declare that operation. Inventory support enables inspection and can supply vulnerability data, subject to identity mapping and installed-version coverage.</p>
+          <div class="table-scroll" role="region" aria-label="Package-manager capability matrix" tabindex="0">
+            <table>
+              <caption>Declared adapter capabilities and tested manager major versions</caption>
+              <thead><tr><th scope="col">Manager / <code>--pm</code></th><th scope="col">Global inventory</th><th scope="col">Project inventory</th><th scope="col">Global outdated</th><th scope="col">Project outdated</th><th scope="col">Global update</th><th scope="col">Project update</th><th scope="col">Tested majors</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">mise / <code>mise</code></th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>2024–2026</td></tr>
+                <tr><th scope="row">Homebrew / <code>brew</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>4–7</td></tr>
+                <tr><th scope="row">npm / <code>npm</code></th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>9–11</td></tr>
+                <tr><th scope="row">Mac App Store / <code>mas</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>7</td></tr>
+                <tr><th scope="row">uv / <code>uv</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>0</td></tr>
+                <tr><th scope="row">pipx / <code>pipx</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>1</td></tr>
+                <tr><th scope="row">Poetry / <code>poetry</code></th><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>2</td></tr>
+                <tr><th scope="row">pnpm / <code>pnpm</code></th><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>12</td></tr>
+                <tr><th scope="row">Cargo / <code>cargo</code></th><td>Yes</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>1</td></tr>
+                <tr><th scope="row">Yarn / <code>yarn</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>4</td></tr>
+                <tr><th scope="row">Bun / <code>bun</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>1</td></tr>
+                <tr><th scope="row">Go / <code>go</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>1</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <ul>
+            <li><strong>mise:</strong> project recognition uses <code>mise.toml</code>, <code>.mise.toml</code>, and <code>mise.lock</code>.</li>
+            <li><strong>npm:</strong> project recognition uses <code>package.json</code> and <code>package-lock.json</code>. Global prefix integrity matters, especially with version-managed Node installations.</li>
+            <li><strong>Homebrew:</strong> updates may restart services. <strong>mas:</strong> macOS App Store tooling; updates declare an administrative-permission impact.</li>
+            <li><strong>uv and pipx:</strong> global tool installations, not arbitrary project environments.</li>
+            <li><strong>Poetry:</strong> project support uses <code>pyproject.toml</code> and <code>poetry.lock</code>. <strong>pnpm:</strong> <code>package.json</code> and <code>pnpm-lock.yaml</code>. Select project scope explicitly when it is not discovered automatically.</li>
+            <li><strong>Cargo:</strong> inventory only; project inventory reads <code>Cargo.lock</code>. <strong>Yarn:</strong> project inventory only, with <code>package.json</code> and <code>yarn.lock</code>. <strong>Bun:</strong> project inventory only, with <code>package.json</code>, <code>bun.lock</code>, or <code>bun.lockb</code>.</li>
+            <li><strong>Go:</strong> global installed tools only, not project module dependencies. Ownership records are managed through <a href="#logs"><code>packages go-tools import</code></a>.</li>
+          </ul>
+          <p class="small">Declared project files do not all trigger automatic working-directory scope discovery; see <a href="#packages">scope defaults</a>. Tested ranges are adapter guards, not a promise that every release or OS combination was tested. Availability depends on the host, installed executable, and manager setup. Use <code>packages pms --json</code> for runtime status and <code>packages doctor</code> for integrity checks.</p>
+        </section>
+      </main>
+    </div>
+    <footer><p class="small"><a href="index.html">Back to Conficius overview</a> · Run <code>conficius COMMAND --help</code> for installed-version help.</p></footer>
+  </div>
+  <script>
+    const themeControl = document.querySelector('.theme-control');
+    const themeButtons = themeControl.querySelectorAll('button');
+    const updateThemeButtons = () => {
+      const theme = document.documentElement.dataset.theme || 'dark';
+      themeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.theme === theme)));
+    };
+    updateThemeButtons();
+    themeControl.hidden = false;
+    themeButtons.forEach(button => button.addEventListener('click', () => {
+      const theme = button.dataset.theme;
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#edf4df' : '#191a1b';
+      updateThemeButtons();
+      try { localStorage.setItem('conficius-theme', theme); } catch {}
+    }));
+  </script>
+</body>
+</html>

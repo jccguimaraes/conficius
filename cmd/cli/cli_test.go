@@ -37,6 +37,9 @@ func TestInitCommandDefaultPath(t *testing.T) {
 	if !strings.Contains(output.String(), path) {
 		t.Fatalf("output = %q; want created path", output.String())
 	}
+	if err := cli.Execute([]string{appName, "dotfiles", "link"}); err != nil {
+		t.Fatalf("link preview after init: %v", err)
+	}
 }
 
 func TestInitCommandExplicitRootConfigPath(t *testing.T) {
