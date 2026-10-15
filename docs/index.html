@@ -3,201 +3,244 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Conficius manages dotfiles, checks outdated packages and vulnerabilities, and previews package updates on macOS and Linux. Separate CLI and TUI binaries, built with Go.">
-  <meta name="theme-color" content="#181918">
-  <title>Conficius — Keep your setup in order</title>
+  <meta name="description" content="Conficius: a terminal tool for dotfile links, package updates, and vulnerability checks on macOS and Linux. Commands, configuration, and installation notes.">
+  <meta name="theme-color" content="#151b1c">
+  <title>conficius / workstation field manual</title>
   <link rel="icon" href="assets/conficius-gopher.png" type="image/png">
+  <script>
+    try {
+      if (localStorage.getItem('conficius-theme') === 'light') {
+        document.documentElement.dataset.theme = 'light';
+        document.querySelector('meta[name="theme-color"]').content = '#f2f4ee';
+      }
+    } catch {}
+  </script>
   <style>
-    :root { color-scheme: dark; --bg: #181918; --text: #e8e5dc; --muted: #aaa99f; --line: #42433d; --accent: #f08b70; }
+    :root { color-scheme: dark; --paper: #151b1c; --ink: #eef3e8; --muted: #b4c3bd; --rule: #657b73; --accent: #f69c83; --wash: #202d2b; }
+    :root[data-theme="light"] { color-scheme: light; --paper: #f2f4ee; --ink: #182b26; --muted: #4d6259; --rule: #81958b; --accent: #a13e2b; --wash: #e0e8df; }
+    .theme-control { display: flex; align-items: center; gap: .5rem; }
+    .theme-control[hidden] { display: none; }
+    .theme-control button { display: grid; place-items: center; width: 44px; height: 44px; padding: .6rem; color: var(--ink); background: none; border: 1px solid var(--rule); cursor: pointer; }
+    .theme-control button:hover, .theme-control button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+    .theme-control svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
     * { box-sizing: border-box; }
-    html { scroll-padding-top: 2rem; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 system-ui, sans-serif; }
-    ::selection { background: var(--accent); color: var(--bg); }
-    a { color: inherit; text-underline-offset: .3em; }
+    html { scroll-padding-top: 1rem; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.75 "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", serif; }
+    ::selection { background: var(--ink); color: var(--paper); }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: .22em; }
     a:hover { color: var(--accent); }
-    a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
-    .wrap { width: min(1240px, calc(100% - 6rem)); margin-inline: auto; }
-    .skip { position: absolute; top: -100px; left: 1rem; padding: .5rem 1rem; background: var(--text); color: white; z-index: 1; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+    .skip { position: absolute; top: -100px; left: 1rem; padding: .5rem 1rem; background: var(--ink); color: var(--paper); z-index: 2; }
     .skip:focus { top: 1rem; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding-block: 1.4rem; border-bottom: 1px solid var(--text); }
-    .brand { font-size: 1.35rem; font-weight: 750; letter-spacing: -.065em; text-decoration: none; }
-    .brand span { color: var(--accent); font-family: ui-monospace, monospace; letter-spacing: -.12em; margin-right: .3rem; }
-    nav { display: flex; flex-wrap: wrap; gap: 2rem; font: .75rem ui-monospace, monospace; }
-    nav a { text-decoration: none; }
-    .hero { display: grid; grid-template-columns: 1.65fr 1fr; align-items: center; gap: 4rem; padding-block: 5.5rem 4rem; }
-    .eyebrow { color: var(--accent); font: .7rem/1.7 ui-monospace, monospace; letter-spacing: .09em; text-transform: uppercase; }
-    h1 { font-size: clamp(3.6rem, 7.6vw, 7rem); font-weight: 550; line-height: .98; letter-spacing: -.075em; margin: 2rem 0; }
-    h1 span { color: var(--accent); font-family: Georgia, serif; font-weight: 400; font-style: italic; letter-spacing: -.07em; }
-    .lead { color: var(--muted); font-size: 1.05rem; max-width: 30rem; }
-    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.7rem; margin-block: 2rem 1.2rem; }
-    .button { display: inline-block; padding: .7rem 0; border-bottom: 1px solid var(--text); text-decoration: none; font: .8rem ui-monospace, monospace; }
-    .button.primary { background: var(--accent); color: var(--bg); border: 1px solid var(--accent); padding: .85rem 1.25rem; }
-    .button.primary:hover { background: var(--text); border-color: var(--text); }
-    .small { font: .72rem/1.7 ui-monospace, monospace; color: var(--muted); }
-    figure { position: relative; margin: 2rem 0 0; padding: 1rem 1rem 0; border: 1px solid var(--line); }
-    figure::before { content: "FIG. 01 / THE KEEPER"; position: absolute; top: -.65rem; left: 1rem; padding-inline: .5rem; background: var(--bg); color: var(--muted); font: .65rem ui-monospace, monospace; letter-spacing: .06em; }
-    .mascot { display: block; width: 100%; height: auto; filter: saturate(.65); }
-    figcaption { padding-block: 1rem; color: var(--muted); font: .7rem/1.6 ui-monospace, monospace; }
-    section { padding-block: 3.5rem; border-top: 1px solid var(--text); }
-    h2 { font-size: clamp(2rem, 3.6vw, 3.2rem); font-weight: 500; line-height: 1.1; letter-spacing: -.055em; margin: .8rem 0 2rem; max-width: 38rem; }
-    h3 { font-size: 1.35rem; font-weight: 500; line-height: 1.3; letter-spacing: -.03em; margin: 0; }
+    .sheet { width: min(1180px, calc(100% - 6rem)); margin: 2.5rem auto; }
+    .masthead { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 0 0 1.5rem; border-bottom: 1px solid var(--rule); font-size: .72rem; }
+    .masthead p { margin: 0; }
+    .layout { display: block; }
+    .rail { padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+    .rail-inner { position: static; }
+    .rail nav { display: flex; flex-wrap: wrap; gap: .75rem 2rem; font-size: .75rem; }
+    .rail nav a { text-decoration: none; }
+    .rail nav span { color: var(--accent); margin-right: .6rem; }
+    .intro figure { margin: 0; }
+    .intro img { display: block; width: 100%; height: auto; }
+    main { min-width: 0; }
+    .intro { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 3rem; padding: 3.5rem 0; }
+    .intro-copy { min-width: 0; }
+    .label { margin: 0 0 1rem; color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+    h1 { margin: 0 0 1.5rem -.06em; font-size: clamp(2.6rem, 6.8vw, 5.4rem); line-height: 1; font-weight: 500; letter-spacing: -.08em; }
+    .intro .description { max-width: 36rem; margin-bottom: 1.5rem; font: 1.3rem/1.6 "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", serif; }
+    .stamp { display: inline-block; color: var(--accent); font-size: .68rem; letter-spacing: .08em; }
+    .intro .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; color: var(--muted); font-size: .75rem; }
+    section { display: grid; grid-template-columns: 210px minmax(0, 1fr); column-gap: 3rem; border-top: 1px solid var(--rule); padding: 3rem 0; }
+    section > * { grid-column: 2; min-width: 0; }
+    .section-head { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+    .section-head h2 { margin: .75rem 0 1.5rem; }
+    .section-head > span { color: var(--accent); font-size: .75rem; }
+    h2 { font-size: 1.15rem; line-height: 1.3; font-weight: 600; margin: 0; }
+    h3 { font-size: .85rem; margin: 1.5rem 0 .6rem; }
     p { margin: 0 0 1rem; }
-    .grid { display: grid; margin-top: 2.5rem; }
-    .card { padding: 0; }
-    .grid .card { display: grid; grid-template-columns: 1fr 1.35fr 2fr; gap: 2rem; align-items: baseline; padding-block: 1.65rem; border-top: 1px solid var(--line); }
-    .card p { color: var(--muted); margin-bottom: 0; }
-    .number { color: var(--accent); font: .7rem/1.7 ui-monospace, monospace; }
-    .split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 6rem; align-items: start; }
-    .split > * { min-width: 0; }
-    #install .split > .card { padding-left: 2rem; border-left: 1px solid var(--line); }
     code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    code { font-size: .85em; color: var(--accent); overflow-wrap: anywhere; }
-    pre { margin: 0; padding: 1.5rem; overflow-x: auto; background: #242823; color: #edf0e4; font-size: .8rem; line-height: 2; }
-    pre code { color: inherit; font-size: inherit; overflow-wrap: normal; }
-    .terminal-title { display: flex; justify-content: space-between; padding: .8rem 1.5rem; background: #242823; border-bottom: 1px solid #53584e; color: #c3c9b9; font: .7rem ui-monospace, monospace; }
-    .terminal-title::after { content: "SH"; color: #c3c9b9; }
-    .note { margin-top: 1.2rem; color: var(--muted); font-size: .85rem; }
-    ol { padding-left: 1.2rem; }
-    li { margin-block: .75rem; padding-left: .5rem; }
-    li::marker { color: var(--accent); font-family: ui-monospace, monospace; }
-    details { padding-block: 1.2rem; margin-top: 2rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    summary { cursor: pointer; font: .8rem/1.7 ui-monospace, monospace; }
-    summary::marker { color: var(--accent); }
-    details pre { margin-top: 1rem; }
-    dl { margin: 0; }
-    dl div { display: grid; grid-template-columns: 9rem 1fr; gap: 1rem; border-bottom: 1px solid var(--line); padding-block: .85rem; }
-    dl div:first-child { border-top: 1px solid var(--line); }
-    dt { color: var(--accent); }
-    dd { margin: 0; color: var(--muted); font-size: .9rem; }
-    kbd { font-size: .8rem; }
-    footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding-block: 1.5rem 3rem; border-top: 1px solid var(--text); color: var(--muted); font: .65rem/1.8 ui-monospace, monospace; }
+    code { font-size: .9em; overflow-wrap: anywhere; }
+    pre { background: var(--wash); border-left: 2px solid var(--ink); padding: 1rem 1.2rem; margin: 1rem 0; font-size: .78rem; line-height: 1.9; overflow-x: auto; }
+    pre code { font-size: inherit; overflow-wrap: normal; }
+    .command { margin-block: 0; padding: .6rem 0; border: 0; background: none; font-size: .82rem; }
+    .command::before { content: "$ "; color: var(--accent); }
+    .entry { padding: 1rem 0; border-top: 1px solid var(--rule); }
+    .entry:last-of-type { border-bottom: 1px solid var(--rule); }
+    .entry p { margin: 0; color: var(--muted); font-size: .82rem; }
+    .entry h3 { margin: 0; font-size: .7rem; font-weight: 400; color: var(--accent); }
+    .note { border-left: 2px solid var(--accent); padding-left: 1rem; margin-top: 1.5rem; color: var(--muted); font-size: .8rem; }
+    .note strong { color: var(--ink); }
+    .small { font-size: .78rem; color: var(--muted); }
+    .table-scroll { overflow-x: auto; margin-block: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .75rem; text-align: left; }
+    caption { text-align: left; color: var(--accent); margin-bottom: .75rem; }
+    th, td { padding: .7rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    thead { background: var(--wash); }
+    tbody th { font-weight: 500; }
+    ol, ul { padding-left: 1.4rem; }
+    li { padding-left: .3rem; margin-block: .8rem; }
+    li::marker { color: var(--accent); }
+    details { margin-top: 1.5rem; }
+    summary { cursor: pointer; text-decoration: underline; text-underline-offset: .25em; font-size: .82rem; }
+    details > p:first-of-type { margin-top: 1rem; }
+    footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem 2rem; border-top: 1px solid var(--rule); padding: 1.5rem 0; font-size: .68rem; color: var(--muted); }
     footer p { margin: 0; }
-    @media (min-width: 1000px) { #features > .eyebrow, #features > h2 { margin-left: 23%; } }
-    @media (max-width: 1000px) {
-      .wrap { width: calc(100% - 3rem); }
-      .hero { gap: 2rem; }
-      .split { gap: 3rem; }
-      .grid .card { grid-template-columns: 1fr 1.5fr; }
-      .grid .card p { grid-column: 2; }
+    .masthead, .rail nav, .label, .meta, .section-head > span, table, summary, footer { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    h1 { margin-left: 0; line-height: 1.1; font-weight: 400; letter-spacing: -.055em; }
+    h2 { font-size: 1.6rem; font-weight: 400; }
+    .theme-control button { border: 0; }
+    .theme-control button[aria-pressed="true"] { background: var(--wash); }
+    .intro { position: relative; isolation: isolate; padding-top: 5rem; }
+    .intro-copy, .intro figure { position: relative; z-index: 1; }
+    .landscape { position: absolute; inset: auto 0 0; width: 100%; height: 80%; color: var(--muted); opacity: .13; pointer-events: none; }
+    .title-line { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .title-line h1 { margin: 0; font-family: Baskerville, "Baskerville Old Face", "Iowan Old Style", "Times New Roman", serif; }
+    .calligraphy { display: flex; align-items: flex-end; gap: .5rem; color: var(--accent); }
+    .calligraphy span { writing-mode: vertical-rl; font: 2.4rem/1.1 "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", serif; letter-spacing: .12em; }
+    .calligraphy small { writing-mode: vertical-rl; font: .55rem/1.4 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .rail { border-bottom: 3px double var(--rule); }
+    .section-head { border-left: 2px solid var(--accent); padding-left: 1rem; }
+    .section-head h2 { font-family: Baskerville, "Baskerville Old Face", "Iowan Old Style", "Times New Roman", serif; }
+    .chapter { display: block; margin-top: 1rem; color: var(--accent); font: 1.8rem/1.2 "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", serif; }
+    @media (max-width: 800px) {
+      .sheet { width: calc(100% - 2rem); margin: 1rem auto; }
+      section { grid-template-columns: 150px minmax(0, 1fr); column-gap: 1.5rem; }
+      .intro { gap: 1.5rem; }
+      .rail { padding: 2.5rem 0; font-size: .8rem; }
+      .intro, section { padding: 2.5rem 0; }
     }
-    @media (max-width: 650px) {
-      .wrap { width: calc(100% - 2rem); }
-      header { align-items: flex-start; flex-direction: column; gap: .8rem; }
-      nav { gap: 1.2rem; }
-      .hero, .split { grid-template-columns: 1fr; gap: 2rem; }
-      .hero { padding-block: 3rem; }
-      h1 { font-size: clamp(3.2rem, 12vw, 5rem); }
-      figure { width: min(100%, 340px); margin: 1rem 0 0 auto; }
-      section { padding-block: 2.5rem; }
-      .grid .card { grid-template-columns: 1fr; gap: .6rem; }
-      .grid .card p { grid-column: auto; }
-      #install .split > .card { padding-left: 0; border-left: 0; }
-      dl div { grid-template-columns: 7rem 1fr; }
+    @media (max-width: 580px) {
+      .sheet { width: calc(100% - 1rem); margin: .5rem auto; }
+      .masthead { flex-wrap: wrap; padding: .75rem 1rem; font-size: .65rem; }
+      .layout { display: block; }
+      .rail { padding: 1.5rem 1rem; border-bottom: 1px solid var(--rule); }
+      .rail-inner { position: static; }
+      .rail nav { display: flex; flex-wrap: wrap; gap: .6rem 1rem; }
+      .intro { grid-template-columns: 1fr; }
+      .title-line { gap: 1rem; }
+      .calligraphy span { font-size: 1.8rem; }
+      .calligraphy small { display: none; }
+      .chapter { display: none; }
+      .intro figure { width: min(100%, 300px); justify-self: center; }
+      section { display: block; }
+      .intro, section { padding: 1.75rem 1rem; }
+      .intro .description { font-size: 1.15rem; }
+      footer { padding-inline: 1rem; }
+    }
+    @media print {
+      .sheet { width: 100%; border: 0; margin: 0; }
+      .layout { display: block; }
+      .rail, .skip { display: none; }
+      section { display: block; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+      details::details-content { content-visibility: visible; }
     }
   </style>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="wrap">
-    <a class="brand" href="#main"><span>~/</span> conficius</a>
-    <nav aria-label="Main navigation">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="#usage">Usage</a>
-      <a href="https://github.com/jccguimaraes/conficius">GitHub ↗</a>
-    </nav>
-  </header>
-  <main id="main" class="wrap">
-    <div class="hero">
-      <div>
-        <p class="eyebrow">macOS + Linux · Built with Go · Early beta</p>
-        <h1>Keep your setup<br><span>in order.</span></h1>
-        <p class="lead">Dotfiles, package updates, and vulnerability checks. Conficius brings them into your terminal, with previews before changes.</p>
-        <div class="actions">
-          <a class="button primary" href="#install">Get Conficius</a>
-          <a class="button" href="https://github.com/jccguimaraes/conficius">Explore the source ↗</a>
-        </div>
-        <p class="small">Separate CLI and TUI binaries. Choose either, or use both.</p>
+  <div class="sheet">
+    <header class="masthead">
+      <p>conficius / workstation field manual</p>
+      <p>macOS + Linux · Go · <a href="https://github.com/jccguimaraes/conficius">source</a></p>
+      <div class="theme-control" role="group" aria-label="Theme" hidden>
+        <button type="button" data-theme="light" aria-label="Light theme" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        </button>
+        <button type="button" data-theme="dark" aria-label="Dark theme" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg>
+        </button>
       </div>
-      <figure>
-        <img class="mascot" src="assets/conficius-gopher.png" alt="Conficius gopher wearing a robe and sporting a long white beard" width="1024" height="1024" fetchpriority="high">
-        <figcaption>A little wisdom for your workstation.</figcaption>
-      </figure>
-    </div>
-    <section id="features" aria-labelledby="features-title">
-      <p class="eyebrow">01 / Field notes</p>
-      <h2 id="features-title">Less guesswork. Explicit changes.</h2>
-      <div class="grid">
-        <article class="card">
-          <span class="number">01 / DOTFILES</span>
-          <h3>A home for your config</h3>
-          <p>Audit XDG or OS-native conventions. Preview configured symlinks before applying them. Existing regular files are never overwritten.</p>
-        </article>
-        <article class="card">
-          <span class="number">02 / PACKAGES</span>
-          <h3>See what’s out of date</h3>
-          <p>Inspect global tools and project dependencies. Filter package managers, review available updates, then choose what to apply.</p>
-        </article>
-        <article class="card">
-          <span class="number">03 / VULNERABILITIES</span>
-          <h3>Check installed versions</h3>
-          <p>Query OSV for known vulnerabilities. npm packages map directly; Homebrew and mise packages need explicit identity mappings.</p>
-        </article>
-      </div>
-      <p class="note">Manager capabilities vary. Run <code>conficius packages pms</code> to see supported inventory, outdated, and update operations.</p>
-    </section>
-    <section id="install" aria-labelledby="install-title">
-      <div class="split">
-        <div>
-          <p class="eyebrow">02 / Installation</p>
-          <h2 id="install-title">Your terminal. Your choice.</h2>
-          <p>Download a CLI or TUI archive from GitHub releases. Both currently ship as prereleases; the TUI runs without the CLI.</p>
-          <a class="button primary" href="https://github.com/jccguimaraes/conficius/releases">Download releases ↗</a>
+    </header>
+    <div class="layout">
+      <aside class="rail" aria-label="Manual index">
+        <div class="rail-inner">
+          <nav aria-label="Sections">
+            <a href="#commands"><span>01</span>Commands</a>
+            <a href="#packages"><span>02</span>Packages &amp; vulns</a>
+            <a href="#dotfiles"><span>03</span>Dotfiles</a>
+            <a href="#install"><span>04</span>Install</a>
+          </nav>
         </div>
-        <div class="card">
-          <h3>Install a release</h3>
-          <ol>
-            <li>Choose <code>conficius_VERSION_OS_ARCH.tar.gz</code> for the CLI, or <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code> for the TUI.</li>
-            <li>Use <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code> for your CPU.</li>
-            <li>Verify your download against the release’s <code>checksums.txt</code>, extract it, and put the binary on your <code>PATH</code>.</li>
-          </ol>
-          <p class="small">Package operations need the corresponding package manager installed. Online checks need network access.</p>
+      </aside>
+      <main id="main">
+        <div class="intro">
+          <svg class="landscape" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
+            <path fill="currentColor" opacity=".3" d="M0 290 60 250 100 265 170 140 205 180 260 80 310 170 345 145 410 255 470 225 540 290 610 195 650 215 720 95 760 160 800 145 870 245 930 200 1000 270V400H0Z"/>
+            <path fill="currentColor" opacity=".5" d="M0 345 90 310 150 335 230 220 265 250 300 205 360 310 440 285 515 340 600 280 650 310 730 235 790 290 830 275 910 330 1000 290V400H0Z"/>
+            <path fill="currentColor" d="M0 385Q120 330 250 370T500 365T750 375T1000 350V400H0Z"/>
+            <path d="M40 315Q230 285 420 315M550 265Q750 240 970 275" fill="none" stroke="var(--paper)" stroke-width="20"/>
+          </svg>
+          <div class="intro-copy">
+          <p class="label">Workstation notes</p>
+          <div class="title-line">
+            <h1>conficius</h1>
+            <div class="calligraphy"><span lang="zh-Hant">整理</span></div>
+          </div>
+          <p class="description">Dotfile links, package updates, and vulnerability checks. A small tool for tending to your workstation.</p>
+          <p>Linking and updates are dry runs unless you pass <code>--apply</code>.</p>
+          <div class="meta"><span class="stamp">EARLY BETA</span><span>CLI: conficius</span><span>TUI: conficius-tui</span></div>
+          </div>
+          <figure>
+            <img src="assets/conficius-gopher.png" alt="Gopher in a robe with a long white beard" width="1024" height="1024">
+          </figure>
         </div>
-      </div>
-      <details>
-        <summary>Prefer to build from source?</summary>
-        <p class="note">Use Go 1.26.8 or newer. Run these commands from the repository root:</p>
-        <pre aria-label="Build from source commands"><code>git clone https://github.com/jccguimaraes/conficius.git
-cd conficius
-go build -o ./bin/conficius ./cmd/cli
-go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
-      </details>
-    </section>
-    <section id="usage" aria-labelledby="usage-title">
-      <div class="split">
-        <div>
-          <p class="eyebrow">03 / Command line</p>
-          <h2 id="usage-title">Inspect first.<br>Apply when ready.</h2>
-          <p>Start with <code>conficius init</code> to create a configuration. Dotfile linking and package updates preview changes by default; <code>--apply</code> makes them real.</p>
-          <p>Use <code>--config FILE</code> for an explicit configuration. Otherwise, Conficius searches the current directory and its parents, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code>.</p>
-          <p class="small">Inspection commands support schema-versioned JSON with <code>--json</code>.</p>
-        </div>
-        <div>
-          <div class="terminal-title">conficius / quick start</div>
-          <pre aria-label="CLI quick start commands"><code>conficius init
-conficius dotfiles audit --xdg
-conficius dotfiles link
-conficius packages pms
+        <section id="commands" aria-labelledby="commands-title">
+          <div class="section-head"><span>01</span><h2 id="commands-title">What needs doing?</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">察</span></div>
+          <div class="entry">
+            <h3>Check shell and config locations</h3>
+            <pre class="command" aria-label="Audit command"><code>conficius dotfiles audit --xdg</code></pre>
+            <p>Read-only. Use <code>--os-native</code> for OS-native conventions, or <code>--strict</code> to fail on warnings.</p>
+          </div>
+          <div class="entry">
+            <h3>Inspect configured links</h3>
+            <pre class="command" aria-label="Link preview command"><code>conficius dotfiles link</code></pre>
+            <p>Requires a config. Shows what would change; does not create links.</p>
+          </div>
+        </section>
+        <section id="packages" aria-labelledby="packages-title">
+          <div class="section-head"><span>02</span><h2 id="packages-title">Packages &amp; vulnerabilities</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">檢</span></div>
+          <p>Read installed versions, check available updates, and preview changes. Support depends on the package manager and scope.</p>
+          <div class="table-scroll" role="region" aria-label="Package manager support" tabindex="0">
+            <table>
+              <caption>Available adapters</caption>
+              <thead><tr><th scope="col">Manager</th><th scope="col">Scope</th><th scope="col">Operations</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">mise</th><td>Global + project</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">Homebrew (<code>brew</code>)</th><td>Global</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">npm</th><td>Global + project</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">Mac App Store (<code>mas</code>)</th><td>Global · macOS</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">uv</th><td>Global tools</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">pipx</th><td>Global</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">Poetry</th><td>Project</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">pnpm</th><td>Project</td><td>Inventory, outdated, update</td></tr>
+                <tr><th scope="row">Cargo</th><td>Global + project</td><td>Inventory only</td></tr>
+                <tr><th scope="row">Yarn</th><td>Project</td><td>Inventory only</td></tr>
+                <tr><th scope="row">Bun</th><td>Project</td><td>Inventory only</td></tr>
+                <tr><th scope="row">Go</th><td>Global binaries</td><td>Inventory, outdated, update</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small">Adapters require the corresponding tool installed. Run <code>conficius packages pms</code> to see availability and capabilities on your machine. Inventory-only adapters do not preview or apply updates.</p>
+          <pre aria-label="Package inspection and update commands"><code>conficius packages pms
 conficius packages outdated
-conficius packages vulnerabilities --pm npm --project ./my-app
-conficius packages update</code></pre>
-          <p class="note">Vulnerability findings do not change exit status; inventory or query failures do. Missing package mappings are not evidence that a package is clean.</p>
-        </div>
-      </div>
-      <details>
-        <summary>Configure dotfile links with TOML</summary>
-        <p class="note">Schema version 2. Sources are relative to the config file; target environment variables expand when the config loads. Set <code>ZDOTDIR</code> before using this example.</p>
-        <pre aria-label="TOML configuration example"><code>version = 2
+conficius packages outdated --pm npm --project ./my-app
+conficius packages update
+conficius packages update --apply</code></pre>
+          <h3>Where vulnerability data comes from</h3>
+          <p>Installed package names and versions come from package managers and project dependency files. Conficius checks them against two online sources:</p>
+          <ul>
+            <li><strong>OSV (Open Source Vulnerabilities).</strong> Matches package identity and exact version. npm maps directly; mise and Homebrew packages need explicit identity mappings.</li>
+            <li><strong>ENISA’s European Vulnerability Database (EUVD).</strong> Uses product/vendor identities, with mapping overrides in your config.</li>
+          </ul>
+          <pre aria-label="Vulnerability check command"><code>conficius packages vulnerabilities --pm npm --project ./my-app</code></pre>
+          <p class="note">Missing mappings mean incomplete coverage, not a clean result. Checks need network access. Findings do not change exit status; inventory or query failures do. Inspection commands accept <code>--json</code>.</p>
+        </section>
+        <section id="dotfiles" aria-labelledby="dotfiles-title">
+          <div class="section-head"><span>03</span><h2 id="dotfiles-title">A file of paths. No guessing.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">理</span></div>
+          <p>Run <code>conficius init</code> in your dotfiles repository. It creates <code>conficius.toml</code> without overwriting an existing file. Optional examples start commented out; replace them with your paths.</p>
+          <pre aria-label="Dotfile configuration example"><code>version = 2
 
 [profiles.default]
 mode = "denylist"
@@ -205,35 +248,74 @@ manager_order = ["mise", "brew", "npm"]
 
 [[tools.zsh.links]]
 source = "zsh/.zshrc"
-target = "$ZDOTDIR/.zshrc"
-platforms = ["darwin", "linux"]</code></pre>
-        <p class="note">After reviewing <code>conficius dotfiles link</code>, run <code>conficius dotfiles link --apply</code> to create the links.</p>
-      </details>
-    </section>
-    <section id="tui" aria-labelledby="tui-title">
-      <div class="split">
-        <div>
-          <p class="eyebrow">04 / Terminal interface</p>
-          <h2 id="tui-title">Stay in the terminal.</h2>
-          <p>Run <code>conficius-tui</code> for keyboard-driven package views, dotfile audits, and linking. Inspect outdated versions, configured version drift, and vulnerability findings.</p>
-          <p>Marked upgrades get a command preview. Confirmed upgrades run in the terminal, then return to the TUI.</p>
-          <p class="small">Use <code>conficius-tui -config FILE</code> to select a configuration explicitly.</p>
-        </div>
-        <dl aria-label="TUI keyboard shortcuts">
-          <div><dt><kbd>↑ ↓ / j k</kbd></dt><dd>Move through items</dd></div>
-          <div><dt><kbd>Enter / Esc</kbd></dt><dd>Open details / go back</dd></div>
-          <div><dt><kbd>Space / a</kbd></dt><dd>Mark a package / toggle all in outdated packages</dd></div>
-          <div><dt><kbd>u / U</kbd></dt><dd>Preview marked / all upgrades in the current scope</dd></div>
-          <div><dt><kbd>y / n</kbd></dt><dd>Apply / cancel in the command preview</dd></div>
-          <div><dt><kbd>v / d / o</kbd></dt><dd>Vulnerabilities / drift / outdated packages</dd></div>
-          <div><dt><kbd>r / ? / q</kbd></dt><dd>Refresh / screen help / quit</dd></div>
-        </dl>
-      </div>
-    </section>
-  </main>
-  <footer class="wrap">
-    <p>Conficius · Early beta · <a href="https://github.com/jccguimaraes/conficius/issues">Report an issue</a></p>
-    <p>Mascot inspired by the <a href="https://go.dev/doc/gopher">Go gopher</a> created by Renee French.</p>
-  </footer>
+target = "$HOME/.zshrc"
+platforms = ["darwin", "linux"]
+
+[[tools.nvim.links]]
+source = "nvim"
+target = "${XDG_CONFIG_HOME}/nvim"</code></pre>
+          <p class="small">Sources can be files or whole folders inside the config directory. Relative sources resolve from that directory. Target environment variables expand on load; standard HOME and XDG variables have defaults.</p>
+          <pre aria-label="Preview and apply dotfile links"><code>conficius dotfiles link
+conficius dotfiles link --apply</code></pre>
+          <p class="note"><strong>A linked folder is the original folder.</strong> Tooling that writes sessions, history, or caches through the link writes into your dotfiles repository. Put unwanted generated paths in <code>.gitignore</code>. That keeps them out of Git, not off disk. Link individual config files if runtime data must stay elsewhere.</p>
+          <details>
+            <summary>Example: Zsh runtime files</summary>
+            <p class="small">For a linked <code>zsh/</code> folder, add these to the repository’s <code>.gitignore</code>. Adjust for your actual layout and history path.</p>
+            <pre aria-label="Zsh gitignore patterns"><code>/zsh/.zsh_sessions/
+/zsh/.zsh_history
+/zsh/.zsh_history.*
+/zsh/.zcompdump*
+/zsh/*.zwc
+/zsh/*.zwc.old</code></pre>
+            <p class="small">Already-tracked files must be untracked separately.</p>
+          </details>
+          <details>
+            <summary>Config discovery and overwrite rules</summary>
+            <p class="small">Use <code>--config FILE</code> to pick a config explicitly. Otherwise, Conficius searches the current directory and parents, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code>, defaulting to <code>~/.config/conficius/conficius.toml</code>.</p>
+            <p class="small">Existing real files and directories are never overwritten. <code>--force</code> can replace only symlinks whose destination remains inside the current config repository. Links are validated before changes; failed batches are rolled back.</p>
+          </details>
+        </section>
+        <section id="install" aria-labelledby="install-title">
+          <div class="section-head"><span>04</span><h2 id="install-title">Put a binary on PATH.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">備</span></div>
+          <p>CLI and TUI are separate binaries. Either runs without the other.</p>
+          <ol>
+            <li>Open <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>. Releases currently ship as prereleases.</li>
+            <li>Choose <code>conficius_VERSION_OS_ARCH.tar.gz</code> or <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code>. OS: <code>darwin</code> or <code>linux</code>. CPU: <code>arm64</code> or <code>amd64</code>.</li>
+            <li>Verify against the release’s <code>checksums.txt</code>, extract, and put the binary on your <code>PATH</code>.</li>
+          </ol>
+          <p class="small">Package operations need the corresponding package manager installed. Online checks need network access.</p>
+          <details>
+            <summary>Or build from source</summary>
+            <p class="small">Go 1.26.8 or newer. From the repository root:</p>
+            <pre aria-label="Build from source commands"><code>git clone https://github.com/jccguimaraes/conficius.git
+cd conficius
+go build -o ./bin/conficius ./cmd/cli
+go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
+          </details>
+        </section>
+      </main>
+    </div>
+    <footer>
+      <p>Something broken? <a href="https://github.com/jccguimaraes/conficius/issues">File an issue</a>.</p>
+      <p>Mascot inspired by Renee French’s <a href="https://go.dev/doc/gopher">Go gopher</a>.</p>
+    </footer>
+  </div>
+  <script>
+    const themeControl = document.querySelector('.theme-control');
+    const themeButtons = themeControl.querySelectorAll('button');
+    const updateThemeButtons = () => {
+      const theme = document.documentElement.dataset.theme || 'dark';
+      themeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.theme === theme)));
+    };
+    updateThemeButtons();
+    themeControl.hidden = false;
+    themeButtons.forEach(button => button.addEventListener('click', () => {
+      const theme = button.dataset.theme;
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f2f4ee' : '#151b1c';
+      updateThemeButtons();
+      try { localStorage.setItem('conficius-theme', theme); } catch {}
+    }));
+  </script>
 </body>
 </html>

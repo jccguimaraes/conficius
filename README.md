@@ -34,7 +34,7 @@ With mise installed, `mise install` installs the pinned development tools. `mise
 
 ## CLI
 
-`conficius init` creates `conficius.toml` and refuses to overwrite an existing file. `--config FILE` selects an explicit config; otherwise Conficius searches the current directory and its parents, then `$XDG_CONFIG_HOME/conficius/conficius.toml`.
+`conficius init` creates `conficius.toml` in the current directory and refuses to overwrite an existing file. Optional link, npm-prefix, and vulnerability-mapping examples are commented out; edit and uncomment them before use. `--config FILE` selects an explicit config, including the path written by `init`; otherwise Conficius searches the current directory and its parents, then `$XDG_CONFIG_HOME/conficius/conficius.toml` (default: `~/.config/conficius/conficius.toml`).
 
 Audit current shell and config-directory state against either XDG or OS-native conventions:
 
@@ -56,7 +56,22 @@ conficius dotfiles link --apply
 conficius dotfiles link --apply --force
 ```
 
-Existing regular files are never overwritten. Forced replacement is limited to symlinks whose destination remains inside the current config repository. All links are validated before mutation, and failed batches are rolled back.
+Link sources can be files or folders. A folder link points to the entire source directory; it does not copy files or merge directories. Writes through the link, including files and folders generated later by tooling, land in the source directory in your dotfiles repository.
+
+Add generated files and folders that should not be tracked to your dotfiles repository's `.gitignore`. For example, if Zsh stores runtime data under the linked `zsh/` folder:
+
+```gitignore
+/zsh/.zsh_sessions/
+/zsh/.zsh_history
+/zsh/.zsh_history.*
+/zsh/.zcompdump*
+/zsh/*.zwc
+/zsh/*.zwc.old
+```
+
+Adjust paths to match your layout and history settings. `.gitignore` affects Git tracking, not file creation or linking; already-tracked files must be untracked separately. Link individual config files instead if runtime data must stay outside the repository.
+
+Existing regular files and directories are never overwritten. Forced replacement is limited to symlinks whose destination remains inside the current config repository. All links are validated before mutation, and failed batches are rolled back.
 
 Package commands inspect global installations and project dependencies. Manager capabilities vary; `conficius packages pms --json` reports which inventory, outdated, and update operations each manager supports.
 
@@ -78,7 +93,7 @@ Vulnerability checks query OSV with exact installed versions. Global and project
 
 ## Configuration
 
-Configuration uses TOML schema version `2`. Link sources are relative to the configuration file. Targets use plain environment-variable references; Conficius expands them when loading config.
+Configuration uses TOML schema version `2`. Link sources are existing files or folders within the configuration file's directory, with relative paths resolved from that directory. Targets use plain environment-variable references; Conficius expands them when loading config.
 
 ```toml
 version = 2
@@ -95,8 +110,12 @@ expected_global_prefix = "${HOME}/.npm-global"
 
 [[tools.zsh.links]]
 source = "zsh/.zshrc"
-target = "$ZDOTDIR/.zshrc"
+target = "$HOME/.zshrc"
 platforms = ["darwin", "linux"]
+
+[[tools.nvim.links]]
+source = "nvim"
+target = "${XDG_CONFIG_HOME}/nvim"
 
 # Optional: map mise/Homebrew package identity to an OSV ecosystem.
 [[vulnerabilities.mappings]]
