@@ -116,13 +116,13 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 
 func updateHome(data *model) {
 	data.showWisdom = terminalWidth() >= 80 && screenSize.Height >= 16
-	if len(data.homeCards) != 2 {
-		return
-	}
-	data.homeCards[0].summary, data.homeCards[0].color = dotfileHomeSummary(data.dotfiles)
-	data.homeCards[1].summary, data.homeCards[1].color = packageHomeSummary(data)
 	for i := range data.homeCards {
 		card := &data.homeCards[i]
+		if card.view == "scopes" {
+			card.summary, card.color = packageHomeSummary(data)
+		} else {
+			card.summary, card.color = dotfileHomeSummary(data.dotfiles)
+		}
 		switch card.color {
 		case glyph.Green:
 			card.label = "Healthy"
@@ -140,7 +140,11 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 	if data.wisdom == "" {
 		data.wisdom = wisdom.Random()
 	}
-	data.homeCards = []homeCard{{name: "Dotfiles", view: "dotfiles", nameColor: glyph.Cyan, gap: true}, {name: "Packages", view: "scopes"}}
+	data.homeCards = []homeCard{{name: "Packages", view: "scopes", nameColor: glyph.Cyan}}
+	if data.dotfiles != nil {
+		data.homeCards[0].gap = true
+		data.homeCards = append(data.homeCards, homeCard{name: "Dotfiles", view: "dotfiles"})
+	}
 	updateHome(data)
 	cards := styleList(glyph.List(&data.homeCards)).MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
 		return glyph.VBox(
@@ -161,7 +165,7 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 	})
 	context := func() string {
 		if data.dotfiles == nil {
-			return "Config: unavailable"
+			return "Config: none"
 		}
 		return "Config: " + glyph.TruncateWidthEllipsis(filepath.Base(data.dotfiles.configPath), max(1, terminalWidth()-12))
 	}

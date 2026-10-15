@@ -386,7 +386,7 @@ func TestDotfileRefreshDiscoversConfig(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	state := newDotfileState(nil, config.ErrNotFound, "")
+	state := newDotfileState(nil, nil, "")
 	state.refresh(nil)
 	if !errors.Is(state.configErr, config.ErrNotFound) {
 		t.Fatal(state.configErr)

@@ -126,6 +126,44 @@ func TestHomeWisdomStaysFixedAcrossResize(t *testing.T) {
 	}
 }
 
+func TestHomeConfigErrorsRemainVisible(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		path string
+		err  error
+	}{
+		{name: "explicit missing config", path: "missing.toml", err: config.ErrNotFound},
+		{name: "invalid config", path: "conficius.toml", err: errors.New("invalid config")},
+		{name: "discovery failure", err: errors.New("get working directory: permission denied")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			data := &model{dotfiles: newDotfileState(nil, test.err, test.path)}
+			homeView(data, glyph.NewApp())
+			if len(data.homeCards) != 2 || data.homeCards[0].view != "scopes" || data.homeCards[1].label != "Error" {
+				t.Fatalf("config error hidden: %+v", data.homeCards)
+			}
+		})
+	}
+}
+
+func TestHomeWithoutConfig(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path, discoverErr := config.Discover("")
+	project, loadErr := config.LoadDiscovered("")
+	data := &model{dotfiles: newDotfileState(project, errors.Join(discoverErr, loadErr), path)}
+	component, cards := homeView(data, glyph.NewApp())
+	buffer := glyph.NewBuffer(80, 24)
+	glyph.Build(component).Execute(buffer, 80, 24)
+	output := homeRenderOutput(buffer, 24)
+	if len(data.homeCards) != 1 || cards.Selected().view != "scopes" {
+		t.Fatalf("expected packages-only home: %+v", data.homeCards)
+	}
+	if !strings.Contains(output, "Packages") || !strings.Contains(output, "Config: none") || strings.Contains(output, "Dotfiles") || strings.Contains(output, "Error") {
+		t.Fatalf("missing config should not show dotfiles or errors:\n%s", output)
+	}
+}
+
 func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 	previous := screenSize
 	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
@@ -165,7 +203,7 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 				for _, name := range []string{"Dotfiles", "Packages"} {
 					if column := strings.Index(line, name); column >= 0 {
 						style := buffer.Get(utf8.RuneCountInString(line[:column]), row).Style
-						if style.Attr&glyph.AttrBold == 0 || name == "Dotfiles" && style.FG != glyph.Cyan || name == "Packages" && style.FG.Mode != glyph.ColorDefault {
+						if style.Attr&glyph.AttrBold == 0 || name == "Packages" && style.FG != glyph.Cyan || name == "Dotfiles" && style.FG.Mode != glyph.ColorDefault {
 							t.Fatalf("name style %s: %+v", name, style)
 						}
 					}
@@ -190,7 +228,7 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 					}
 				}
 			}
-			if dotfilesRow < 0 || packagesRow <= dotfilesRow+2 || strings.Trim(buffer.GetLine(packagesRow-1), " │") != "" {
+			if packagesRow < 0 || dotfilesRow <= packagesRow+2 || strings.Trim(buffer.GetLine(dotfilesRow-1), " │") != "" {
 				t.Fatalf("missing blank gap:\n%s", output)
 			}
 			cards.Down(nil)
@@ -208,7 +246,7 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 			}
 			for row := range size.Height {
 				line := buffer.GetLine(row)
-				if column := strings.Index(line, "Packages"); column >= 0 && buffer.Get(utf8.RuneCountInString(line[:column]), row).Style.FG != glyph.Cyan {
+				if column := strings.Index(line, "Dotfiles"); column >= 0 && buffer.Get(utf8.RuneCountInString(line[:column]), row).Style.FG != glyph.Cyan {
 					t.Fatalf("selected name not cyan:\n%s", output)
 				}
 				for _, label := range []struct {

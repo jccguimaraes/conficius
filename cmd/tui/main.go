@@ -101,9 +101,6 @@ func run() error {
 		return err
 	}
 	path, discoverErr := config.Discover(configFlag)
-	if path == "" {
-		path = "(not found)"
-	}
 	project, configErr := config.LoadDiscovered(configFlag)
 	configErr = errors.Join(discoverErr, configErr)
 	dotfiles := newDotfileState(project, configErr, path)
@@ -112,13 +109,21 @@ func run() error {
 	}
 	profile, err := project.ResolveProfile("", false)
 	if err != nil {
-		dotfiles.configErr = err
+		if dotfiles == nil {
+			dotfiles = newDotfileState(nil, err, path)
+		} else {
+			dotfiles.configErr = err
+		}
 		project = &config.Project{Version: config.CurrentVersion}
 		profile, _ = project.ResolveProfile("", false)
 	}
 	scopes, err := config.ResolveScopes(project, profile, false, nil, nil)
 	if err != nil {
-		dotfiles.configErr = errors.Join(dotfiles.configErr, err)
+		if dotfiles == nil {
+			dotfiles = newDotfileState(nil, err, path)
+		} else {
+			dotfiles.configErr = errors.Join(dotfiles.configErr, err)
+		}
 		project = &config.Project{Version: config.CurrentVersion}
 		profile, _ = project.ResolveProfile("", false)
 		scopes, err = config.ResolveScopes(project, profile, false, nil, nil)

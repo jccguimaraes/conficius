@@ -67,6 +67,9 @@ type dotfileState struct {
 }
 
 func newDotfileState(project *config.Project, configErr error, configPath string) *dotfileState {
+	if project == nil && configPath == "" && errors.Is(configErr, config.ErrNotFound) {
+		return nil
+	}
 	if configPath == "" && project != nil {
 		configPath = project.Path
 	}
