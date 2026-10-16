@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/config"
@@ -134,10 +135,14 @@ func packageTableRow(kind string, values func() []packageColumn, heading bool) g
 
 func packageContext(data *model) any {
 	return func() string {
+		text := "Profile: " + data.profile.Name
 		if data.active != nil {
-			return "Profile: " + data.profile.Name + " · Scope: " + data.active.Kind + ":" + data.active.Name
+			text += " · Scope: " + data.active.Kind + ":" + data.active.Name
 		}
-		return "Profile: " + data.profile.Name
+		if data.cacheRefreshErr != "" {
+			text += " · " + data.cacheRefreshErr
+		}
+		return text
 	}
 }
 
@@ -190,7 +195,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 			app.Go("results")
 		}
 	})
-	return screenFrame("Packages / Scopes", packageContext(data), &data.status, list, "↑/↓ move  Enter open  p profiles"), list
+	return screenFrame("Packages / Scopes", packageContext(data), &data.status, list, cacheRefreshFooter("↑/↓ move  Enter open  p profiles", runtime.GOOS)), list
 }
 
 func outdatedColumns(row *outdatedRow) []packageColumn {
@@ -204,7 +209,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 		return packageTableRow("outdated", func() []packageColumn { return outdatedColumns(row) }, false)
 	})
 	content := packageTable("outdated", func() []packageColumn { return outdatedColumns(&outdatedRow{}) }, &data.loading, list)
-	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, "↑/↓ Enter details  Space mark  p profiles"), list
+	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, cacheRefreshFooter("↑/↓ move  Enter details  Space mark  p profiles", runtime.GOOS)), list
 }
 
 func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
@@ -218,7 +223,7 @@ func confirmView(data *model) glyph.Component {
 	list := glyph.List(&data.commands).Render(func(row *commandRow) glyph.Component {
 		return glyph.VBox(glyph.Textf(&row.Manager, "  ", &row.Scope, "  ", &row.Packages), glyph.TextBlock(&row.Command).CharWrap())
 	}).Marker("").BindNav("<down>", "<up>").BindNav("j", "k").BindHalfPageNav("<C-d>", "<C-u>")
-	return screenFrame("Packages / Confirm upgrades", packageContext(data), &data.status, glyph.VBox.Grow(1)(glyph.Text(&data.planSummary).Bold(), glyph.HRule(), loadingContent(&data.updating, list)), "↑/↓ j/k scroll  Ctrl-d/u page  y apply  n/Esc cancel")
+	return screenFrame("Packages / Confirm upgrades", packageContext(data), &data.status, glyph.VBox.Grow(1)(glyph.Text(&data.planSummary).Bold(), glyph.HRule(), loadingContent(&data.updating, list)), "↑/↓/j/k scroll  Ctrl-d/u page  y apply  n/Esc cancel")
 }
 
 func vulnerabilityColumns(row *vulnerabilityRow) []packageColumn {

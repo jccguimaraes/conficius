@@ -79,6 +79,13 @@ type model struct {
 	updateErrorLines  []string
 	updating          bool
 	runInteractive    bool
+	runCacheRefresh   bool
+	cacheExecutable   string
+	cacheArgs         []string
+	cachePreview      string
+	cacheReturnView   string
+	cacheRefreshDone  bool
+	cacheRefreshErr   string
 	findings          []vulnerabilityRow
 	detail            vulnerabilityRow
 	mappings          []config.VulnerabilityMapping
@@ -121,6 +128,9 @@ func run() error {
 	}
 	if err := runSession(data, startView); err != nil {
 		return err
+	}
+	if data.runCacheRefresh {
+		return runInteractiveCacheRefresh(data)
 	}
 	if !data.runInteractive {
 		return nil
@@ -201,7 +211,7 @@ func runSession(data *model, startView string) error {
 			app.EnterJumpMode()
 		}
 	})
-	if startView == "results" {
+	if fullRefreshOnStart(data, startView) {
 		refresh(data, app)
 	} else {
 		refreshLocal(data, app)
@@ -293,6 +303,7 @@ func runSession(data *model, startView string) error {
 	})
 	data.packageFocus = func(update func()) { keepPackages(func() { keepFindings(update) }) }
 	defer func() { data.packageFocus = nil }()
+	registerCacheRefresh(data, app)
 	registerScreenHelp(app, data)
 	startView, _ = registerResizeView(app, data, startView)
 	defer func() {

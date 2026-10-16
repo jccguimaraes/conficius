@@ -105,6 +105,10 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 		}
 	}
 	parts := []string{local, outdated, security}
+	if data.cacheRefreshErr != "" {
+		parts = append(parts, data.cacheRefreshErr)
+		color = glyph.Red
+	}
 	if data.packageConfigErr != nil {
 		parts = append(parts, "Package configuration error: "+strings.SplitN(data.packageConfigErr.Error(), "\n", 2)[0])
 		color = glyph.Red
@@ -176,7 +180,7 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		}).Dim(), glyph.Text(""))),
 		cards,
 	)
-	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  p profiles  r/q  ? help"), cards
+	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  p profiles  r refresh  ? help"), cards
 }
 
 func registerHome(data *model, app *glyph.App) {

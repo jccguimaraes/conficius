@@ -13,12 +13,14 @@ import (
 const restartStateEnv = "CONFICIUS_TUI_RESTART_STATE"
 
 type restartState struct {
-	Profile   string            `json:"profile,omitempty"`
-	Screen    string            `json:"screen"`
-	ScopeKind string            `json:"scope_kind,omitempty"`
-	ScopePath string            `json:"scope_path,omitempty"`
-	Failed    map[string]string `json:"failed,omitempty"`
-	Attempted map[string]string `json:"attempted,omitempty"`
+	Profile          string            `json:"profile,omitempty"`
+	Screen           string            `json:"screen"`
+	ScopeKind        string            `json:"scope_kind,omitempty"`
+	ScopePath        string            `json:"scope_path,omitempty"`
+	Failed           map[string]string `json:"failed,omitempty"`
+	Attempted        map[string]string `json:"attempted,omitempty"`
+	CacheRefreshDone bool              `json:"cache_refresh_done,omitempty"`
+	CacheRefreshErr  string            `json:"cache_refresh_err,omitempty"`
 }
 
 func encodeRestartState(state restartState) (string, error) {
@@ -58,6 +60,8 @@ func restoreRestartState(data *model, state restartState) string {
 	for key, version := range state.Attempted {
 		data.attempted[key] = version
 	}
+	data.cacheRefreshDone, data.cacheRefreshErr = state.CacheRefreshDone, state.CacheRefreshErr
+	data.cacheReturnView = state.Screen
 	if state.Screen == "results" {
 		return state.Screen
 	}
@@ -80,10 +84,7 @@ func restoreStdin(source, target int) error {
 }
 
 func execFreshTUI(tty *os.File, data *model) error {
-	state := restartState{Profile: data.profileOverride, Screen: "results", Failed: data.failed, Attempted: data.attempted}
-	if data.active != nil {
-		state.ScopeKind, state.ScopePath = data.active.Kind, data.active.Path
-	}
+	state := tuiRestartState(data)
 	encoded, err := encodeRestartState(state)
 	if err != nil {
 		return err
@@ -99,4 +100,16 @@ func execFreshTUI(tty *os.File, data *model) error {
 		return err
 	}
 	return syscall.Exec(executable, append([]string{executable}, os.Args[1:]...), os.Environ())
+}
+
+func tuiRestartState(data *model) restartState {
+	state := restartState{Profile: data.profile.Name, Screen: "results", Failed: data.failed, Attempted: data.attempted}
+	if data.active != nil {
+		state.ScopeKind, state.ScopePath = data.active.Kind, data.active.Path
+	}
+	if data.runCacheRefresh {
+		state.Screen = data.cacheReturnView
+		state.CacheRefreshDone, state.CacheRefreshErr = data.cacheRefreshDone, data.cacheRefreshErr
+	}
+	return state
 }

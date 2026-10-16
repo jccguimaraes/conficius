@@ -15,6 +15,7 @@ Current adapters:
 - Poetry and pnpm: project inventory, outdated checks, and updates.
 - Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
 - Yarn and Bun: project inventory; outdated checks and updates unsupported.
+- apt: global system inventory and cached-list outdated checks on apt-based Linux; project operations and updates unsupported.
 
 Current frontends:
 
@@ -119,6 +120,8 @@ Freshness and vulnerability are separate:
 
 - normal outdated check uses manager-native network behavior
 - Homebrew runs `brew update` before `brew outdated --json=v2 --greedy` so latest metadata is refreshed; refresh failure fails that operation without using stale results
+- apt uses `dpkg-query` for inventory and `apt-get --simulate` for outdated checks against locally cached lists, not live latest versions; no automatic list refresh or privilege escalation during inspection. Users explicitly run `sudo apt-get update` separately before inspection when needed, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the cache-refresh command (`y` approves; `n`/Esc cancels). Execution uses no shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only
+- apt has no Debian security identity mapping; coverage remains unknown, not clean
 - offline mode reports installed inventory with freshness unknown
 - vulnerability scan uses exact installed versions and explicit ecosystem mappings
 - unmapped package is unknown, not clean

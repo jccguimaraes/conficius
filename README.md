@@ -86,13 +86,34 @@ Adjust paths to match your layout and history settings. `.gitignore` affects Git
 
 Existing regular files and directories are never overwritten. Forced replacement is limited to symlinks whose destination remains inside the current config repository. All links are validated before mutation, and failed batches are rolled back.
 
-Package commands inspect global installations and project dependencies. Manager capabilities vary; `conficius packages pms --json` reports which inventory, outdated, and update operations each manager supports.
+Package commands inspect global installations and project dependencies across 13 managers. Manager capabilities vary; `conficius packages pms --json` reports which inventory, outdated, and update operations each manager supports.
+
+| Manager / `--pm` | Global inventory | Project inventory | Global outdated | Project outdated | Global update | Project update |
+| --- | --- | --- | --- | --- | --- | --- |
+| mise / `mise` | Yes | Yes | Yes | Yes | Yes | Yes |
+| Homebrew / `brew` | Yes | No | Yes | No | Yes | No |
+| npm / `npm` | Yes | Yes | Yes | Yes | Yes | Yes |
+| Mac App Store / `mas` | Yes | No | Yes | No | Yes | No |
+| uv / `uv` | Yes | No | Yes | No | Yes | No |
+| pipx / `pipx` | Yes | No | Yes | No | Yes | No |
+| Poetry / `poetry` | No | Yes | No | Yes | No | Yes |
+| pnpm / `pnpm` | No | Yes | No | Yes | No | Yes |
+| Cargo / `cargo` | Yes | Yes | No | No | No | No |
+| Yarn / `yarn` | No | Yes | No | No | No | No |
+| Bun / `bun` | No | Yes | No | No | No | No |
+| Go / `go` | Yes | No | Yes | No | Yes | No |
+| apt / `apt` | Yes | No | Yes | No | No | No |
+
+These are declared adapter capabilities, not all operations offered by the upstream tools.
 
 ```sh
 conficius packages pms
 conficius packages pms --json
 conficius packages outdated
 conficius packages outdated --pm mise --pm npm
+conficius packages outdated --global --pm apt --offline
+conficius packages outdated --global --pm apt
+conficius packages vulnerabilities --global --pm apt
 conficius packages outdated --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app --transitive
@@ -106,7 +127,9 @@ Package-manager inspection reports unavailable and failed managers without hidin
 
 Online Homebrew outdated queries run `brew update` before `brew outdated`, including queries made during previews. Offline inventory skips freshness checks; preview does not mean offline or read-only metadata.
 
-Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
+apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Installed inventory uses `dpkg-query`; outdated inspection uses an `apt-get` simulation against locally cached package lists, not live latest versions. `--offline` reads installed inventory only, with freshness unknown. Conficius never refreshes apt metadata automatically. To refresh it, explicitly run `sudo apt-get update` yourself before inspection, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results screens. The TUI previews the command: `y` approves; `n`/Esc cancels. It runs `sudo -- <apt-get> update --error-on=any` through the controlling TTY, with passwords handled by sudo; root runs apt-get directly. No shell is used. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a TUI notice and leaves local inventory only. apt has no project or update capability in Conficius: no automated apt upgrades, root invocation, or privilege escalation.
+
+Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. apt packages have no automatic Debian OSV mapping or coverage assurance; unmapped packages must be reported as unknown, not clean. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
 
 ## Configuration
 

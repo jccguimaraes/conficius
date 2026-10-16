@@ -19,6 +19,7 @@ Completed adapters:
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Bun: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Go tools: journal-backed global inventory, command ownership, structured freshness, exact install updates, recovery, and failure fixtures.
+- apt: global inventory via `dpkg-query` and cached-list outdated checks via `apt-get --simulate`; no project operations or automated updates. No automatic list refresh or privilege escalation during inspection; users explicitly run `sudo apt-get update` separately, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the cache-refresh command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline freshness and Debian security mapping remain unknown.
 
 Each adapter requires:
 
@@ -48,7 +49,7 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 - Native Windows command execution and path handling.
 - Windows mise and npm adapter tests.
-- Linux system manager adapters such as apt, dnf, and pacman.
+- Additional Linux system manager adapters such as dnf and pacman; apt project operations, automated updates, and Debian security identity mapping remain unsupported.
 - Distinct `system`, `user`, and `global-config` ownership semantics.
 
 ## Product gaps

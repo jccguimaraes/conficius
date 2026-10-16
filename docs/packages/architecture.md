@@ -6,7 +6,7 @@
 |---|---|
 | `internal/config` | Independent central package TOML, project-group profiles, scope discovery, npm workspaces |
 | `internal/packagemanager/adapter.go` | Adapter contract, capabilities, tested versions, impact metadata |
-| `internal/packagemanager/{mise,homebrew,npm,mas,uv,pipx,poetry,pnpm,cargo,yarn,bun,go}.go` | Native commands, structured parsing, manager-specific planning |
+| `internal/packagemanager/{mise,homebrew,npm,mas,uv,pipx,poetry,pnpm,cargo,yarn,bun,go,apt}.go` | Native commands, structured parsing, manager-specific planning |
 | `internal/packagemanager/packagemanager.go` | Discovery, scoped outdated queries, normalized records, plans, execution, verification |
 | `internal/packagemanager/installed.go` | Installed inventory, Go import records, package roles, npm graph/classes, ownership metadata |
 | `internal/packagemanager/concurrent.go` | Bounded read concurrency and stable merge |
@@ -82,6 +82,8 @@ Manifest discovery happens before manager commands. Contradictions, missing requ
 Inventory uses `InstalledPackage` plus normalized exposed commands. It contains exact installed version, role, ownership, npm class, and transitive flag. `npm root --global` locates global package manifests. Direct npm package manifests provide exposed-command metadata. Missing manifests do not fail inventory.
 
 Go-installed binaries do not retain canonical module and version ownership. `GoToolImport` validates journaled module, semantic version, and command names. `packages go-tools import MODULE VERSION COMMAND...` writes schema-versioned XDG state records. Go global inventory and exposed-command ownership read this journal only. They do not scan binaries or infer ownership. Freshness uses `go list -m -json MODULE@latest` and accepts only matching module paths with semantic versions. Each Go update plan runs `go install MODULE@LATEST`; successful verification writes the new exact version to journal.
+
+apt supports global inventory through `dpkg-query` and outdated inspection through `apt-get --simulate` against cached package lists only. Inspection never refreshes lists or escalates privileges; users can refresh separately with `sudo apt-get update` or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results. The TUI previews the command; `y` approves, `n`/Esc cancels. It executes `sudo -- <apt-get> update --error-on=any` without a shell through the controlling TTY; sudo handles passwords, while root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline inventory has unknown freshness. Project operations and updates are unsupported; Debian security identity mapping remains unknown.
 
 Outdated query starts with manager-native `Tool` values. Core wraps tools in `scopedTool`, then `Records` creates normalized `Package` values. Scope, ownership, role, and npm class flow into plans.
 

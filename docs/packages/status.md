@@ -41,6 +41,7 @@
 - Go manager inspection uses `go version`; global outdated checks use structured `go list -m -json MODULE@latest` metadata.
 - Go updates run one exact `go install module@version` plan per tool, write verified versions to journal, and use fake-executable execution coverage.
 - Bun command and changed-output parser failure fixtures.
+- Registered apt adapter for global system inventory via `dpkg-query` and outdated checks via `apt-get --simulate` against cached lists only on Debian/Ubuntu and other apt-based Linux systems. No project operations or automated package upgrades; inspection does not refresh metadata or escalate privileges. Users explicitly refresh lists separately with `sudo apt-get update`, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline inventory has unknown freshness.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - `PATH` executable discovery; no profile executable overrides.
@@ -88,7 +89,7 @@
 - EUVD product entries without an affected-version rule do not emit unknown or vulnerable findings.
 - Explicit mappings for package identities that cannot be inferred safely.
 - Security scans installed inventory in resolved scopes, with no profile selected/all security-scope policy.
-- Unknown mapping remains unknown.
+- Unknown mapping remains unknown; apt has no Debian security identity mapping and is not reported clean.
 
 ### Updates
 

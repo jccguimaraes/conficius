@@ -55,7 +55,7 @@ func TestScreenFrameChrome(t *testing.T) {
 		if buffer.Get(0, 0).Rune != '╭' || buffer.Get(width-1, 11).Rune != '╯' {
 			t.Fatal("frame did not fill terminal")
 		}
-		if !strings.Contains(buffer.GetLine(10), "Space mark u preview ? help") {
+		if !strings.Contains(buffer.GetLine(10), "Space mark · u preview · ? help") {
 			t.Fatalf("footer not pinned: %q", buffer.GetLine(10))
 		}
 		if !strings.Contains(buffer.GetLine(2), "dotfiles.toml") {
@@ -73,6 +73,69 @@ func TestScreenFrameChrome(t *testing.T) {
 	template.Execute(buffer, 80, 12)
 	if !strings.Contains(buffer.GetLine(2), "changed.toml") {
 		t.Fatal("context binder did not update")
+	}
+}
+
+func TestScreenFooterRendering(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	for _, help := range []string{
+		"↑/↓ move  Enter details  Space mark  p profiles  r refresh",
+		"↑/↓/j/k scroll  Ctrl-d/u page  y apply  n/Esc cancel",
+		"r/q  n/Esc cancel",
+		"q quit",
+		"",
+		strings.Repeat("x", 120) + " action",
+	} {
+		updateScreenSize(80, 12)
+		template := glyph.Build(screenFrame("Footer", nil, "Ready", glyph.Text("content"), help))
+		for _, width := range []int{40, 80, 120, 40, 120, 80} {
+			updateScreenSize(width, 12)
+			buffer := glyph.NewBuffer(width, 12)
+			template.Execute(buffer, int16(width), 12)
+			footer := screenFooter(help)
+			line := buffer.GetLine(10)
+			if !strings.Contains(line, footer) || !strings.Contains(line, "? help") || glyph.StringWidth(footer) > width-4 {
+				t.Fatalf("width %d help %q: footer %q, want %q", width, help, line, footer)
+			}
+			if !strings.Contains(buffer.GetLine(9), "Ready") || buffer.Get(width-1, 10).Rune != '│' || buffer.Get(width-1, 11).Rune != '╯' {
+				t.Fatalf("footer wrapped or overflowed at width %d: %q", width, line)
+			}
+			start := strings.Index(line, footer)
+			x := glyph.StringWidth(line[:start])
+			check := func(text string, key bool) {
+				t.Helper()
+				for _, r := range text {
+					style := buffer.Get(x, 10).Style
+					if key {
+						if style.FG != glyph.Cyan || style.Attr&glyph.AttrBold == 0 || style.Attr&glyph.AttrDim != 0 {
+							t.Fatalf("width %d key %q: style %+v", width, text, style)
+						}
+					} else if style.FG.Mode != glyph.ColorDefault || style.Attr&glyph.AttrDim == 0 || style.Attr&glyph.AttrBold != 0 {
+						t.Fatalf("width %d description/separator %q: style %+v", width, text, style)
+					}
+					if style.BG.Mode != glyph.ColorDefault {
+						t.Fatalf("footer background not terminal default: %+v", style)
+					}
+					x += glyph.RuneWidth(r)
+				}
+			}
+			for i, action := range screenFooterActions(help) {
+				if i > 0 {
+					check(" · ", false)
+				}
+				key, description, _ := strings.Cut(action, " ")
+				check(key, true)
+				if description != "" {
+					check(" "+description, false)
+				}
+			}
+			for row := range 10 {
+				if strings.Contains(buffer.GetLine(row), "? help") {
+					t.Fatal("footer escaped single pinned row")
+				}
+			}
+		}
 	}
 }
 

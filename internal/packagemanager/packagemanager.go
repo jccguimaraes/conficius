@@ -247,6 +247,7 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		}
 
 		status := ManagerStatus{Name: pm, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
+		status.Warnings = managerInspectionWarnings(pm)
 		if len(executables) > 1 {
 			status.Warnings = append(status.Warnings, "multiple executables found on PATH: "+strings.Join(executables, ", "))
 		}
@@ -254,7 +255,7 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		if versionErr != nil {
 			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
 		} else {
-			status.ManagerVersion = firstVersion(string(output))
+			status.ManagerVersion = managerVersion(pm, output)
 			if status.ManagerVersion == "" {
 				status.Warnings = append(status.Warnings, "read manager version: no version in output")
 			} else {
@@ -585,6 +586,25 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	return statuses, nil
 }
 
+func managerInspectionWarnings(manager string) []string {
+	if manager == PM_APT {
+		return []string{"apt outdated results use cached local package lists; lists are not refreshed", "apt major range 2-3 is a fixture contract, not live-manager validation"}
+	}
+	return nil
+}
+
+func managerVersion(manager string, output []byte) string {
+	if manager == PM_APT {
+		line, _, _ := strings.Cut(string(output), "\n")
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != PM_APT {
+			return ""
+		}
+		return firstVersion(fields[1])
+	}
+	return firstVersion(string(output))
+}
+
 func managerVersionArgs(manager string) []string {
 	if manager == PM_GO {
 		return []string{"version"}
@@ -594,6 +614,7 @@ func managerVersionArgs(manager string) []string {
 
 func inspectExecutable(manager, executable string, adapter managerAdapter) ManagerStatus {
 	status := ManagerStatus{Name: manager, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
+	status.Warnings = managerInspectionWarnings(manager)
 	info, err := os.Stat(executable)
 	if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
 		status.Status = StatusUnavailable
@@ -606,7 +627,7 @@ func inspectExecutable(manager, executable string, adapter managerAdapter) Manag
 		status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(err.Error()))
 		return status
 	}
-	status.ManagerVersion = firstVersion(string(output))
+	status.ManagerVersion = managerVersion(manager, output)
 	if status.ManagerVersion == "" {
 		status.Warnings = append(status.Warnings, "read manager version: no version in output")
 		return status
@@ -783,6 +804,9 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 			return nil, err
 		}
 		scope := Scope{Kind: plan.Scope, Path: plan.Directory}
+		if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalUpdate, CapabilityProjectUpdate)) {
+			return nil, fmt.Errorf("%s updates are unsupported for %s scope", plan.Manager, plan.Scope)
+		}
 		plan.Impact = adapter.updateImpact(scope)
 		for _, args := range adapter.recoveryArgs(scope, plan.Packages) {
 			plan.Recovery = append(plan.Recovery, RecoveryCommand{Executable: plan.Executable, Args: args})

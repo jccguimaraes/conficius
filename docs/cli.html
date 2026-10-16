@@ -197,7 +197,7 @@ conficius dotfiles link zsh --apply</code></pre>
           </dl>
           <p>Without scope selectors, queries include global packages plus all configured profile projects. If no projects are configured, the working directory is included when it contains <code>package.json</code>, <code>Cargo.toml</code>, <code>mise.toml</code>, or <code>.mise.toml</code>; otherwise only global packages are inspected. Recognized npm workspaces are expanded. A missing discovered config is allowed for package inspection; invalid configuration is not ignored.</p>
           <h3><code>packages pms</code></h3>
-          <p>List all 12 supported managers and availability. Its only command-specific flag is <code>--json</code>. Reports can include resolved executable, manager version, tested-version status, and capabilities; support does not mean a manager is installed.</p>
+          <p>List all 13 supported managers and availability. Its only command-specific flag is <code>--json</code>. Reports can include resolved executable, manager version, tested-version status, and capabilities; support does not mean a manager is installed.</p>
           <h3><code>packages doctor</code></h3>
           <p>Check manager environment integrity and selected project roots without freshness queries. Accepts the shared package options. Use this to investigate executable paths, prefixes, and project setup before updating.</p>
           <h3><code>packages outdated</code></h3>
@@ -212,6 +212,7 @@ conficius packages outdated --project ./app --pm npm
 conficius packages outdated --global --check
 conficius packages outdated --offline --json</code></pre>
           <p class="small">Offline <code>--check</code> cannot detect updates: successful inventory exits normally. The offline text branch maps query failures to exit 2 with <code>--check</code>; the offline JSON branch returns the query error directly. Do not treat either offline success as a freshness assertion.</p>
+          <p>apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Inventory uses <code>dpkg-query</code>; outdated checks use <code>apt-get --simulate</code> against locally cached package lists, not live latest versions. Inspection never refreshes apt lists or escalates privileges. To refresh lists, explicitly run <code>sudo apt-get update</code> yourself as a separate step before inspection, or on Linux, press <code>c</code> (Update package cache, currently APT) on TUI package scopes/results. The TUI previews the command: <code>y</code> approves; <code>n</code>/Esc cancels. It runs <code>sudo -- &lt;apt-get&gt; update --error-on=any</code> without a shell through the controlling TTY; sudo handles passwords, while root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline mode reads inventory only, with freshness unknown. Project operations and automated package updates are unsupported. Debian security identity mapping is not implemented; coverage remains unknown, not clean.</p>
           <p>Online Homebrew queries run <code>brew update</code> before <code>brew outdated</code>. This refreshes local Homebrew metadata even during update previews or vulnerability checks that query outdated packages. Offline inventory skips freshness queries.</p>
         </section>
 
@@ -295,7 +296,7 @@ conficius packages update --global --pm npm --include npm:typescript \
 
         <section id="managers" aria-labelledby="managers-title">
           <div class="section-head"><h2 id="managers-title">Package-manager support</h2></div>
-          <p>These are the capabilities declared by the 12 registered adapters, not features offered by the upstream tools themselves. “No” means Conficius does not declare that operation. Inventory support enables inspection and can supply vulnerability data, subject to identity mapping and installed-version coverage.</p>
+          <p>These are the capabilities declared by the 13 registered adapters, not features offered by the upstream tools themselves. “No” means Conficius does not declare that operation. Inventory support enables inspection and can supply vulnerability data, subject to identity mapping and installed-version coverage.</p>
           <div class="table-scroll" role="region" aria-label="Package-manager capability matrix" tabindex="0">
             <table>
               <caption>Declared adapter capabilities and tested manager major versions</caption>
@@ -313,6 +314,7 @@ conficius packages update --global --pm npm --include npm:typescript \
                 <tr><th scope="row">Yarn / <code>yarn</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>4</td></tr>
                 <tr><th scope="row">Bun / <code>bun</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>1</td></tr>
                 <tr><th scope="row">Go / <code>go</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>1</td></tr>
+                <tr><th scope="row">apt / <code>apt</code></th><td>Yes</td><td>No</td><td>Cached lists only</td><td>No</td><td>No</td><td>No</td><td>2–3</td></tr>
               </tbody>
             </table>
           </div>

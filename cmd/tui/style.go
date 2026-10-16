@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
@@ -69,7 +70,7 @@ func screenContext(context any) string {
 	return "…" + string(runes)
 }
 
-func screenFooter(help string) string {
+func screenFooterActions(help string) []string {
 	width := max(1, terminalWidth()-4)
 	var primary []string
 	for _, part := range strings.Split(help, "  ") {
@@ -78,16 +79,54 @@ func screenFooter(help string) string {
 			primary = append(primary, part)
 		}
 	}
-	for len(primary) > 0 && glyph.StringWidth(strings.Join(primary, " ")+" ? help") > width {
+	for len(primary) > 0 && glyph.StringWidth(strings.Join(append(primary, "? help"), " · ")) > width {
 		primary = primary[:len(primary)-1]
 	}
-	footer := strings.TrimSpace(strings.Join(primary, " ") + " ? help")
+	actions := append(primary, "? help")
 	for _, action := range []string{"Esc back", "q quit"} {
-		if glyph.StringWidth(footer+" "+action) <= width {
-			footer += " " + action
+		if glyph.StringWidth(strings.Join(actions, " · ")+" · "+action) <= width {
+			actions = append(actions, action)
 		}
 	}
-	return footer
+	return actions
+}
+
+func screenFooter(help string) string {
+	return strings.Join(screenFooterActions(help), " · ")
+}
+
+func screenFooterView(help string) glyph.Component {
+	var parts []glyph.Component
+	// Slots keep the compiled layout stable; Text functions remeasure on resize.
+	for slot := range len(strings.Split(help, "  ")) + 3 {
+		action := func() string {
+			actions := screenFooterActions(help)
+			if slot < len(actions) {
+				return actions[slot]
+			}
+			return ""
+		}
+		parts = append(parts,
+			glyph.Text(func() string {
+				if slot > 0 && action() != "" {
+					return " · "
+				}
+				return ""
+			}).Dim(),
+			glyph.Text(func() string {
+				key, _, _ := strings.Cut(action(), " ")
+				return key
+			}).FG(glyph.Cyan).Bold(),
+			glyph.Text(func() string {
+				_, description, _ := strings.Cut(action(), " ")
+				if description != "" {
+					return " " + description
+				}
+				return ""
+			}).Dim(),
+		)
+	}
+	return glyph.HBox(parts...)
 }
 
 func resizeNotice() glyph.Component {
@@ -111,19 +150,20 @@ func screenFrame(title string, context any, status any, content glyph.Component,
 	if status != nil {
 		parts = append(parts, glyph.Text(status))
 	}
-	parts = append(parts, glyph.Text(func() string { return screenFooter(help) }).Dim())
+	parts = append(parts, screenFooterView(help))
 	return glyph.VBox.Grow(1)(glyph.If(&screenTooSmall).Then(resizeNotice()).Else(glyph.VBox.Border(glyph.BorderRounded).Grow(1)(parts...)))
 }
 
 var screenHelp = map[string]string{
 	"profiles":                    "↑/↓ or j/k move\nEnter choose profile\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"home":                        "↑/↓ or j/k move\nEnter open area\np profiles\nr full refresh\nq / Ctrl-C quit",
-	"scopes":                      "↑/↓ or j/k move\nEnter open scope\np profiles\nr full refresh\nEsc Home\nq / Ctrl-C quit",
-	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark package\na toggle all\nu upgrade marked\nU upgrade all\np profiles\nv vulnerabilities\nr refresh\nEsc scopes\nq / Ctrl-C quit",
+	"scopes":                      "↑/↓ or j/k move\nEnter open scope\np profiles\nc update cache (confirmation)\nr full refresh\nEsc Home\nq / Ctrl-C quit",
+	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark package\na toggle all\nu upgrade marked\nU upgrade all\np profiles\nv vulnerabilities\nc update cache (confirmation)\nr refresh\nEsc scopes\nq / Ctrl-C quit",
 	"vulnerabilities":             "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter evidence details\no outdated\nr refresh\nEsc outdated\nq / Ctrl-C quit",
 	"vulnerability-detail":        "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nf then link label open CVE\nEsc vulnerabilities\nq / Ctrl-C quit",
 	"package-detail":              "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nEsc package list\nq / Ctrl-C quit",
 	"update-error":                "↑/↓ or j/k scroll\nEsc outdated\nq / Ctrl-C quit",
+	"cache-confirm":               "y refresh APT cache only\nn / Esc cancel",
 	"confirm":                     "y apply upgrades\nn / Esc cancel\nq / Ctrl-C quit",
 	"dotfiles":                    "↑/↓ or j/k move\nEnter open area\ne environment\nl links\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"dotfiles-links":              "↑/↓ or j/k move\nTab filter\nSpace mark\na toggle visible\nEnter details\nl preview\nr refresh\nEsc Dotfiles\nq / Ctrl-C quit",
@@ -134,6 +174,14 @@ var screenHelp = map[string]string{
 	"dotfiles-preview":            "↑/↓ scroll\ny apply links\nn / Esc cancel\nq / Ctrl-C quit",
 	"dotfiles-layout-preview":     "↑/↓ scroll\ny apply package configuration layout\nn / Esc cancel\nq / Ctrl-C quit",
 	"dotfiles-pending":            "Transaction pending. Quit waits for completion.\nq / Ctrl-C request quit",
+}
+
+func screenHelpForPlatform(name, goos string) string {
+	help := screenHelp[name]
+	if !cacheRefreshAvailable(goos) {
+		help = strings.ReplaceAll(help, "\nc update cache (confirmation)", "")
+	}
+	return help
 }
 
 func registerScreenHelp(app *glyph.App, data *model) {
@@ -167,7 +215,7 @@ func registerScreenHelp(app *glyph.App, data *model) {
 				context += fmt.Sprintf(" · Layout: %s", data.dotfiles.mode)
 			}
 		}
-		text = context + "\n\n" + screenHelp[origin] + "\n? toggle help\nEsc return without changing selection"
+		text = context + "\n\n" + screenHelpForPlatform(origin, runtime.GOOS) + "\n? toggle help\nEsc return without changing selection"
 		viewer.Layer().ScrollTo(0)
 		app.Go("help")
 	}
