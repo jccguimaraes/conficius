@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -106,7 +105,7 @@ func (cli *Cli) config() *urfave.Command {
 				Usage: "Show resolved package profile.",
 				Flags: []urfave.Flag{profileFlag(), &urfave.BoolFlag{Name: "json"}, &urfave.BoolFlag{Name: "verbose"}},
 				Action: func(ctx context.Context, cmd *urfave.Command) error {
-					project, err := config.LoadDiscovered(cmd.String("config"))
+					project, err := config.LoadPackages(cmd.String("config"))
 					if err != nil {
 						return err
 					}
@@ -120,6 +119,44 @@ func (cli *Cli) config() *urfave.Command {
 						return encoder.Encode(resolved)
 					}
 					return printResolvedProfile(cli.Writer, resolved, cmd.Bool("verbose"))
+				},
+			},
+			{
+				Name:  "layout",
+				Usage: "Preview package configuration layout; apply only with --apply.",
+				Flags: []urfave.Flag{&urfave.BoolFlag{Name: "apply", Usage: "Move or create package configuration."}},
+				MutuallyExclusiveFlags: []urfave.MutuallyExclusiveFlags{{
+					Flags: [][]urfave.Flag{
+						{&urfave.BoolFlag{Name: "xdg", Usage: "Use XDG config directories.", OnlyOnce: true}},
+						{&urfave.BoolFlag{Name: "os-native", Usage: "Use OS-native config directories.", OnlyOnce: true}},
+					},
+				}},
+				Action: func(_ context.Context, cmd *urfave.Command) error {
+					if cmd.IsSet("config") {
+						return fmt.Errorf("config layout does not support --config; use the central package config")
+					}
+					mode := ""
+					if cmd.Bool("xdg") {
+						mode = "xdg"
+					} else if cmd.Bool("os-native") {
+						mode = "os-native"
+					}
+					plan, err := config.PlanPackageLayout(mode)
+					if err != nil {
+						return err
+					}
+					operation := "Create"
+					if plan.Source != "" {
+						operation = "Move"
+					}
+					if _, err := fmt.Fprintf(cli.Writer, "%s package configuration\nSource: %s\nDestination: %s\n", operation, plan.Source, plan.Destination); err != nil {
+						return err
+					}
+					if cmd.Bool("apply") {
+						return plan.Apply()
+					}
+					_, err = fmt.Fprintln(cli.Writer, "Preview only; use --apply to apply.")
+					return err
 				},
 			},
 			{
@@ -148,11 +185,28 @@ func (cli *Cli) config() *urfave.Command {
 }
 
 func printResolvedProfile(writer io.Writer, resolved config.ResolvedProfile, verbose bool) error {
-	if _, err := fmt.Fprintf(writer, "Profile: %s\nMode: %s\nManagers: %s\n", resolved.Name, resolved.Profile.Mode, strings.Join(resolved.Profile.ManagerOrder, ", ")); err != nil {
+	if _, err := fmt.Fprintf(writer, "Profile: %s\n", resolved.Name); err != nil {
 		return err
 	}
+	managers := make([]string, 0, len(resolved.Profile.Managers))
+	for name := range resolved.Profile.Managers {
+		managers = append(managers, name)
+	}
+	sort.Strings(managers)
+	for _, name := range managers {
+		state := "default"
+		if enabled := resolved.Profile.Managers[name].Enabled; enabled != nil {
+			state = "disabled"
+			if *enabled {
+				state = "enabled"
+			}
+		}
+		if _, err := fmt.Fprintf(writer, "Manager %s: %s\n", name, state); err != nil {
+			return err
+		}
+	}
 	for _, project := range resolved.Profile.Projects {
-		if _, err := fmt.Fprintf(writer, "Project %s: %s\n", project.Name, project.Path); err != nil {
+		if _, err := fmt.Fprintf(writer, "Project %s: %s (resolved: %s; allow manifest changes: %t)\n", project.Name, project.Path, project.ResolvedPath, project.AllowManifestChanges); err != nil {
 			return err
 		}
 	}

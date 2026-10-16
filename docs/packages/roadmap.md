@@ -35,6 +35,7 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 ## Mutation gaps
 
+- Align TUI with CLI re-query/accepted-plan, tested-version, mutation-journal, and post-update verification safeguards; TUI preview/apply already exists.
 - Install command and planning.
 - Remove command, dependency impact, and explicit unknown safety state.
 - Constraint-preserving versus latest/major update modes.
@@ -52,13 +53,15 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 ## Product gaps
 
-- Minimal top-level `audit` command that combines outdated, drift, security, and collision findings.
+- Minimal top-level `audit` command that combines outdated, security, and collision findings.
 - Reconcile current `packages` subcommands with intended command surface.
 - Final product and executable naming checks.
 - Release readiness, changelogs, and first tagged releases.
 - External adapter protocol only after built-in boundary proves stable.
 
 ## Deferred by design
+
+- Duplicating native package manifests or version intent in central configuration. Profiles remain project groups and manager enablement, with manifest-change permission for updates.
 
 - Registry search.
 - Broad PATH or package-directory scanning.

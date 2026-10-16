@@ -60,22 +60,20 @@ func TestPackageCheckErrorReturnsDocumentedExitCodes(t *testing.T) {
 		name    string
 		err     error
 		updates int
-		drift   int
 		code    int
 	}{
 		{name: "updates", updates: 1, code: 1},
-		{name: "drift", drift: 1, code: 1},
 		{name: "inspection error", err: errors.New("failed"), code: 2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var exitErr urfave.ExitCoder
-			err := packageCheckError(test.err, test.updates, test.drift)
+			err := packageCheckError(test.err, test.updates)
 			if !errors.As(err, &exitErr) || exitErr.ExitCode() != test.code {
 				t.Fatalf("error = %#v", err)
 			}
 		})
 	}
-	if err := packageCheckError(nil, 0, 0); err != nil {
+	if err := packageCheckError(nil, 0); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -172,83 +170,27 @@ printf '{"left-pad":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0"}}'
 	}
 }
 
-func TestPackagesOutdatedAppliesProfileAllowlistAndReportsMissingDrift(t *testing.T) {
+func TestPackagesOutdatedReportsAllUpdatesWithoutPolicy(t *testing.T) {
 	dir := t.TempDir()
 	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
 printf '{"typescript":{"current":"5.8.0","wanted":"5.9.2","latest":"5.9.2"},"prettier":{"current":"3.0.0","wanted":"3.1.0","latest":"3.1.0"}}'
 `)
 	t.Setenv("PATH", dir)
 	configPath := filepath.Join(t.TempDir(), "conficius.toml")
-	contents := `version = 2
-[profiles.work]
-mode = "allowlist"
-[[profiles.work.packages]]
-manager = "npm"
-name = "typescript"
-policy = "include"
-desired_version = "5.9.2"
-[[profiles.work.packages]]
-manager = "npm"
-name = "eslint"
-policy = "include"
-desired_version = "9.0.0"
-`
-	if err := os.WriteFile(configPath, []byte(contents), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeCLIFile(t, configPath, "version = 2\n[profiles.work.managers.npm]\nenabled = true\n")
 	var output bytes.Buffer
-	cli := New(&output, "test")
-	if err := cli.Execute([]string{appName, "--config", configPath, "packages", "outdated", "--pm", "npm", "--profile", "work", "--global", "--json"}); err != nil {
+	if err := New(&output, "test").Execute([]string{appName, "--config", configPath, "packages", "outdated", "--pm", "npm", "--profile", "work", "--global", "--json"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(output.String(), `"name": "prettier"`) || !strings.Contains(output.String(), `"name": "typescript"`) || !strings.Contains(output.String(), `"status": "missing"`) {
-		t.Fatalf("output = %q", output.String())
+	for _, want := range []string{`"name": "prettier"`, `"name": "typescript"`, `"freshness": "fresh"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("output missing %s: %s", want, output.String())
+		}
 	}
-}
-
-func TestPackagesOutdatedReportsNPMClassFilterWhenInventoryIsEmpty(t *testing.T) {
-	dir := t.TempDir()
-	project := t.TempDir()
-	writeFakeManager(t, filepath.Join(dir, "npm"), `#!/bin/sh
-printf '{"react":{"current":"19.0.0","wanted":"19.1.0","latest":"19.1.0"}}'
-`)
-	t.Setenv("PATH", dir)
-	configPath := filepath.Join(t.TempDir(), "conficius.toml")
-	contents := fmt.Sprintf(`version = 2
-[profiles.work]
-mode = "denylist"
-[[profiles.work.projects]]
-name = "app"
-path = %q
-npm_dependency_classes = ["development"]
-`, project)
-	if err := os.WriteFile(configPath, []byte(contents), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, test := range []struct {
-		name string
-		json bool
-		want []string
-	}{
-		{name: "human", want: []string{"npm dependency classes: development (", "results exclude other classes.", "Total number of packages found: 0"}},
-		{name: "json", json: true, want: []string{`"npm_dependency_class_filters": [`, `"classes": [`, `"development"`, `"packages": []`}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var output bytes.Buffer
-			args := []string{appName, "--config", configPath, "packages", "outdated", "--pm", "npm", "--profile", "work", "--profile-project", "app"}
-			if test.json {
-				args = append(args, "--json")
-			}
-			if err := New(&output, "test").Execute(args); err != nil {
-				t.Fatal(err)
-			}
-			for _, want := range test.want {
-				if !strings.Contains(output.String(), want) {
-					t.Fatalf("output missing %q: %s", want, output.String())
-				}
-			}
-		})
+	for _, removed := range []string{`"drift"`, `"npm_dependency_class_filters"`} {
+		if strings.Contains(output.String(), removed) {
+			t.Fatalf("output includes removed field %s: %s", removed, output.String())
+		}
 	}
 }
 
@@ -354,7 +296,7 @@ func TestPackagesOutdatedMissingManagerWarnsAndExitZero(t *testing.T) {
 	var output bytes.Buffer
 	cli := New(&output, "test")
 
-	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "outdated", "--pm", "mise"}); err != nil {
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "outdated", "--global", "--pm", "mise"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := output.String(); !strings.Contains(got, "warning: mise unavailable") || !strings.Contains(got, "Total number of packages found: 0") {
@@ -392,7 +334,7 @@ func TestPrintManagerWarningsReportsDisabledManagerWithoutEmptyError(t *testing.
 func TestPackagesOutdatedWarnsWhenGlobalConfigHasNoManagerExecutable(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	configPath := filepath.Join(t.TempDir(), "conficius.toml")
-	if err := os.WriteFile(configPath, []byte("version = 2\n[profiles.work.managers.npm]\ninclude_bump_candidates = true\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("version = 2\n[profiles.work.managers.npm]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
@@ -438,7 +380,7 @@ if [ "$1" = "--version" ]; then printf '11.19.1\n'; elif [ "$1" = "view" ]; then
 
 	var output bytes.Buffer
 	cli := New(&output, "test")
-	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "vulnerabilities", "--pm", "npm", "--json"}); err != nil {
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "vulnerabilities", "--global", "--pm", "npm", "--json"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), `"status": "vulnerable"`) || !strings.Contains(output.String(), `"GHSA-test"`) {
@@ -695,7 +637,7 @@ touch "$MUTATION_MARKER"
 	var output bytes.Buffer
 	cli := New(&output, "test")
 
-	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--pm", "npm", "--json"}); err != nil {
+	if err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--global", "--pm", "npm", "--json"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
@@ -713,7 +655,7 @@ func TestPackagesUpdateJSONReportsManagerFailureWithNonzeroResult(t *testing.T) 
 	var output bytes.Buffer
 	cli := New(&output, "test")
 
-	err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--pm", "npm", "--json"})
+	err := cli.Command.Run(t.Context(), []string{"conficius", "packages", "update", "--global", "--pm", "npm", "--json"})
 	if err == nil {
 		t.Fatal("update succeeded; want manager failure")
 	}

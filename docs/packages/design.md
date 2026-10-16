@@ -11,13 +11,23 @@ Current adapters:
 - `mise`: global and project runtime inventory, outdated checks, and updates.
 - Homebrew: global formula and cask inventory, outdated checks, and updates.
 - npm: global, project, and workspace inventory, outdated checks, and updates.
+- `mas`, `uv`, `pipx`, and journal-backed Go tools: global inventory, outdated checks, and updates.
+- Poetry and pnpm: project inventory, outdated checks, and updates.
+- Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
+- Yarn and Bun: project inventory; outdated checks and updates unsupported.
 
 Current frontends:
 
 - CLI: inspection, vulnerability scans, planning, and guarded updates.
-- TUI: read-only package, drift, and vulnerability views.
+- TUI: installed/latest/security status, package and vulnerability details, update preview and apply; `p` switches profiles and `r` reloads package config and refreshes.
 
-Other managers in original product plan remain future work. See [roadmap.md](roadmap.md).
+Adapter capability gaps and additional managers remain in [roadmap.md](roadmap.md).
+
+## Configuration
+
+Package commands and TUI use independent central `config.toml`, not dotfile project configuration. Default location is `$XDG_CONFIG_HOME/conficius/config.toml` (fallback `~/.config/conficius/config.toml`). OS-native alternatives are `~/Library/Application Support/conficius/config.toml` on macOS and `%APPDATA%/conficius/config.toml` on Windows. Both locations existing is an error; missing config uses defaults. `--config` selects an explicit file. `config layout --xdg|--os-native` previews creation/movement; `--apply` writes it.
+
+Package config requires strict schema version 2. Profile selection follows CLI, `CONFICIUS_PROFILE`, central config `profile`, then `default`. Profiles group named project paths and manager `enabled` settings; each project may opt into `allow_manifest_changes` for update safety. Native manifests and lockfiles remain the source of truth for dependency intent and versions. There are no profile package include/exclude or allow/deny lists, desired-version drift, manager ordering, security scope, executable overrides, manager-specific tuning, or npm dependency-class filters. CLI update `--include`/`--exclude` selectors remain request-local.
 
 ## Scope model
 
@@ -44,16 +54,16 @@ Manager status reports executable evidence separately from global profile-config
 | `Brewfile` | Homebrew |
 | `package.json` | npm |
 
-Manifest evidence makes manager required. Missing required manager is error. Optional manager without executable is unavailable warning. Global profile config does not make manager required, and warning identifies config evidence. Explicitly disabled manager remains visible as disabled. Disabled manager required by manifest is configuration error.
+Manifest evidence makes manager required. Missing required manager is an error. Optional manager without an executable is an unavailable warning. A profile manager table provides global-config evidence; `enabled = true` also makes the manager required, `enabled = false` disables it, and omitted `enabled` leaves it optional. A disabled manager remains visible; a disabled manager required by a manifest is a configuration error.
 
-Configured executable paths override `PATH` discovery. Path must exist, be regular executable file, and return manager version when possible.
+Executables are discovered through `PATH`; profiles cannot override executable paths. Discovery validates executable files and queries manager versions when possible.
 
 ## Package model
 
 Each normalized package can carry:
 
 - canonical identity composed from manager and native package name
-- installed, requested, allowed, and latest versions when known
+- installed, native requested constraints, and latest versions when known
 - role
 - scope and canonical path
 - owning manifest or config
@@ -95,7 +105,7 @@ npm dependency classes:
 
 Class precedence for manifest overlap is development, optional, peer, then runtime. An installed scoped npm package absent from manifest is extraneous. Nested packages are transitive.
 
-Project profile can select npm classes. Project inventory uses `npm ls --package-lock-only --json` and does not require `node_modules`. `--transitive` explicitly returns full npm graph and overrides configured class filtering for that request.
+Dependency classes are descriptive metadata, not profile filters. Project inventory uses `npm ls --package-lock-only --json` and does not require `node_modules`. CLI vulnerability `--transitive` includes the full npm inventory graph.
 
 ## Inspection behavior
 
@@ -108,6 +118,7 @@ Successful manager results survive failures from other managers or scopes. Statu
 Freshness and vulnerability are separate:
 
 - normal outdated check uses manager-native network behavior
+- Homebrew runs `brew update` before `brew outdated --json=v2 --greedy` so latest metadata is refreshed; refresh failure fails that operation without using stale results
 - offline mode reports installed inventory with freshness unknown
 - vulnerability scan uses exact installed versions and explicit ecosystem mappings
 - unmapped package is unknown, not clean
@@ -115,12 +126,12 @@ Freshness and vulnerability are separate:
 `packages outdated --check` exit codes:
 
 - `0`: current and inspection succeeded
-- `1`: updates or configured drift found
+- `1`: updates found
 - `2`: inspection failed
 
 ## Update safety
 
-Update command previews by default. Mutation requires `--apply` and explicit scope or profile selection.
+CLI update previews by default. Mutation requires `--apply` and explicit scope or profile selection. TUI uses marked/all-package selection, command preview, and confirmation before applying.
 
 Plans include:
 
@@ -131,15 +142,17 @@ Plans include:
 - confidence
 - impact metadata
 - recovery commands when manager supports them
-- state hash bound to manager versions and package state
+- state hash bound to commands, executable, scope, impact, recovery data, and package state (not the manager version string)
 
 Unattended update also requires `--yes` and accepted plan hashes. Stale or unselected hashes fail.
 
-Project mutation checks relevant manifests and lockfiles. Dirty or unversioned ownership files block mutation unless explicit override. Unrelated repository changes can remain.
+Project mutation requires a matching registered project with `allow_manifest_changes = true` (`AllowManifestChanges`), default false. CLI `--allow-dirty` and `--allow-unversioned` do not bypass this permission. Current Git guard checks the whole repository: any uncommitted changes block mutation without `--allow-dirty`, and non-Git projects need `--allow-unversioned`. TUI grants neither override.
 
-Mutations run sequentially and fail fast by default. `--best-effort` continues independent manager groups. Cancellation stops new commands. Journal records per-plan outcomes, changed files, interruption, verification failures, and recovery commands. Secrets and machine identifiers are redacted.
+CLI mutations run sequentially and fail fast by default. `--best-effort` continues independent manager groups. Cancellation stops new commands. Journal records per-plan outcomes, changed files, interruption, verification failures, and recovery commands. Secrets and machine identifiers are redacted.
 
-Manager version outside tested range permits inspection but blocks mutation unless explicit override.
+CLI manager version outside tested range permits inspection but blocks mutation unless explicit override.
+
+TUI uses shared plan/execution APIs but not the CLI accepted-hash, journal, post-update verification, or manager-version guard flow. It rechecks project safety before applying, runs commands sequentially with terminal I/O, retains per-package failures while continuing subsequent commands, and restarts to refresh installed/latest/security state.
 
 ## Output contracts
 

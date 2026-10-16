@@ -40,16 +40,19 @@ func TestResultViewRendersMarkedPackage(t *testing.T) {
 }
 
 func TestScopeViewRendersScopeIdentity(t *testing.T) {
-	data := &model{scopes: []config.Scope{{Kind: "project", Name: "app", Path: "/repo"}}}
+	data := &model{scopes: []config.Scope{{Kind: "global"}, {Kind: "project", Name: "app", Path: "/repo"}, {Kind: "project", Path: "/other"}}}
 	component, _ := scopeView(data, glyph.NewApp())
-	assertRenderedContains(t, component, "project:app")
-}
-
-func TestDriftViewRendersPackageIdentity(t *testing.T) {
-	data := &model{drift: []config.PackageState{{Manager: "mise", Name: "node", Installed: "20", DesiredVersion: "22", Status: config.DriftBehind}}}
-	component, _ := driftView(data)
-	assertRenderedContains(t, component, "Desired")
-	assertRenderedContains(t, component, "node")
+	buffer := glyph.NewBuffer(80, 24)
+	glyph.Build(component).Execute(buffer, 80, 24)
+	output := homeRenderOutput(buffer, 24)
+	for _, want := range []string{"global", "app  /repo", "project  /other"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing compact scope %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "project:") {
+		t.Fatalf("redundant scope prefix:\n%s", output)
+	}
 }
 
 func TestVulnerabilityViewRendersPackageIdentityAndAdvisory(t *testing.T) {
@@ -106,8 +109,8 @@ func TestVulnerabilitySummaryCountsActionableUnknownFindings(t *testing.T) {
 		{Status: security.StatusUnknown, Advisory: "CVE-1"},
 		{Status: security.StatusUnknown, Advisory: "CVE-2", Rules: []string{">=20"}},
 	}
-	got := vulnerabilitySummary(3, 2, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1}, evidence)
-	want := "3 outdated, 2 drift; 1 vulnerable, 1 unknown, 1 security errors"
+	got := vulnerabilitySummary(3, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1}, evidence)
+	want := "3 outdated; 1 vulnerable, 1 unknown, 1 security errors"
 	if got != want {
 		t.Fatalf("summary = %q", got)
 	}
@@ -211,33 +214,12 @@ func TestVulnerabilityViewKeepsFooterAtBottomWithManyRows(t *testing.T) {
 	}
 }
 
-func TestDriftViewKeepsFooterAtBottomAndMovesSelection(t *testing.T) {
-	data := &model{status: "summary"}
-	for i := range 40 {
-		data.drift = append(data.drift, config.PackageState{Manager: "mise", Name: fmt.Sprintf("tool-%02d", i), Status: config.DriftBehind})
-	}
-	component, list := driftView(data)
-	updateScreenSize(120, 12)
-	defer updateScreenSize(80, 24)
-	buffer := glyph.NewBuffer(120, 12)
-	glyph.Build(component).Execute(buffer, 120, 12)
-	if !strings.Contains(buffer.GetLine(10), "move") {
-		t.Fatalf("footer = %q", buffer.GetLine(10))
-	}
-	list.Down(nil)
-	if list.Index() != 1 {
-		t.Fatalf("selection = %d", list.Index())
-	}
-}
-
 func TestViewsFillAvailableHeight(t *testing.T) {
 	data := &model{}
 	outdated, _ := resultView(data)
-	drift, _ := driftView(data)
 	vulnerabilities, _ := vulnerabilityView(data)
 	for name, component := range map[string]glyph.Component{
 		"outdated":        outdated,
-		"drift":           drift,
 		"vulnerabilities": vulnerabilities,
 	} {
 		buffer := glyph.NewBuffer(80, 20)
@@ -259,26 +241,6 @@ func TestLoadingContentShowsGlyphSpinner(t *testing.T) {
 func TestGenerationRejectsStaleRefresh(t *testing.T) {
 	if isCurrentGeneration(2, 1) || !isCurrentGeneration(2, 2) {
 		t.Fatal("generation comparison failed")
-	}
-}
-
-func TestSecurityTargetsSurviveOutdatedDisplayFiltering(t *testing.T) {
-	all := []packagemanager.Package{{Manager: "manager", Name: "npm", Scope: "global", Latest: "11.20.0"}}
-	displayed := filterOutdated(append([]packagemanager.Package(nil), all...), nil)
-	if len(displayed) != 0 || len(all) != 1 || all[0].Latest != "11.20.0" {
-		t.Fatalf("displayed = %#v, security targets = %#v", displayed, all)
-	}
-}
-
-func TestFilterOutdatedUsesResolvedProfileSelection(t *testing.T) {
-	packages := []packagemanager.Package{
-		{Manager: "npm", Name: "keep", Scope: "global"},
-		{Manager: "npm", Name: "drop", Scope: "global"},
-	}
-	selected := []config.InstalledVersion{{Manager: "npm", Name: "keep", Scope: "global"}}
-	filtered := filterOutdated(packages, selected)
-	if len(filtered) != 1 || filtered[0].Name != "keep" {
-		t.Fatalf("filtered = %#v", filtered)
 	}
 }
 

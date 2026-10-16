@@ -53,9 +53,9 @@ func vulnerabilityStatus(summary string, inspectionErr, scanErr error) string {
 	return summary
 }
 
-func refreshStatus(outdated, drift, upgraded, unchanged, failed int) string {
+func refreshStatus(outdated, upgraded, unchanged, failed int) string {
 	if upgraded+unchanged+failed == 0 {
-		return fmt.Sprintf("%d outdated, %d drift; scanning vulnerabilities...", outdated, drift)
+		return fmt.Sprintf("%d outdated; scanning vulnerabilities...", outdated)
 	}
 	return fmt.Sprintf("%d upgraded, %d unchanged, %d failed; %d outdated; scanning vulnerabilities...", upgraded, unchanged, failed, outdated)
 }

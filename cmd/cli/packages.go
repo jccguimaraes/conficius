@@ -40,20 +40,13 @@ type packageOutputEnvelope struct {
 	Data          any             `json:"data"`
 }
 
-type npmDependencyClassFilter struct {
-	Path    string   `json:"path"`
-	Classes []string `json:"classes"`
-}
-
 type outdatedOutput struct {
-	Scopes                    []config.Scope                      `json:"scopes"`
-	Managers                  []packagemanager.ManagerStatus      `json:"managers"`
-	Packages                  []packagemanager.Package            `json:"packages"`
-	Installed                 []packagemanager.InstalledPackage   `json:"installed,omitempty"`
-	Freshness                 string                              `json:"freshness"`
-	Drift                     []config.PackageState               `json:"drift"`
-	NPMDependencyClassFilters []npmDependencyClassFilter          `json:"npm_dependency_class_filters,omitempty"`
-	Collisions                []packagemanager.CollisionCandidate `json:"collisions,omitempty"`
+	Scopes     []config.Scope                      `json:"scopes"`
+	Managers   []packagemanager.ManagerStatus      `json:"managers"`
+	Packages   []packagemanager.Package            `json:"packages"`
+	Installed  []packagemanager.InstalledPackage   `json:"installed,omitempty"`
+	Freshness  string                              `json:"freshness"`
+	Collisions []packagemanager.CollisionCandidate `json:"collisions,omitempty"`
 }
 
 type updateOutput struct {
@@ -181,7 +174,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Usage:       "Show outdated tools.",
 				Flags: append([]urfave.Flag{pmFlag(), jsonFlag(),
 					&urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"},
-					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates or drift exist"},
+					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates exist"},
 				}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
@@ -189,17 +182,13 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					options := packagemanager.QueryOptionsFromProfile(resolved.Profile)
-					classFilters := npmDependencyClassFilters(resolved.Profile)
 					if c.Bool("offline") {
 						inventory, queryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 						collisions := packagemanager.ResolveCollisionCandidates(packagemanager.CollisionCandidates(inventory.Commands), exec.LookPath)
 						if c.Bool("json") {
-							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown", NPMDependencyClassFilters: classFilters, Collisions: collisions}))
+							return errors.Join(queryErr, cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: inventory.Managers, Installed: inventory.Packages, Freshness: "unknown", Collisions: collisions}))
 						}
 						if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
-							return err
-						}
-						if err := printNPMDependencyClassFilters(cli.Writer, classFilters); err != nil {
 							return err
 						}
 						if err := printCollisionWarnings(cli.Writer, collisions); err != nil {
@@ -214,40 +203,20 @@ func (cli *Cli) packages() *urfave.Command {
 						return queryErr
 					}
 					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
-					records := packagemanager.Records(result.Packages)
-					installed := make([]config.InstalledVersion, len(records))
-					for i, record := range records {
-						installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current, DependencyClass: record.DependencyClass}
-					}
-					selected, drift := config.EvaluatePackages(resolved.Profile, installed)
-					selectedKeys := make(map[string]struct{}, len(selected))
-					for _, pkg := range selected {
-						selectedKeys[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name] = struct{}{}
-					}
-					result.Packages = packagemanager.Filter(result.Packages, func(pkg packagemanager.Package) bool {
-						_, exists := selectedKeys[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name]
-						return exists
-					})
 					if c.Bool("json") {
-						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Freshness: "fresh", Drift: drift, NPMDependencyClassFilters: classFilters}); err != nil {
+						if err := cli.writePackageJSON(outdatedOutput{Scopes: scopes, Managers: result.Managers, Packages: packagemanager.Records(result.Packages), Freshness: "fresh"}); err != nil {
 							return err
 						}
 					} else {
 						if err := printManagerWarnings(cli.Writer, result.Managers); err != nil {
 							return err
 						}
-						if err := printNPMDependencyClassFilters(cli.Writer, classFilters); err != nil {
-							return err
-						}
 						if err := audit.PrintOutdated(result.Packages, cli.Writer); err != nil {
-							return err
-						}
-						if err := printPackageDrift(cli.Writer, drift); err != nil {
 							return err
 						}
 					}
 					if c.Bool("check") {
-						if err := packageCheckError(queryErr, len(packagemanager.Records(result.Packages)), len(drift)); err != nil {
+						if err := packageCheckError(queryErr, len(packagemanager.Records(result.Packages))); err != nil {
 							return err
 						}
 					}
@@ -264,16 +233,12 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
-					project, loadErr := config.LoadDiscovered(c.String("config"))
-					if loadErr != nil && !errors.Is(loadErr, config.ErrNotFound) {
+					project, loadErr := config.LoadPackages(c.String("config"))
+					if loadErr != nil {
 						return loadErr
 					}
-					var osvMappings []config.VulnerabilityMapping
-					var euvdMappings []config.EUVDMapping
-					if project != nil {
-						osvMappings = project.Vulnerabilities.Mappings
-						euvdMappings = project.Vulnerabilities.EUVD
-					}
+					osvMappings := project.Vulnerabilities.Mappings
+					euvdMappings := project.Vulnerabilities.EUVD
 					queryOptions := packagemanager.QueryOptionsFromProfile(resolved.Profile)
 					queryOptions.IncludeTransitive = c.Bool("transitive")
 					inventory, inventoryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), queryOptions)
@@ -282,24 +247,6 @@ func (cli *Cli) packages() *urfave.Command {
 						var managerErr error
 						managerPackages, managerErr = packagemanager.ManagerPackages(ctx, inventory.Managers)
 						inventoryErr = errors.Join(inventoryErr, managerErr)
-					}
-					if resolved.Profile.SecurityScope == "selected" {
-						versions := make([]config.InstalledVersion, len(inventory.Packages))
-						for i, pkg := range inventory.Packages {
-							versions[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version, DependencyClass: pkg.DependencyClass}
-						}
-						selected, _ := config.EvaluatePackages(resolved.Profile, versions)
-						allowed := make(map[string]struct{}, len(selected))
-						for _, pkg := range selected {
-							allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name+"\x00"+pkg.Version] = struct{}{}
-						}
-						filtered := inventory.Packages[:0]
-						for _, pkg := range inventory.Packages {
-							if _, exists := allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name+"\x00"+pkg.Version]; exists {
-								filtered = append(filtered, pkg)
-							}
-						}
-						inventory.Packages = filtered
 					}
 					inventory.Packages = append(inventory.Packages, managerPackages...)
 					outdated, outdatedErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
@@ -363,7 +310,6 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
-					result.Packages = filterProfilePackages(result.Packages, resolved.Profile)
 					plans, err := packagemanager.PlanUpdates(result, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err != nil {
 						return err
@@ -384,11 +330,10 @@ func (cli *Cli) packages() *urfave.Command {
 					if err := validateManagerVersions(result.Managers, c.Bool("allow-untested-manager")); err != nil {
 						return err
 					}
-					if err := validateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
+					if err := packagemanager.ValidateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
 						return err
 					}
 					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
-					freshResult.Packages = filterProfilePackages(freshResult.Packages, resolved.Profile)
 					freshPlans, freshPlanErr := packagemanager.PlanUpdates(freshResult, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err := errors.Join(freshQueryErr, freshPlanErr); err != nil {
 						return err
@@ -429,12 +374,12 @@ func (cli *Cli) packages() *urfave.Command {
 	}
 }
 
-func packageCheckError(queryErr error, updates, drift int) error {
+func packageCheckError(queryErr error, updates int) error {
 	if queryErr != nil {
 		return urfave.Exit(queryErr, 2)
 	}
-	if updates > 0 || drift > 0 {
-		return urfave.Exit("package updates or drift found", 1)
+	if updates > 0 {
+		return urfave.Exit("package updates found", 1)
 	}
 	return nil
 }
@@ -468,81 +413,6 @@ func validateAcceptedPlans(plans []packagemanager.UpdatePlan, accepted []string)
 	return nil
 }
 
-func filterProfilePackages(packages packagemanager.Packages, profile config.Profile) packagemanager.Packages {
-	records := packagemanager.Records(packages)
-	installed := make([]config.InstalledVersion, len(records))
-	for i, record := range records {
-		installed[i] = config.InstalledVersion{Manager: record.Manager, Name: record.Name, Scope: record.Scope, Path: record.Path, Version: record.Current, DependencyClass: record.DependencyClass}
-	}
-	selected, _ := config.EvaluatePackages(profile, installed)
-	allowed := make(map[string]struct{}, len(selected))
-	for _, pkg := range selected {
-		allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name] = struct{}{}
-	}
-	return packagemanager.Filter(packages, func(pkg packagemanager.Package) bool {
-		_, exists := allowed[pkg.Scope+"\x00"+pkg.Path+"\x00"+pkg.Manager+"\x00"+pkg.Name]
-		return exists
-	})
-}
-
-func validateProjectMutations(plans []packagemanager.UpdatePlan, profile config.Profile, allowDirty, allowUnversioned bool) error {
-	checked := map[string]struct{}{}
-	for _, plan := range plans {
-		if plan.Scope != "project" || plan.Directory == "" {
-			continue
-		}
-		if _, exists := checked[plan.Directory]; exists {
-			continue
-		}
-		checked[plan.Directory] = struct{}{}
-		manifestChangesAllowed := false
-		for _, project := range profile.Projects {
-			if (project.ResolvedPath == plan.Directory || project.Path == plan.Directory) && project.AllowManifestChanges {
-				manifestChangesAllowed = true
-				break
-			}
-		}
-		if !manifestChangesAllowed {
-			return fmt.Errorf("project %q does not allow manifest changes", plan.Directory)
-		}
-		command := exec.Command("git", "-C", plan.Directory, "rev-parse", "--show-toplevel")
-		root, err := command.Output()
-		if err != nil {
-			if allowUnversioned {
-				continue
-			}
-			return fmt.Errorf("project %q is not in a Git repository; use --allow-unversioned", plan.Directory)
-		}
-		status, err := exec.Command("git", "-C", strings.TrimSpace(string(root)), "status", "--porcelain").Output()
-		if err != nil {
-			return fmt.Errorf("inspect Git status for %q: %w", plan.Directory, err)
-		}
-		if len(status) > 0 && !allowDirty {
-			return fmt.Errorf("project %q has uncommitted changes; use --allow-dirty", plan.Directory)
-		}
-	}
-	return nil
-}
-
-func npmDependencyClassFilters(profile config.Profile) []npmDependencyClassFilter {
-	filters := make([]npmDependencyClassFilter, 0, len(profile.Projects))
-	for _, project := range profile.Projects {
-		if len(project.NPMDependencyClasses) > 0 {
-			filters = append(filters, npmDependencyClassFilter{Path: project.ResolvedPath, Classes: project.NPMDependencyClasses})
-		}
-	}
-	return filters
-}
-
-func printNPMDependencyClassFilters(writer io.Writer, filters []npmDependencyClassFilter) error {
-	for _, filter := range filters {
-		if _, err := fmt.Fprintf(writer, "npm dependency classes: %s (%s); results exclude other classes.\n", strings.Join(filter.Classes, ", "), filter.Path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func printCollisionWarnings(writer io.Writer, candidates []packagemanager.CollisionCandidate) error {
 	for _, candidate := range candidates {
 		owners := make([]string, len(candidate.Owners))
@@ -560,22 +430,10 @@ func printCollisionWarnings(writer io.Writer, candidates []packagemanager.Collis
 	return nil
 }
 
-func printPackageDrift(writer io.Writer, states []config.PackageState) error {
-	for _, state := range states {
-		if _, err := fmt.Fprintf(writer, "Drift: %s:%s scope=%s installed=%s desired=%s status=%s\n", state.Manager, state.Name, state.Scope, state.Installed, state.DesiredVersion, state.Status); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func resolvePackageScopes(command *urfave.Command) ([]config.Scope, config.ResolvedProfile, error) {
-	project, err := config.LoadDiscovered(command.String("config"))
-	if err != nil && !errors.Is(err, config.ErrNotFound) {
+	project, err := config.LoadPackages(command.String("config"))
+	if err != nil {
 		return nil, config.ResolvedProfile{}, err
-	}
-	if project == nil {
-		project = &config.Project{Version: config.CurrentVersion}
 	}
 	resolved, err := project.ResolveProfile(command.String("profile"), false)
 	if err != nil {

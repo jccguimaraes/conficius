@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -308,16 +309,56 @@ func TestInspectWithOptionsRejectsMissingConfiguredExecutable(t *testing.T) {
 
 func TestQueryOptionsFromProfile(t *testing.T) {
 	disabled, enabled := false, true
-	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{
-		"npm":  {Enabled: &disabled, Executable: "/tools/npm", ExpectedGlobalPrefix: "/prefix"},
-		"mise": {Enabled: &enabled},
-		"brew": {IncludeGreedy: true},
-	}})
-	if !options.Disabled["npm"] || !options.Required["mise"] || options.Executables["npm"] != "/tools/npm" || !options.GlobalConfig["npm"] || !options.GlobalConfig["mise"] || !options.GlobalConfig["brew"] {
-		t.Fatalf("options = %#v", options)
+	options := QueryOptionsFromProfile(config.Profile{
+		Managers: map[string]config.ManagerSettings{
+			"npm":  {Enabled: &disabled},
+			"mise": {Enabled: &enabled},
+			"brew": {},
+		},
+		Projects: []config.ProfileProject{{Name: "app", Path: "/app", ResolvedPath: "/app", AllowManifestChanges: true}},
+	})
+	want := QueryOptions{
+		GlobalConfig: map[string]bool{"npm": true, "mise": true, "brew": true},
+		Disabled:     map[string]bool{"npm": true},
+		Required:     map[string]bool{"mise": true},
 	}
-	if options.Managers["npm"].ExpectedGlobalPrefix != "/prefix" || !options.Managers["brew"].IncludeGreedy {
-		t.Fatalf("manager options = %#v", options.Managers)
+	if !reflect.DeepEqual(options, want) {
+		t.Fatalf("options = %#v; want %#v", options, want)
+	}
+}
+
+func TestProfileQueryPreservesPATHAmbiguityAndDefaultVersionLookup(t *testing.T) {
+	first, second := t.TempDir(), t.TempDir()
+	for _, dir := range []string{first, second} {
+		writeExecutable(t, filepath.Join(dir, "npm"), `#!/bin/sh
+case "$1" in
+  --version) printf '11.4.0' ;;
+  outdated) printf '{"typescript":{"current":"5.0","wanted":"5.1","latest":"5.2"}}' ;;
+esac
+`)
+	}
+	t.Setenv("PATH", strings.Join([]string{first, second, first}, string(os.PathListSeparator)))
+	options := QueryOptionsFromProfile(config.Profile{Managers: map[string]config.ManagerSettings{PM_NPM: {}}})
+	result, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_NPM}, []Scope{{Kind: "global"}}, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Managers) != 1 {
+		t.Fatalf("managers = %#v", result.Managers)
+	}
+	status := result.Managers[0]
+	wantPaths := []string{filepath.Join(first, "npm"), filepath.Join(second, "npm")}
+	if !reflect.DeepEqual(status.Executables, wantPaths) || len(status.Warnings) != 1 || !strings.Contains(status.Warnings[0], "multiple executables found on PATH") {
+		t.Fatalf("status = %#v", status)
+	}
+	records := Records(result.Packages)
+	if len(records) != 2 {
+		t.Fatalf("records = %#v", records)
+	}
+	for _, record := range records {
+		if record.Current != "5.0" || record.Latest != "5.2" || record.Requested != "5.1" {
+			t.Fatalf("record = %#v", record)
+		}
 	}
 }
 
@@ -419,6 +460,45 @@ func TestNPMPrefixWarningsReportMismatchAndMissingPath(t *testing.T) {
 	warnings := npmPrefixWarnings(context.Background(), filepath.Join(dir, "npm"), filepath.Join(dir, "stable"))
 	if len(warnings) != 2 || !strings.Contains(warnings[0], "expected") || !strings.Contains(warnings[1], "not on PATH") {
 		t.Fatalf("warnings = %#v", warnings)
+	}
+}
+
+func TestHomebrewRefreshesBeforeOutdated(t *testing.T) {
+	for _, failUpdate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("updateFailure=%t", failUpdate), func(t *testing.T) {
+			dir := t.TempDir()
+			log := filepath.Join(dir, "args")
+			writeExecutable(t, filepath.Join(dir, "brew"), `#!/bin/sh
+printf '%s\n' "$*" >> "$ARGS_LOG"
+case "$1" in
+  --version) printf 'Homebrew 5.0.0\n' ;;
+  update)
+    if [ "$FAIL_UPDATE" = "true" ]; then
+      printf 'metadata refresh failed\n' >&2
+      exit 1
+    fi
+    printf 'Updated Homebrew!\n'
+    ;;
+  outdated) printf '{"formulae":[{"name":"wget","installed_versions":["1"],"current_version":"2"}],"casks":[]}' ;;
+esac
+`)
+			t.Setenv("PATH", dir)
+			t.Setenv("ARGS_LOG", log)
+			t.Setenv("FAIL_UPDATE", fmt.Sprint(failUpdate))
+			result, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_BREW}, []Scope{{Kind: "global"}}, QueryOptions{})
+			contents, readErr := os.ReadFile(log)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			calls := string(contents)
+			if failUpdate {
+				if err == nil || !strings.Contains(err.Error(), "metadata refresh failed") || strings.Contains(calls, "outdated") || len(result.Packages) != 0 {
+					t.Fatalf("failed refresh: err=%v packages=%v calls=%q", err, result.Packages, calls)
+				}
+			} else if err != nil || len(result.Packages["wget"]) != 1 || !strings.Contains(calls, "update\noutdated --json=v2 --greedy\n") || strings.Count(calls, "update\n") != 1 {
+				t.Fatalf("refresh order: err=%v packages=%v calls=%q", err, result.Packages, calls)
+			}
+		})
 	}
 }
 
@@ -777,4 +857,38 @@ func writeExecutable(t *testing.T, path, content string) {
 func appendFile(path string, content []byte) []byte {
 	existing, _ := os.ReadFile(path)
 	return append(existing, content...)
+}
+
+func TestValidateProjectMutationsKeepsSafetyGuards(t *testing.T) {
+	project := t.TempDir()
+	plans := []UpdatePlan{{Scope: "project", Directory: project}}
+	for _, test := range []struct {
+		name                         string
+		manifest, dirty, unversioned bool
+		git                          string
+		want                         string
+	}{
+		{name: "manifest denied", unversioned: true, want: "does not allow manifest changes"},
+		{name: "unversioned denied", manifest: true, git: "exit 1", want: "not in a Git repository"},
+		{name: "unversioned allowed", manifest: true, unversioned: true, git: "exit 1"},
+		{name: "dirty denied", manifest: true, git: "printf 'changed'", want: "has uncommitted changes"},
+		{name: "dirty allowed", manifest: true, dirty: true, git: "printf 'changed'"},
+		{name: "clean allowed", manifest: true, git: "exit 0"},
+		{name: "status failure denied", manifest: true, dirty: true, unversioned: true, git: "if [ \"$3\" = status ]; then exit 1; fi", want: "inspect Git status"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeExecutable(t, filepath.Join(dir, "git"), "#!/bin/sh\n"+test.git+"\n")
+			t.Setenv("PATH", dir)
+			profile := config.Profile{Projects: []config.ProfileProject{{Name: "app", Path: project, ResolvedPath: project, AllowManifestChanges: test.manifest}}}
+			err := ValidateProjectMutations(plans, profile, test.dirty, test.unversioned)
+			if test.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v; want %q", err, test.want)
+			}
+		})
+	}
 }

@@ -4,18 +4,18 @@
 
 | Path | Responsibility |
 |---|---|
-| `internal/config` | Strict TOML schema, profiles, scope discovery, npm workspaces, package policy, drift |
+| `internal/config` | Independent central package TOML, project-group profiles, scope discovery, npm workspaces |
 | `internal/packagemanager/adapter.go` | Adapter contract, capabilities, tested versions, impact metadata |
-| `internal/packagemanager/{mise,homebrew,npm}.go` | Native commands, structured parsing, manager-specific planning |
+| `internal/packagemanager/{mise,homebrew,npm,mas,uv,pipx,poetry,pnpm,cargo,yarn,bun,go}.go` | Native commands, structured parsing, manager-specific planning |
 | `internal/packagemanager/packagemanager.go` | Discovery, scoped outdated queries, normalized records, plans, execution, verification |
 | `internal/packagemanager/installed.go` | Installed inventory, Go import records, package roles, npm graph/classes, ownership metadata |
 | `internal/packagemanager/concurrent.go` | Bounded read concurrency and stable merge |
-| `internal/packagemanager/errors.go` | Operation error categories and redaction boundaries |
+| `internal/packagemanager/operation_error.go`, `internal/packagemanager/redact.go` | Operation error categories and redaction boundaries |
 | `internal/security` | Inventory-to-evidence mapping and vulnerability report assembly |
 | `internal/vulnerability`, `internal/euvd` | External vulnerability clients and parsers |
-| `cmd/cli/packages.go` | Package command wiring, output, profile filtering, mutation guards |
+| `cmd/cli/packages.go` | Package command wiring, output, scope selection, mutation guards |
 | `cmd/cli/update_log.go` | Redacted XDG mutation journal |
-| `cmd/tui` | Read-only presentation over shared package/config APIs |
+| `cmd/tui` | Installed/latest/security views, profile switching, config reload, update preview and apply |
 
 ## Dependency direction
 
@@ -70,11 +70,12 @@ CLI/TUI flags
   -> run read operations
   -> retain successes and classify failures
   -> normalize records and ownership
-  -> apply profile/package/dependency-class policy
   -> render human or JSON output
 ```
 
-Manifest discovery happens before manager commands. Contradictions, missing required managers, excluded required managers, and unreadable manifest evidence fail explicitly.
+Package configuration loads through `config.LoadPackages`, separately from dotfile configuration. Profiles contain named project paths and manager `enabled` settings only, plus per-project manifest-change permission. Native manifests and lockfiles own dependency intent and versions; central config does not duplicate package lists or version policy.
+
+Manifest discovery happens before manager commands. Contradictions, missing required managers, disabled required managers, and unreadable manifest evidence fail explicitly.
 
 ## Inventory and outdated models
 
@@ -96,25 +97,29 @@ For project/workspace npm scopes:
 4. Mark direct package from map.
 5. Mark unknown direct package extraneous.
 6. Mark nested package transitive.
-7. Apply configured class filter unless CLI explicitly requests full transitive graph.
+7. Include nested packages when the caller requests the transitive graph; profiles do not filter dependency classes.
 
-Outdated output lacks class data. Core joins package names against owning manifest before filtering.
+Outdated output lacks class data. Core joins package names against the owning manifest for classification, not profile filtering.
 
 ## Plans and execution
 
-`PlanUpdates` converts filtered records into manager/scope groups. Each plan stores immutable command data and state hash. Native dry-run confidence can be exact; derived plans are estimated; unknown plans require override before bulk mutation.
+`PlanUpdates` converts selected records into manager/executable/scope/directory groups, with separate Go tool plans. Each plan stores command data and a state hash. Current plans have estimated confidence; exact and unknown remain model values, not native dry-run guarantees.
 
-Execution:
+CLI execution:
 
 1. Re-query state.
 2. Rebuild plans.
-3. Check accepted hashes for unattended mode.
-4. Validate manager versions and project files.
+3. Validate accepted hashes for unattended mode (manager-version and project permission/Git guards run before re-query).
+4. Keep the rebuilt plans for execution.
 5. Write initial journal.
 6. Run plans sequentially.
 7. Stop on failure unless best effort permits independent continuation.
 8. Query state again and verify outcomes.
 9. Finish journal with outcomes and changed files.
+
+Project plans require a matching registered project with `allow_manifest_changes = true` before Git safety checks. This is an update permission, not a package-selection policy.
+
+TUI previews shared plans, rechecks project permissions/Git safety before apply, then runs commands through the controlling terminal and restarts with refreshed results. Its command loop continues after individual failures and retains failed-package selections. It does not use the CLI accepted-hash/journal/verification flow or CLI manager-version override guard.
 
 ## Error model
 

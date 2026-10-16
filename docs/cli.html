@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Conficius CLI reference: configuration, dotfile links, package inventory, vulnerability checks, safe updates, and supported package managers.">
+  <meta name="description" content="Conficius CLI reference: configuration, dotfile links, package inventory, vulnerability checks, update previews, and supported package managers.">
   <meta name="theme-color" content="#191a1b">
   <title>CLI reference — Conficius</title>
   <script>
@@ -70,13 +70,13 @@ go build -o ./bin/conficius ./cmd/cli
 go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
           <h2>Global options</h2>
           <dl>
-            <dt><code>--config FILE</code></dt><dd>Use an explicit configuration file. Put this before the command in examples. May be supplied only once.</dd>
+            <dt><code>--config FILE</code></dt><dd>Use an explicit file for the command’s config domain: dotfiles for <code>init</code>, <code>dotfiles</code>, and <code>config migrate</code>; packages for profile-aware package commands and <code>config resolve</code>. <code>packages pms</code> does not load config. Put this before the command; supply it only once. <code>config layout</code> rejects this flag.</dd>
             <dt><code>--help</code>, <code>-h</code></dt><dd>Show help. Available on subcommands too.</dd>
             <dt><code>--version</code>, <code>-v</code></dt><dd>Print the CLI version.</dd>
           </dl>
           <h2>Command index</h2>
           <ul>
-            <li><code>init</code>; <code>config resolve</code>; <code>config migrate</code></li>
+            <li><code>init</code>; <code>config resolve</code>; <code>config layout</code>; <code>config migrate</code></li>
             <li><code>dotfiles audit</code>; <code>dotfiles link [tools...]</code></li>
             <li><code>packages pms</code>; <code>packages doctor</code>; <code>packages outdated</code></li>
             <li><code>packages vulnerabilities</code>; <code>packages update</code></li>
@@ -89,19 +89,27 @@ go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
 
         <section id="config" aria-labelledby="config-title">
           <div class="section-head"><h2 id="config-title">Configuration</h2></div>
-          <p>Configuration is TOML. Discovery checks <code>--config FILE</code> first, then <code>conficius.toml</code> in the working directory and each parent, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code> (normally <code>~/.config/conficius/conficius.toml</code>). Relative link sources are based on the configuration file’s directory, not the working directory.</p>
+          <p>Dotfiles and packages have independent TOML files. Dotfiles discovery checks <code>--config FILE</code> first, then <code>conficius.toml</code> in the working directory and each parent, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code> (normally <code>~/.config/conficius/conficius.toml</code>). Relative link sources use that file’s directory.
+          </p><p>Package discovery uses <code>$XDG_CONFIG_HOME/conficius/config.toml</code>, defaulting to <code>~/.config/conficius/config.toml</code>, or the native macOS path <code>~/Library/Application Support/conficius/config.toml</code>. If both exist, discovery fails rather than choosing one. Linux uses the same location for both layouts. An explicit package <code>--config FILE</code> bypasses discovery. Package commands never discover repository <code>conficius.toml</code>; missing central config uses defaults, while invalid config fails.</p>
           <h3><code>init</code></h3>
           <p>Create a commented version-2 <code>conficius.toml</code> in the working directory, or at <code>--config FILE</code>. This writes immediately; it has no <code>--apply</code> option and refuses to overwrite an existing file.</p>
           <pre><code>conficius init
-conficius --config ./conficius.toml config resolve --verbose</code></pre>
+conficius --config ~/dotfiles/conficius.toml init
+conficius --config ~/.config/conficius/config.toml config resolve --profile work --verbose</code></pre>
           <h3><code>config resolve</code></h3>
           <dl>
-            <dt><code>--profile NAME</code></dt><dd>Select a package profile. Selection order: command flag, <code>CONFICIUS_PROFILE</code>, top-level <code>profile</code> in the configuration, then <code>default</code>. Named non-default profiles require version 2.</dd>
+            <dt><code>--profile NAME</code></dt><dd>Select a package profile. Selection order: command flag, <code>CONFICIUS_PROFILE</code>, top-level <code>profile</code> in the configuration, then <code>default</code>. Package config requires version 2.</dd>
             <dt><code>--json</code></dt><dd>Print the resolved profile as JSON, rather than the package-output envelope.</dd>
             <dt><code>--verbose</code></dt><dd>Include provenance showing where resolved settings came from.</dd>
           </dl>
+          <h3><code>config layout</code></h3>
+          <p>Preview creation or relocation of the central package config. Choose <code>--xdg</code> or <code>--os-native</code>, never both. Without either flag, use the stored <code>layout</code>, defaulting to <code>xdg</code>. <code>--apply</code> writes the change and retains the old config beside its original path as <code>.conficius-layout-backup-*</code>. This command rejects <code>--config</code>; it does not relocate dotfiles. Conflicting central package configs must be resolved first.</p>
+          <pre><code>conficius config layout --xdg
+conficius config layout --xdg --apply
+conficius config layout --os-native
+conficius config layout --os-native --apply</code></pre>
           <h3><code>config migrate</code></h3>
-          <p>Print a version-2 migration preview by default. <code>--apply</code> creates a backup and replaces the configuration atomically.</p>
+          <p>Print a dotfiles version-2 migration preview by default. <code>--apply</code> creates a backup and replaces the configuration atomically.</p>
           <pre><code>conficius config migrate
 conficius config migrate --apply</code></pre>
           <h3>Minimal link configuration</h3>
@@ -120,16 +128,34 @@ links = [
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
           <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
           <h3>Profiles and project updates</h3>
-          <p>Profiles control manager order, package selection, project roots, and desired-version drift. <code>mode = "denylist"</code> includes packages unless excluded; <code>mode = "allowlist"</code> selects explicitly included packages. Desired versions describe policy and drift; they do not turn every manager update command into an exact-version installer.</p>
-          <pre><code>[profiles.work]
-mode = "denylist"
-manager_order = ["npm"]
+          <p>Package <code>config.toml</code> profiles contain only manager <code>enabled</code> settings and projects with <code>name</code>, <code>path</code>, and <code>allow_manifest_changes</code>. Managers are enabled unless explicitly disabled; enabling one does not disable the others. Native manifests and lockfiles remain the authority for versions and dependency declarations. Conficius does not store a second version policy or executable overrides. Example package config:</p>
+          <pre><code>version = 2
+layout = "xdg"
+profile = "work"
+
+[profiles.default]
+
+[profiles.work.managers.npm]
+enabled = true
+
+[profiles.work.managers.brew]
+enabled = false
 
 [[profiles.work.projects]]
 name = "app"
-path = "./app"
+path = "${HOME}/src/my-app"
 allow_manifest_changes = true</code></pre>
-          <p>Configured project paths resolve relative to the configuration directory. Project mutation requires <code>allow_manifest_changes = true</code> for the matching configured project; command-line Git overrides do not replace that permission.</p>
+          <p>Relative project paths resolve from the package config directory, not the dotfiles repository. <code>allow_manifest_changes</code> defaults to false. Project mutation requires it to be true for the matching configured project; command-line Git overrides do not replace this security guard.</p>
+          <pre><code>conficius config resolve --profile work --verbose
+conficius packages outdated --profile work --profile-project app --pm npm
+conficius packages update --profile work --profile-project app --pm npm
+conficius packages update --profile work --profile-project app --pm npm --apply</code></pre>
+          <h3>TUI configuration and profiles</h3>
+          <pre><code>conficius-tui --config ~/dotfiles/conficius.toml
+conficius-tui --package-config ~/.config/conficius/config.toml
+conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conficius/config.toml</code></pre>
+          <p>The TUI’s <code>--config</code> selects dotfiles only; <code>--package-config</code> selects packages. From Home, scopes, or outdated packages, press <code>p</code> for the profile picker and <code>Enter</code> to select. Selection is a session override, not a disk write. Press <code>r</code> in package views to reload package settings and project scopes before refreshing. Package lists use compact rows; <code>Enter</code> opens details. Missing dotfiles show a neutral “Dotfiles not detected” notice and do not block package inspection.</p>
+          <p>In outdated packages, <code>Space</code> marks a row, <code>a</code> toggles all, <code>u</code> previews marked upgrades, and <code>U</code> previews all. In the preview, <code>y</code> applies and <code>n</code> or <code>Esc</code> cancels. <code>v</code> opens vulnerabilities; <code>o</code> returns to outdated packages. Confirmed upgrades run in the terminal, then restart the TUI. TUI execution does not use the CLI’s fresh-query, accepted-hash, durable-log, or outcome-verification workflow.</p>
         </section>
 
         <section id="dotfiles" aria-labelledby="dotfiles-title">
@@ -175,10 +201,10 @@ conficius dotfiles link zsh --apply</code></pre>
           <h3><code>packages doctor</code></h3>
           <p>Check manager environment integrity and selected project roots without freshness queries. Accepts the shared package options. Use this to investigate executable paths, prefixes, and project setup before updating.</p>
           <h3><code>packages outdated</code></h3>
-          <p>Query available updates and report profile drift. Accepts the shared package options plus:</p>
+          <p>Query available updates from native managers. Accepts the shared package options plus:</p>
           <dl>
-            <dt><code>--offline</code></dt><dd>Read installed inventory without network freshness checks. Reports freshness as <code>unknown</code>, not up-to-date. Offline output can include command collision candidates and PATH resolution. It does not establish update availability or desired-version drift.</dd>
-            <dt><code>--check</code></dt><dd>For online queries: exit 0 when no updates or drift are found, 1 when updates or drift exist, and 2 on query failure. Without this flag, finding updates is not itself an error.</dd>
+            <dt><code>--offline</code></dt><dd>Read installed inventory without network freshness checks. Reports freshness as <code>unknown</code>, not up-to-date. Offline output can include command collision candidates and PATH resolution. It does not establish update availability.</dd>
+            <dt><code>--check</code></dt><dd>For online queries: exit 0 when no updates are found, 1 when updates exist, and 2 on query failure. Without this flag, finding updates is not itself an error.</dd>
           </dl>
           <pre><code>conficius packages pms --json
 conficius packages doctor --pm npm --global
@@ -186,7 +212,7 @@ conficius packages outdated --project ./app --pm npm
 conficius packages outdated --global --check
 conficius packages outdated --offline --json</code></pre>
           <p class="small">Offline <code>--check</code> cannot detect updates: successful inventory exits normally. The offline text branch maps query failures to exit 2 with <code>--check</code>; the offline JSON branch returns the query error directly. Do not treat either offline success as a freshness assertion.</p>
-          <p>Profile <code>npm_dependency_classes</code> can filter npm selection by <code>runtime</code>, <code>development</code>, <code>optional</code>, <code>peer</code>, <code>transitive</code>, or <code>extraneous</code>. Reported class filters explain why selection differs from a manager’s full inventory.</p>
+          <p>Online Homebrew queries run <code>brew update</code> before <code>brew outdated</code>. This refreshes local Homebrew metadata even during update previews or vulnerability checks that query outdated packages. Offline inventory skips freshness queries.</p>
         </section>
 
         <section id="vulnerabilities" aria-labelledby="vulnerabilities-title">
@@ -199,7 +225,7 @@ conficius packages vulnerabilities --project ./app --transitive --json</code></p
             <li><strong>OSV requires reliable ecosystem identity.</strong> Built-in inventory metadata supplies identities where available; npm has a direct mapping. Other packages may require explicit <code>[[vulnerabilities.mappings]]</code> entries. Never map an OS runtime or distribution package to an unrelated same-named registry package merely to obtain results.</li>
             <li><strong>EUVD requires product and vendor identity.</strong> Built-in identities or <code>[[vulnerabilities.euvd]]</code> mappings identify the product. Results are checked against vendor, product, and installed version; unsupported version rules produce unknown evidence, not a clean result.</li>
             <li>Unmapped, unknown, and error results are coverage gaps. An empty advisory list is not proof that a package is safe. Inventory-only adapters can still contribute scan data without supporting outdated queries or updates.</li>
-            <li>Global scans also inspect available package-manager binaries. Profile <code>security_scope = "selected"</code> filters ordinary package inventory through profile rules; otherwise scanning is not limited to update selection.</li>
+            <li>Global scans also inspect available package-manager binaries. Manager enablement and selected scopes control inventory; there is no separate profile security-selection policy.</li>
             <li>OSV and EUVD evidence stays separate; the same CVE can appear from both sources. Summary counts describe evidence, not necessarily unique vulnerabilities.</li>
             <li>An available upgrade is not necessarily a security fix. Review advisory ranges and upgrade notes; the latest available version can still be affected.</li>
             <li>Findings alone do not provide a dedicated CI failure threshold. Inventory, freshness, or scan errors can return nonzero even when JSON evidence was emitted; inspect both the exit status and report.</li>
@@ -222,7 +248,7 @@ vendor = "nodejs"</code></pre>
         <section id="updates" aria-labelledby="updates-title">
           <div class="section-head"><h2 id="updates-title">Updates and safeguards</h2></div>
           <h3><code>packages update</code></h3>
-          <p>Preview manager-specific update plans by default, after profile filtering. Plans show commands, scope, state hashes, and mutation impact. Accepts the shared package options plus:</p>
+          <p>Preview manager-specific update plans by default for enabled managers and selected scopes. Plans show commands, scope, state hashes, and mutation impact. Accepts the shared package options plus:</p>
           <dl>
             <dt><code>--include PACKAGE</code></dt><dd>Include a package by <code>manager:name</code> or a globally unique name. Repeat for multiple selections.</dd>
             <dt><code>--exclude PACKAGE</code></dt><dd>Exclude a package using the same selector syntax. Repeat as needed.</dd>
@@ -251,6 +277,7 @@ conficius packages update --global --pm npm --include npm:typescript \
             <li>A durable update log is written before execution. Failure to create it prevents updates. Commands run through the native managers; permission prompts and service impacts depend on the manager.</li>
             <li>Execution outcomes are verified against installed state and the log is finalized. Partial changes can remain after failure; review outcomes and any recovery guidance before retrying.</li>
           </ol>
+          <p class="note"><strong>Current CLI limits.</strong> Manager-version and project-mutation checks run against the initial plans, before the fresh query; the refreshed plans are not checked again by those guards. Interactive execution does not require accepted hashes or another confirmation for refreshed plans. An initial query error can still allow successfully queried plans to run and then be returned after execution. Preview output is not a frozen execution contract.</p>
           <p class="note"><strong>No universal rollback.</strong> Native package updates can alter manifests, lockfiles, installed binaries, and services. Keep recoverable configuration and project backups. A dry run avoids executing update commands, but it can still query registries and run manager inspection commands.</p>
         </section>
 

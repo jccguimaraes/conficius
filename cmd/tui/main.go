@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
 
 	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/euvd"
+	"github.com/jccguimaraes/conficius/internal/layout"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
@@ -36,6 +38,8 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
+	packageConfigPath string
+	packageConfigErr  error
 	dotfiles          *dotfileState
 	homeCards         []homeCard
 	wisdom            string
@@ -55,6 +59,9 @@ type model struct {
 	dotfileGeneration uint64
 	dotfileCancel     context.CancelFunc
 	profile           config.ResolvedProfile
+	profileOverride   string
+	profiles          []string
+	profileRows       []profileRow
 	scopes            []config.Scope
 	active            *config.Scope
 	packages          []packagemanager.Package
@@ -72,7 +79,6 @@ type model struct {
 	updateErrorLines  []string
 	updating          bool
 	runInteractive    bool
-	drift             []config.PackageState
 	findings          []vulnerabilityRow
 	detail            vulnerabilityRow
 	mappings          []config.VulnerabilityMapping
@@ -93,51 +99,16 @@ func main() {
 }
 
 func run() error {
-	configFlag, err := parseStartupFlags(os.Args[1:], os.Stdout)
+	configFlag, packageFlag, err := parseConfigFlags(os.Args[1:], os.Stdout)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	path, discoverErr := config.Discover(configFlag)
-	project, configErr := config.LoadDiscovered(configFlag)
-	configErr = errors.Join(discoverErr, configErr)
-	dotfiles := newDotfileState(project, configErr, path)
-	if configErr != nil || project == nil {
-		project = &config.Project{Version: config.CurrentVersion}
-	}
-	profile, err := project.ResolveProfile("", false)
+	data, err := startupModel(configFlag, packageFlag)
 	if err != nil {
-		if dotfiles == nil {
-			dotfiles = newDotfileState(nil, err, path)
-		} else {
-			dotfiles.configErr = err
-		}
-		project = &config.Project{Version: config.CurrentVersion}
-		profile, _ = project.ResolveProfile("", false)
-	}
-	scopes, err := config.ResolveScopes(project, profile, false, nil, nil)
-	if err != nil {
-		if dotfiles == nil {
-			dotfiles = newDotfileState(nil, err, path)
-		} else {
-			dotfiles.configErr = errors.Join(dotfiles.configErr, err)
-		}
-		project = &config.Project{Version: config.CurrentVersion}
-		profile, _ = project.ResolveProfile("", false)
-		scopes, err = config.ResolveScopes(project, profile, false, nil, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	data := &model{
-		dotfiles: dotfiles, networkPending: true,
-		profile: profile, scopes: scopes, mappings: project.Vulnerabilities.Mappings, euvdMaps: project.Vulnerabilities.EUVD,
-		osvClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
-		euvdClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
-		status:     "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string),
+		return err
 	}
 	startView := "home"
 	if encoded := os.Getenv(restartStateEnv); encoded != "" {
@@ -155,6 +126,69 @@ func run() error {
 		return nil
 	}
 	return runInteractiveUpgrades(data)
+}
+
+func startupModel(configFlag, packageFlag string) (*model, error) {
+	path, discoverErr := config.Discover(configFlag)
+	dotfileProject, configErr := config.LoadDiscovered(configFlag)
+	dotfiles := newDotfileState(dotfileProject, errors.Join(discoverErr, configErr), path)
+	dotfiles.packageConfigPath = packageFlag
+	data := &model{
+		dotfiles: dotfiles, packageConfigPath: packageFlag, networkPending: true,
+		osvClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
+		euvdClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
+		status:     "Loading...", selected: make(map[string]bool), failed: make(map[string]string), attempted: make(map[string]string),
+	}
+	_ = reloadPackageConfig(data)
+	return data, nil
+}
+
+func reloadPackageConfig(data *model) (err error) {
+	defer func() { data.packageConfigErr = err }()
+	project, err := config.LoadPackages(data.packageConfigPath)
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(project.Profiles)+1)
+	for name := range project.Profiles {
+		names = append(names, name)
+	}
+	if _, exists := project.Profiles["default"]; !exists {
+		names = append(names, "default")
+	}
+	sort.Strings(names)
+	data.profiles = names
+	data.profileRows = nil
+	for _, name := range names {
+		data.profileRows = append(data.profileRows, profileRow{Name: name})
+	}
+	profile, err := project.ResolveProfile(data.profileOverride, false)
+	if err != nil {
+		return err
+	}
+	scopes, err := config.ResolveScopes(project, profile, false, nil, nil)
+	if err != nil {
+		return err
+	}
+	var active *config.Scope
+	if data.active != nil {
+		for i := range scopes {
+			if scopes[i].Kind == data.active.Kind && scopes[i].Path == data.active.Path {
+				active = &scopes[i]
+				break
+			}
+		}
+	}
+	data.profile, data.scopes, data.active = profile, scopes, active
+	data.profileRows = nil
+	for _, name := range names {
+		data.profileRows = append(data.profileRows, profileRow{Name: name, Active: name == profile.Name})
+	}
+	data.mappings, data.euvdMaps = project.Vulnerabilities.Mappings, project.Vulnerabilities.EUVD
+	if data.dotfiles != nil {
+		data.dotfiles.mode = layout.Mode(project.Layout)
+	}
+	return nil
 }
 
 func runSession(data *model, startView string) error {
@@ -176,19 +210,27 @@ func runSession(data *model, startView string) error {
 		registerDotfiles(data.dotfiles, app)
 	}
 	registerHome(data, app)
+	profileComponent, profileList := profileView(data, app)
+	app.View("profiles", profileComponent).
+		Handle("q", app.Stop).
+		Handle("<Esc>", func() { data.active = nil; app.Go("home") }).
+		Handle("<down>", profileList.Down).
+		Handle("<up>", profileList.Up).
+		Handle("r", func() { refreshLocal(data, app) })
 	scopeComponent, scopeList := scopeView(data, app)
 	app.View("scopes", scopeComponent).
 		Handle("q", app.Stop).
-		Handle("<Esc>", func() { updateHome(data); app.Go("home") }).
+		Handle("<Esc>", func() { data.active = nil; updateHome(data); app.Go("home") }).
+		Handle("p", func() { app.Go("profiles") }).
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
 	resultComponent, packageList := resultView(data)
 	app.View("results", resultComponent).
 		Handle("q", app.Stop).
-		Handle("<Esc>", func() { app.Go("scopes") }).
+		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
+		Handle("p", func() { app.Go("profiles") }).
 		Handle("r", func() { refresh(data, app) }).
-		Handle("d", func() { app.Go("drift") }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("<Enter>", func() {
 			if row := packageList.Selected(); row != nil {
@@ -212,25 +254,6 @@ func runSession(data *model, startView string) error {
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("<down>", errorList.Down).
 		Handle("<up>", errorList.Up)
-	driftComponent, driftList := driftView(data)
-	app.View("drift", driftComponent).
-		Handle("q", app.Stop).
-		Handle("<Esc>", func() { app.Go("results") }).
-		Handle("o", func() { app.Go("results") }).
-		Handle("v", func() { app.Go("vulnerabilities") }).
-		Handle("r", func() { refresh(data, app) }).
-		Handle("<down>", driftList.Down).
-		Handle("<up>", driftList.Up).
-		Handle("j", driftList.Down).
-		Handle("k", driftList.Up).
-		Handle("<C-d>", driftList.HalfPageDown).
-		Handle("<C-u>", driftList.HalfPageUp).
-		Handle("<Enter>", func() {
-			if row := driftList.Selected(); row != nil {
-				data.packageDetailText = driftDetails(row)
-				app.Go("drift-detail")
-			}
-		})
 	app.View("confirm", confirmView(data)).
 		Handle("q", app.Stop).
 		Handle("y", func() { applyUpgrades(data, app) }).
@@ -241,7 +264,6 @@ func runSession(data *model, startView string) error {
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
-		Handle("d", func() { app.Go("drift") }).
 		Handle("r", func() { refresh(data, app) }).
 		Handle("<Enter>", func() {
 			if selected := vulnerabilityList.Selected(); selected != nil {
@@ -258,7 +280,7 @@ func runSession(data *model, startView string) error {
 	app.View("vulnerability-detail", vulnerabilityDetailView(data, app)).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
-	for name, back := range map[string]string{"package-detail": "results", "drift-detail": "drift"} {
+	for name, back := range map[string]string{"package-detail": "results"} {
 		details := glyph.TextView(&data.packageDetailText).WordWrap().Grow(1).BindNav("j", "k").BindNav("<down>", "<up>").BindPageNav("<C-d>", "<C-u>")
 		app.View(name, screenFrame("Packages / Details", "Profile: "+data.profile.Name, &data.status, details, "↑/↓ scroll  Esc back  q quit")).
 			Handle("<Esc>", func() { app.Go(back) }).Handle("q", app.Stop)
@@ -266,13 +288,10 @@ func runSession(data *model, startView string) error {
 	keepPackages := preserveListFocus(packageList, &data.rows, func(row *outdatedRow) string {
 		return packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
 	})
-	keepDrift := preserveListFocus(driftList, &data.drift, func(row *config.PackageState) string {
-		return packageKey(row.Scope, row.Path, row.Manager, row.Name)
-	})
 	keepFindings := preserveListFocus(vulnerabilityList, &data.findings, func(row *vulnerabilityRow) string {
 		return packageKey(row.Scope, row.Path, row.Manager, row.Package) + "\x00" + row.Source + "\x00" + row.SourceID
 	})
-	data.packageFocus = func(update func()) { keepPackages(func() { keepDrift(func() { keepFindings(update) }) }) }
+	data.packageFocus = func(update func()) { keepPackages(func() { keepFindings(update) }) }
 	defer func() { data.packageFocus = nil }()
 	registerScreenHelp(app, data)
 	startView, _ = registerResizeView(app, data, startView)
@@ -309,9 +328,36 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	if data.cancel != nil {
 		data.cancel()
 	}
+	data.generation++
+	clear(data.selected)
+	data.plans, data.commands = nil, nil
+	data.preview, data.planSummary = "", ""
+	data.packages, data.rows = nil, nil
+	data.findings, data.detail = nil, vulnerabilityRow{}
+	data.packageDetailText = ""
+	data.securitySummary, data.securityCount = security.Summary{}, 0
+	data.query = packagemanager.QueryResult{}
+	data.installedCount = 0
+	data.localChecked, data.outdatedChecked, data.securityChecked = false, false, false
+	data.localErr, data.outdatedErr, data.securityErr = nil, nil, nil
+	hadActive := data.active != nil
+	if err := reloadPackageConfig(data); err != nil {
+		data.loading, data.localLoading, data.securityScanning = false, false, false
+		data.status = fmt.Sprintf("Package configuration error: %v", err)
+		updateHome(data)
+		app.RequestRender()
+		return
+	}
+	if hadActive && data.active == nil {
+		data.loading, data.localLoading, data.securityScanning, data.networkPending = false, false, false, false
+		data.status = "Selected scope removed from package configuration; choose a scope to refresh"
+		updateHome(data)
+		app.Go("scopes")
+		app.RequestRender()
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	data.cancel = cancel
-	data.generation++
 	generation := data.generation
 	data.loading = true
 	data.localLoading, data.localChecked, data.localErr = true, false, nil
@@ -367,7 +413,6 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			inventory.Packages = append(inventory.Packages, managerPackages...)
 			inventoryErr = errors.Join(inventoryErr, managerErr)
 		}
-		selected, drift := evaluateInventory(profile, inventory.Packages)
 		if ctx.Err() != nil {
 			return
 		}
@@ -376,11 +421,11 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 				return
 			}
 			data.localLoading, data.localChecked, data.localErr = false, true, inventoryErr
-			data.installedCount, data.drift = len(inventory.Packages), drift
+			data.installedCount = len(inventory.Packages)
 			if !full {
 				data.loading = false
 			}
-			data.status = appendCollisionStatus(appendManagerStatus(fmt.Sprintf("%d installed, %d drift; outdated unknown; security unknown (network pending)", len(inventory.Packages), len(drift)), inventory.Managers), inventory.Commands)
+			data.status = appendCollisionStatus(appendManagerStatus(fmt.Sprintf("%d installed; outdated unknown; security unknown (network pending)", len(inventory.Packages)), inventory.Managers), inventory.Commands)
 			if inventoryErr != nil {
 				data.status = queryStatus(inventoryErr) + "; outdated unknown; security unknown (network pending)"
 			}
@@ -397,11 +442,8 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 		}
 		securityTargets := packagemanager.Records(result.Packages)
-		packages := filterOutdated(append([]packagemanager.Package(nil), securityTargets...), selected)
+		packages := append([]packagemanager.Package(nil), securityTargets...)
 		scanPackages := inventory.Packages
-		if profile.SecurityScope == "selected" {
-			scanPackages = filterInstalled(inventory.Packages, selected)
-		}
 		if ctx.Err() != nil {
 			return
 		}
@@ -422,8 +464,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			}
 			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
 			data.rows = outdatedRows(packages, data.selected, data.failed)
-			data.drift = drift
-			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), len(drift), upgraded, unchanged, failed), result.Managers), inventory.Commands)
+			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), upgraded, unchanged, failed), result.Managers), inventory.Commands)
 			if err != nil {
 				data.status = queryStatus(err)
 			}
@@ -444,7 +485,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			data.securityScanning, data.securityChecked, data.securityErr = false, true, scanErr
 			data.securitySummary, data.securityCount = report.Summary, len(scanPackages)
 			data.findings = vulnerabilityRows(report.Evidence)
-			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), len(drift), report.Summary, report.Evidence), err, scanErr)
+			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), report.Summary, report.Evidence), err, scanErr)
 			if len(data.failed) > 0 {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
 			}
@@ -454,14 +495,14 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	}()
 }
 
-func vulnerabilitySummary(outdated, drift int, summary security.Summary, evidence []security.Evidence) string {
+func vulnerabilitySummary(outdated int, summary security.Summary, evidence []security.Evidence) string {
 	unknown := 0
 	for _, item := range evidence {
 		if item.Status == security.StatusUnknown && item.Advisory != "" && len(item.Rules) > 0 {
 			unknown++
 		}
 	}
-	return fmt.Sprintf("%d outdated, %d drift; %d vulnerable, %d unknown, %d security errors", outdated, drift,
+	return fmt.Sprintf("%d outdated; %d vulnerable, %d unknown, %d security errors", outdated,
 		summary.Vulnerable, unknown, summary.Errors)
 }
 
@@ -516,36 +557,6 @@ func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
 
 func selectScope(data *model, scope *config.Scope) {
 	data.active = scope
-}
-
-func filterOutdated(packages []packagemanager.Package, selected []config.InstalledVersion) []packagemanager.Package {
-	allowed := selectedKeys(selected)
-	result := packages[:0]
-	for _, pkg := range packages {
-		if _, ok := allowed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]; ok {
-			result = append(result, pkg)
-		}
-	}
-	return result
-}
-
-func filterInstalled(packages []packagemanager.InstalledPackage, selected []config.InstalledVersion) []packagemanager.InstalledPackage {
-	allowed := selectedKeys(selected)
-	result := packages[:0]
-	for _, pkg := range packages {
-		if _, ok := allowed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]; ok {
-			result = append(result, pkg)
-		}
-	}
-	return result
-}
-
-func selectedKeys(packages []config.InstalledVersion) map[string]struct{} {
-	keys := make(map[string]struct{}, len(packages))
-	for _, pkg := range packages {
-		keys[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = struct{}{}
-	}
-	return keys
 }
 
 func packageKey(scope, path, manager, name string) string {

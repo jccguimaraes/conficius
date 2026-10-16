@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -43,7 +42,7 @@ func TestDiscoverPrecedence(t *testing.T) {
 	}
 }
 
-func TestLoadDiscoveredMergesGlobalAndProjectProfiles(t *testing.T) {
+func TestLoadDiscoveredKeepsProfilesIsolated(t *testing.T) {
 	home := t.TempDir()
 	xdg := filepath.Join(home, "xdg")
 	projectRoot := filepath.Join(home, "project")
@@ -51,27 +50,33 @@ func TestLoadDiscoveredMergesGlobalAndProjectProfiles(t *testing.T) {
 	mustMkdirAll(t, projectRoot)
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", xdg)
-	mustWrite(t, filepath.Join(xdg, "conficius", FileName), `version = 2
-[profiles.work]
-mode = "allowlist"
-[[profiles.work.packages]]
-manager = "npm"
-name = "global"
-policy = "include"
+	globalPath := filepath.Join(xdg, "conficius", FileName)
+	mustWrite(t, globalPath, `version = 2
+[profiles.work.managers.npm]
+enabled = true
+[profiles.global]
 `)
 	mustWrite(t, filepath.Join(projectRoot, FileName), `version = 2
 profile = "work"
-[profiles.work.managers.npm]
-expected_global_prefix = "${HOME}/.npm-global"
+[profiles.work.managers.brew]
+enabled = false
 `)
 	withDirectory(t, projectRoot)
-	project, err := LoadDiscovered("")
-	if err != nil {
-		t.Fatal(err)
+	for _, explicit := range []string{"", filepath.Join(projectRoot, FileName)} {
+		project, err := LoadDiscovered(explicit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(project.Profiles) != 1 || len(project.Profiles["work"].Managers) != 1 {
+			t.Fatalf("profiles leaked from global config: %#v", project.Profiles)
+		}
+		if enabled := project.Profiles["work"].Managers["brew"].Enabled; enabled == nil || *enabled {
+			t.Fatalf("local manager settings = %#v", project.Profiles["work"].Managers)
+		}
 	}
-	profile := project.Profiles["work"]
-	if profile.Mode != "allowlist" || len(profile.Packages) != 1 || profile.Managers["npm"].ExpectedGlobalPrefix == "" {
-		t.Fatalf("profile = %#v", profile)
+	mustWrite(t, globalPath, "invalid TOML")
+	if _, err := LoadDiscovered(""); err != nil {
+		t.Fatalf("unrelated global config affected local config: %v", err)
 	}
 }
 
@@ -222,31 +227,26 @@ links = [{ source = "link", target = "$HOME/.zshrc" }]
 }
 
 func TestLoadVersionTwoProfiles(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(ProfileEnvironment, "")
 	root := t.TempDir()
 	path := filepath.Join(root, FileName)
 	mustWrite(t, path, `version = 2
 profile = "work"
-
-[profiles.work]
-mode = "allowlist"
-manager_order = ["mise", "npm"]
-
 [profiles.work.managers.npm]
-expected_global_prefix = "${HOME}/.npm-global"
-
-[[profiles.work.packages]]
-manager = "npm"
-name = "typescript"
-policy = "include"
-desired_version = "5.9.2"
-
+enabled = true
+[profiles.work.managers.brew]
+enabled = false
+[profiles.work.managers.mise]
 [[profiles.work.projects]]
 name = "web"
 path = "./web"
-mode = "allowlist"
-npm_dependency_classes = [" Runtime ", "development"]
+allow_manifest_changes = true
+[profiles.personal.managers.cargo]
+enabled = true
+[[profiles.personal.projects]]
+name = "web"
+path = "./personal"
 `)
 	project, err := Load(path)
 	if err != nil {
@@ -256,17 +256,23 @@ npm_dependency_classes = [" Runtime ", "development"]
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Name != "work" || resolved.Profile.Mode != "allowlist" {
+	if resolved.Name != "work" || resolved.Source != path || resolved.Provenance["config"] != path {
 		t.Fatalf("resolved = %#v", resolved)
 	}
-	if got := resolved.Profile.Managers["npm"].ExpectedGlobalPrefix; got != filepath.Join(home, ".npm-global") {
-		t.Fatalf("npm prefix = %q", got)
+	managers := resolved.Profile.Managers
+	if len(managers) != 3 || managers["npm"].Enabled == nil || !*managers["npm"].Enabled || managers["brew"].Enabled == nil || *managers["brew"].Enabled || managers["mise"].Enabled != nil {
+		t.Fatalf("managers = %#v", managers)
 	}
-	if got := resolved.Profile.Projects[0].Path; got != filepath.Join(root, "web") {
-		t.Fatalf("project path = %q", got)
+	if len(resolved.Profile.Projects) != 1 {
+		t.Fatalf("projects = %#v", resolved.Profile.Projects)
 	}
-	if got := resolved.Profile.Projects[0].NPMDependencyClasses; !reflect.DeepEqual(got, []string{"runtime", "development"}) {
-		t.Fatalf("npm dependency classes = %#v", got)
+	web := resolved.Profile.Projects[0]
+	if web.Path != filepath.Join(root, "web") || web.ResolvedPath != web.Path || !web.AllowManifestChanges {
+		t.Fatalf("project = %#v", web)
+	}
+	personal, err := project.ResolveProfile("personal", false)
+	if err != nil || len(personal.Profile.Managers) != 1 || personal.Profile.Projects[0].Path != filepath.Join(root, "personal") || personal.Profile.Projects[0].AllowManifestChanges {
+		t.Fatalf("personal = %#v, %v", personal, err)
 	}
 }
 
@@ -317,10 +323,13 @@ func TestVersionOneRejectsNamedProfileSelection(t *testing.T) {
 func TestLoadRejectsInvalidProfiles(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	tests := map[string]string{
-		"unknown field":     "version = 2\n[profiles.default]\nexlcude = true\n",
-		"invalid name":      "version = 2\n[profiles.Upper]\n",
-		"duplicate package": "version = 2\n[profiles.default]\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='include'\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='include'\n",
-		"excluded version":  "version = 2\n[profiles.default]\n[[profiles.default.packages]]\nmanager='npm'\nname='x'\npolicy='exclude'\ndesired_version='1'\n",
+		"unknown field":        "version = 2\n[profiles.default]\nexlcude = true\n",
+		"invalid name":         "version = 2\n[profiles.Upper]\n",
+		"unsupported manager":  "version = 2\n[profiles.default.managers.unknown]\nenabled=true\n",
+		"duplicate project":    "version = 2\n[[profiles.default.projects]]\nname='web'\npath='./web'\n[[profiles.default.projects]]\nname='web'\npath='./other'\n",
+		"duplicate path":       "version = 2\n[[profiles.default.projects]]\nname='web'\npath='./web'\n[[profiles.default.projects]]\nname='other'\npath='./web/../web'\n",
+		"empty path":           "version = 2\n[[profiles.default.projects]]\nname='web'\npath=''\n",
+		"invalid project name": "version = 2\n[[profiles.default.projects]]\nname='Web'\npath='./web'\n",
 	}
 	for name, contents := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -359,7 +368,7 @@ func TestInitWritesLoadableExampleAndRefusesExisting(t *testing.T) {
 	if len(project.Tools) != 0 || len(project.Vulnerabilities.Mappings) != 0 || len(project.Profiles["default"].Managers) != 0 {
 		t.Fatalf("generated config enables optional examples: %+v", project)
 	}
-	if project.Version != CurrentVersion || project.Profiles["default"].Mode != "denylist" {
+	if project.Version != CurrentVersion || len(project.Profiles) != 0 {
 		t.Fatalf("generated config defaults: %+v", project)
 	}
 	if _, err := Init(path); err == nil || !strings.Contains(err.Error(), "already exists") {

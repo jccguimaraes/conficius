@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/config"
+	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/kungfusheep/glyph"
 )
 
@@ -25,16 +26,6 @@ func packageColumns(kind string, width int, columns []packageColumn) []packageCo
 				columns[i].width = 0
 				count--
 			}
-		}
-	case "drift":
-		if width < 96 {
-			count--
-		}
-		if width < 76 {
-			count--
-		}
-		if width < 58 {
-			count = 2
 		}
 	default:
 		if width < 118 {
@@ -154,15 +145,52 @@ func packageTable(kind string, columns func() []packageColumn, loading *bool, li
 	return glyph.VBox.Grow(1)(glyph.HBox(glyph.Space().Width(2), glyph.VBox.Grow(1)(packageTableRow(kind, columns, true))), glyph.HRule(), loadingContent(loading, list))
 }
 
+func switchProfile(data *model, name string) {
+	data.profileOverride = name
+	data.active = nil
+	clear(data.selected)
+	clear(data.failed)
+	clear(data.attempted)
+	data.plans, data.commands = nil, nil
+	data.preview, data.planSummary = "", ""
+	data.packages, data.rows, data.findings = nil, nil, nil
+	data.query = packagemanager.QueryResult{}
+	data.detail, data.packageDetailText = vulnerabilityRow{}, ""
+	data.installedCount, data.securityCount = 0, 0
+	data.localChecked, data.outdatedChecked, data.securityChecked = false, false, false
+	data.updateErrorLines = nil
+	data.runInteractive = false
+}
+
+type profileRow struct {
+	Name   string
+	Active bool
+}
+
+func profileView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[profileRow]) {
+	list := styleList(glyph.List(&data.profileRows)).Render(func(row *profileRow) glyph.Component {
+		return glyph.HBox.Gap(1)(glyph.Text(&row.Name).FG(glyph.If(&row.Active).Then(glyph.Cyan).Else(glyph.Color{})), glyph.If(&row.Active).Then(glyph.Text("(active)").FG(glyph.Cyan)))
+	}).BindNav("j", "k").Handle("<Enter>", func(row *profileRow) {
+		switchProfile(data, row.Name)
+		refreshLocal(data, app)
+		if data.packageConfigErr == nil {
+			app.Go("scopes")
+		}
+	})
+	return screenFrame("Packages / Profiles", packageContext(data), &data.status, list, "↑/↓ move  Enter choose  Esc Home"), list
+}
+
 func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[config.Scope]) {
 	list := styleList(glyph.List(&data.scopes)).Render(func(scope *config.Scope) glyph.Component {
-		return glyph.VBox(glyph.Textf(&scope.Kind, ":", &scope.Name), glyph.TextBlock(&scope.Path).CharWrap())
+		return glyph.HBox.Gap(2)(glyph.If(&scope.Name).Then(glyph.Text(&scope.Name)).Else(glyph.Text(&scope.Kind)), glyph.Text(&scope.Path).Dim())
 	}).BindNav("j", "k").Handle("<Enter>", func(scope *config.Scope) {
 		selectScope(data, scope)
 		refresh(data, app)
-		app.Go("results")
+		if data.packageConfigErr == nil && data.active != nil {
+			app.Go("results")
+		}
 	})
-	return screenFrame("Packages / Scopes", packageContext(data), &data.status, list, "↑/↓ move  Enter open"), list
+	return screenFrame("Packages / Scopes", packageContext(data), &data.status, list, "↑/↓ move  Enter open  p profiles"), list
 }
 
 func outdatedColumns(row *outdatedRow) []packageColumn {
@@ -176,7 +204,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 		return packageTableRow("outdated", func() []packageColumn { return outdatedColumns(row) }, false)
 	})
 	content := packageTable("outdated", func() []packageColumn { return outdatedColumns(&outdatedRow{}) }, &data.loading, list)
-	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, "↑/↓ Enter details  Space mark"), list
+	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, "↑/↓ Enter details  Space mark  p profiles"), list
 }
 
 func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
@@ -191,18 +219,6 @@ func confirmView(data *model) glyph.Component {
 		return glyph.VBox(glyph.Textf(&row.Manager, "  ", &row.Scope, "  ", &row.Packages), glyph.TextBlock(&row.Command).CharWrap())
 	}).Marker("").BindNav("<down>", "<up>").BindNav("j", "k").BindHalfPageNav("<C-d>", "<C-u>")
 	return screenFrame("Packages / Confirm upgrades", packageContext(data), &data.status, glyph.VBox.Grow(1)(glyph.Text(&data.planSummary).Bold(), glyph.HRule(), loadingContent(&data.updating, list)), "↑/↓ j/k scroll  Ctrl-d/u page  y apply  n/Esc cancel")
-}
-
-func driftColumns(row *config.PackageState) []packageColumn {
-	return []packageColumn{{"Tool", &row.Name, 22, glyph.Color{}}, {"State", &row.Status, 14, glyph.Match(&row.Status, glyph.Eq(config.DriftBehind, glyph.Red), glyph.Eq(config.DriftMissing, glyph.Red), glyph.Eq(config.DriftUnsupported, glyph.Yellow)).Default(glyph.Green)}, {"Installed", &row.Installed, 16, glyph.Color{}}, {"Desired", &row.DesiredVersion, 16, glyph.Color{}}, {"Manager", &row.Manager, 8, glyph.Color{}}, {"Scope", &row.Scope, 10, glyph.Color{}}}
-}
-
-func driftView(data *model) (glyph.Component, *glyph.ListC[config.PackageState]) {
-	list := styleList(glyph.List(&data.drift)).Render(func(row *config.PackageState) glyph.Component {
-		return packageTableRow("drift", func() []packageColumn { return driftColumns(row) }, false)
-	})
-	content := packageTable("drift", func() []packageColumn { return driftColumns(&config.PackageState{}) }, &data.loading, list)
-	return screenFrame("Packages / Drift", packageContext(data), &data.status, content, "↑/↓ move  Enter details"), list
 }
 
 func vulnerabilityColumns(row *vulnerabilityRow) []packageColumn {
@@ -270,10 +286,6 @@ func packageDetails(row *outdatedRow) string {
 		sections = append(sections, "Error\n"+row.Error)
 	}
 	return strings.Join(sections, "\n\n")
-}
-
-func driftDetails(row *config.PackageState) string {
-	return fmt.Sprintf("Package\n%s\n\nState\n%s\n\nInstalled\n%s\n\nDesired\n%s\n\nManager\n%s\n\nScope\n%s\n\nPath\n%s\n\nDependency class\n%s", row.Name, row.Status, row.Installed, row.DesiredVersion, row.Manager, row.Scope, row.Path, row.DependencyClass)
 }
 
 func loadingContent(loading *bool, content glyph.Component) glyph.Component {

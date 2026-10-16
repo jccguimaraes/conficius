@@ -13,6 +13,7 @@ import (
 const restartStateEnv = "CONFICIUS_TUI_RESTART_STATE"
 
 type restartState struct {
+	Profile   string            `json:"profile,omitempty"`
 	Screen    string            `json:"screen"`
 	ScopeKind string            `json:"scope_kind,omitempty"`
 	ScopePath string            `json:"scope_path,omitempty"`
@@ -41,6 +42,10 @@ func decodeRestartState(value string) (restartState, error) {
 }
 
 func restoreRestartState(data *model, state restartState) string {
+	if state.Profile != "" {
+		data.profileOverride = state.Profile
+		_ = reloadPackageConfig(data)
+	}
 	for i := range data.scopes {
 		if data.scopes[i].Kind == state.ScopeKind && data.scopes[i].Path == state.ScopePath {
 			data.active = &data.scopes[i]
@@ -75,7 +80,7 @@ func restoreStdin(source, target int) error {
 }
 
 func execFreshTUI(tty *os.File, data *model) error {
-	state := restartState{Screen: "results", Failed: data.failed, Attempted: data.attempted}
+	state := restartState{Profile: data.profileOverride, Screen: "results", Failed: data.failed, Attempted: data.attempted}
 	if data.active != nil {
 		state.ScopeKind, state.ScopePath = data.active.Kind, data.active.Path
 	}
