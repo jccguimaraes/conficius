@@ -237,7 +237,29 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 	list := styleList(glyph.List(&data.findings)).Render(func(row *vulnerabilityRow) glyph.Component {
 		return packageTableRow("vulnerability", func() []packageColumn { return vulnerabilityColumns(row) }, false)
 	})
-	content := packageTable("vulnerability", func() []packageColumn { return vulnerabilityColumns(&vulnerabilityRow{}) }, &data.loading, list)
+	options := func() string {
+		indirect, graph := "off", "off"
+		if data.includeIndirect {
+			indirect = "on"
+		}
+		if data.includeGraphOnly {
+			graph = "on"
+		}
+		return "Indirect " + indirect + " · Graph " + graph
+	}
+	scope := glyph.IfOrd(&screenSize.Width).Gte(50).
+		Then(glyph.Text(func() string { return "Direct + tools · " + options() }).Dim()).
+		Else(glyph.VBox(glyph.Text("Direct + tools").Dim(), glyph.Text(options).Dim()))
+	empty := glyph.Text(func() string {
+		if len(data.findings) != 0 {
+			return ""
+		}
+		if data.securityChecked {
+			return "No findings in selected scope."
+		}
+		return "No findings yet in selected scope."
+	})
+	content := glyph.VBox.Grow(1)(scope, empty, packageTable("vulnerability", func() []packageColumn { return vulnerabilityColumns(&vulnerabilityRow{}) }, &data.loading, list))
 	return screenFrame("Packages / Vulnerabilities", packageContext(data), &data.status, content, "↑/↓ move  Enter details  i indirect  g graph-only", &data.securityScanning), list
 }
 

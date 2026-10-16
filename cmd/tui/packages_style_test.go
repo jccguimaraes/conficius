@@ -49,6 +49,48 @@ func TestPackageViewsResponsive(t *testing.T) {
 	updateScreenSize(80, 24)
 }
 
+func TestVulnerabilityScopePersistsAcrossTogglesAndScanStates(t *testing.T) {
+	defer updateScreenSize(80, 24)
+	for _, width := range []int{40, 80, 120} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			updateScreenSize(width, 12)
+			data := &model{}
+			view, _ := vulnerabilityView(data)
+			template := glyph.Build(view)
+			render := func(indirect, graph string) string {
+				t.Helper()
+				buffer := glyph.NewBuffer(width, 12)
+				template.Execute(buffer, int16(width), 12)
+				output := homeRenderOutput(buffer, 12)
+				for _, want := range []string{"Direct + tools", "Indirect " + indirect, "Graph " + graph} {
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing %q:\n%s", want, output)
+					}
+				}
+				return output
+			}
+			if output := render("off", "off"); !strings.Contains(output, "No findings yet in selected scope.") {
+				t.Fatal(output)
+			}
+			toggleIndirect(data, func() {})
+			data.loading, data.securityScanning, data.securityCount = true, true, 99
+			render("on", "off")
+			toggleGraphOnly(data, func() {})
+			render("on", "on")
+			toggleIndirect(data, func() {})
+			data.loading, data.securityScanning, data.securityChecked = false, false, true
+			if output := render("off", "on"); !strings.Contains(output, "No findings in selected scope.") {
+				t.Fatal(output)
+			}
+			toggleGraphOnly(data, func() {})
+			data.findings = []vulnerabilityRow{{Evidence: security.Evidence{Package: "lodash", Status: "vulnerable"}}}
+			if output := render("off", "off"); strings.Contains(output, "No findings") || !strings.Contains(output, "lodash") {
+				t.Fatal(output)
+			}
+		})
+	}
+}
+
 func TestPackageLoadingRetainsRows(t *testing.T) {
 	loading := true
 	template := glyph.Build(loadingContent(&loading, glyph.Text("existing-row")))
