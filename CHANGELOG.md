@@ -10,6 +10,25 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+## [0.0.3]
+
+### Features
+
+- Separate package configuration from dotfile links, with XDG and OS-native layouts.
+- Simplify profiles to project groups and enabled managers; native manifests own dependency versions.
+- Add APT inventory and cached upgrade inspection, plus confirmed Linux TUI cache refresh.
+- Add TUI profile switching, configuration reload on refresh, compact project rows, and clearer shortcut styling.
+- Refresh Homebrew metadata before checking available updates.
+
+### Fixes
+
+- Allow TUI startup without dotfile configuration and show optional setup guidance.
+- Enforce project update safeguards and reject ambiguous duplicate-manager update plans in TUI.
+
+### Documentation
+
+- Expand website and configuration reference with self-managed dotfiles examples and syntax highlighting.
+
 ## [0.0.2]
 
 ### Features
