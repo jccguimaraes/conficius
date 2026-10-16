@@ -153,7 +153,16 @@
     .doc-page .rail { align-self: stretch; border-bottom: 0; }
     .doc-page .rail nav { display: block; }
     .doc-page .rail nav ul { display: grid; gap: .35rem; list-style: none; padding: 0; margin: 0; }
-    .doc-page .rail nav a { display: block; padding: .55rem .75rem; font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    .doc-page .rail nav a { display: block; min-height: 44px; padding: .55rem .75rem; font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    .doc-page .rail nav details { margin: 0; }
+    .doc-page .rail nav summary { min-height: 44px; padding-left: .75rem; text-decoration: none; }
+    .doc-page .rail nav summary::marker { color: var(--accent); }
+    .doc-page .rail nav summary > a { display: inline-block; width: calc(100% - 1.5rem); padding-inline: .25rem; vertical-align: middle; }
+    .doc-page .rail nav details > ul { display: grid; padding-left: 1.5rem; }
+    .doc-page .rail nav details > ul a { font-size: .8rem; overflow-wrap: anywhere; }
+    .doc-page .rail nav a { border-inline-start: 3px solid transparent; }
+    .doc-page .rail nav a[aria-current="location"] { background: var(--wash); color: var(--accent); font-weight: 700; border-inline-start-color: var(--accent); }
+    .doc-page .rail nav details.is-active > summary > a { color: var(--accent); font-weight: 700; }
     .doc-page .rail nav a:hover, .doc-page .rail nav a:focus-visible { background: var(--wash); color: var(--accent); }
     .doc-page main { width: 100%; }
     .doc-page .table-scroll { max-width: 100%; }
