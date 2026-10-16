@@ -326,6 +326,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 			}
 		}
 	}
+	operations = resolveGoOperations(ctx, operations, result.Managers)
 	queryErrors := requiredManagerErrors(result.Managers)
 	for _, operationResult := range runReadOperations(ctx, operations) {
 		status := &result.Managers[operationResult.operation.managerIndex]
@@ -780,7 +781,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 	var keys []planKey
 	for _, record := range selected {
 		key := planKey{manager: record.Manager, executable: record.Executable, scope: record.Scope, directory: record.Path}
-		if record.Manager == PM_GO {
+		if record.Manager == PM_GO && record.Scope != "project" && record.Scope != "workspace" {
 			key.packageName = record.Name
 		}
 		plan := plansByKey[key]
@@ -812,6 +813,9 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalUpdate, CapabilityProjectUpdate)) {
 			return nil, fmt.Errorf("%s updates are unsupported for %s scope", plan.Manager, plan.Scope)
 		}
+		if plan.Manager == PM_GO && len(plan.Args) < 2 {
+			return nil, fmt.Errorf("%s update has invalid or empty targets", plan.Manager)
+		}
 		plan.Impact = adapter.updateImpact(scope)
 		for _, args := range adapter.recoveryArgs(scope, plan.Packages) {
 			plan.Recovery = append(plan.Recovery, RecoveryCommand{Executable: plan.Executable, Args: args})
@@ -829,7 +833,7 @@ func updatePlanHash(plan UpdatePlan) string {
 		_, _ = hash.Write([]byte{0})
 	}
 	for _, value := range []string{plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
-		strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
+		strconv.FormatBool(plan.Impact.MayChangeManifests), strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
 		writeHashValue(value)
 	}
 	for _, arg := range plan.Args {
@@ -844,6 +848,15 @@ func updatePlanHash(plan UpdatePlan) string {
 	for _, pkg := range plan.Packages {
 		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path} {
 			writeHashValue(value)
+		}
+	}
+	if plan.Manager == PM_GO && (plan.Scope == "project" || plan.Scope == "workspace") {
+		files := snapshotProjectFiles(plan)
+		for _, name := range (Go{}).projectFiles() {
+			contents, exists := files[name]
+			writeHashValue(name)
+			writeHashValue(strconv.FormatBool(exists))
+			writeHashValue(string(contents))
 		}
 	}
 	return hex.EncodeToString(hash.Sum(nil))
@@ -915,11 +928,35 @@ type UpdateOutcome struct {
 	Error        string   `json:"error,omitempty"`
 }
 
+var ErrDirtyProject = errors.New("uncommitted changes")
+var ErrUnversionedProject = errors.New("not in a Git repository")
+
+// ProjectMutationError identifies Git safety failures without parsing CLI messages.
+type ProjectMutationError struct {
+	Paths []string
+	Cause error
+}
+
+func (err *ProjectMutationError) Unwrap() error { return err.Cause }
+
+func (err *ProjectMutationError) Error() string {
+	var messages []string
+	for _, path := range err.Paths {
+		if errors.Is(err.Cause, ErrDirtyProject) {
+			messages = append(messages, fmt.Sprintf("project %q has uncommitted changes; use --allow-dirty", path))
+		} else {
+			messages = append(messages, fmt.Sprintf("project %q is not in a Git repository; use --allow-unversioned", path))
+		}
+	}
+	return strings.Join(messages, "\n")
+}
+
 // ValidateProjectMutations checks manifest permissions and Git safety before project updates.
 func ValidateProjectMutations(plans []UpdatePlan, profile config.Profile, allowDirty, allowUnversioned bool) error {
 	checked := map[string]struct{}{}
+	var dirty []string
 	for _, plan := range plans {
-		if plan.Scope != "project" || plan.Directory == "" {
+		if (plan.Scope != "project" && plan.Scope != "workspace") || plan.Directory == "" {
 			continue
 		}
 		if _, exists := checked[plan.Directory]; exists {
@@ -942,15 +979,18 @@ func ValidateProjectMutations(plans []UpdatePlan, profile config.Profile, allowD
 			if allowUnversioned {
 				continue
 			}
-			return fmt.Errorf("project %q is not in a Git repository; use --allow-unversioned", plan.Directory)
+			return &ProjectMutationError{Paths: []string{plan.Directory}, Cause: ErrUnversionedProject}
 		}
 		status, err := exec.Command("git", "-C", strings.TrimSpace(string(root)), "status", "--porcelain").Output()
 		if err != nil {
 			return fmt.Errorf("inspect Git status for %q: %w", plan.Directory, err)
 		}
 		if len(status) > 0 && !allowDirty {
-			return fmt.Errorf("project %q has uncommitted changes; use --allow-dirty", plan.Directory)
+			dirty = append(dirty, plan.Directory)
 		}
+	}
+	if len(dirty) > 0 {
+		return &ProjectMutationError{Paths: dirty, Cause: ErrDirtyProject}
 	}
 	return nil
 }
@@ -962,6 +1002,11 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
+	for _, plan := range plans {
+		if plan.Manager == PM_GO && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
+			return nil, fmt.Errorf("Go project update plan is stale; refresh preview before applying")
+		}
+	}
 	failedManagers := make(map[string]error)
 	var updateErrors []error
 	for i, plan := range plans {
@@ -1078,7 +1123,7 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 			continue
 		}
 		var err error
-		if plan.Manager == PM_GO {
+		if plan.Manager == PM_GO && plan.Scope == "global" {
 			versions := make(map[string]string, len(plan.Packages))
 			for _, pkg := range plan.Packages {
 				versions[pkg.Name] = pkg.Latest

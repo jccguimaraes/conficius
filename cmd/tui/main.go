@@ -71,6 +71,8 @@ type model struct {
 	failed            map[string]string
 	attempted         map[string]string
 	plans             []packagemanager.UpdatePlan
+	allowDirty        bool
+	dirtyWarning      string
 	preview           string
 	commands          []commandRow
 	planSummary       string
@@ -154,6 +156,7 @@ func startupModel(configFlag, packageFlag string) (*model, error) {
 }
 
 func reloadPackageConfig(data *model) (err error) {
+	resetUpgradePlans(data)
 	defer func() { data.packageConfigErr = err }()
 	project, err := config.LoadPackages(data.packageConfigPath)
 	if err != nil {
@@ -242,11 +245,7 @@ func runSession(data *model, startView string) error {
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("<down>", errorList.Down).
 		Handle("<up>", errorList.Up)
-	app.View("confirm", confirmView(data)).
-		Handle("q", app.Stop).
-		Handle("y", func() { applyUpgrades(data, app) }).
-		Handle("n", func() { app.Go("results") }).
-		Handle("<Esc>", func() { app.Go("results") })
+	registerUpgradeConfirmations(data, app)
 	vulnerabilityComponent, vulnerabilityList := vulnerabilityView(data)
 	app.View("vulnerabilities", vulnerabilityComponent).
 		Handle("q", app.Stop).
@@ -319,8 +318,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	}
 	data.generation++
 	clear(data.selected)
-	data.plans, data.commands = nil, nil
-	data.preview, data.planSummary = "", ""
+	resetUpgradePlans(data)
 	data.packages, data.rows = nil, nil
 	data.findings, data.detail = nil, vulnerabilityRow{}
 	data.packageDetailText = ""

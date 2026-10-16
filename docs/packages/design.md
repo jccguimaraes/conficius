@@ -12,7 +12,7 @@ Current adapters:
 - Homebrew: global formula and cask inventory, outdated checks, and updates.
 - npm: global, project, and workspace inventory, outdated checks, and updates.
 - `mas`, `uv`, and `pipx`: global inventory, outdated checks, and updates.
-- Go: journal-backed global tool inventory, outdated checks, and updates; project and workspace module inventory and outdated checks through `go.mod`, with no project updates.
+- Go: journal-backed global tool inventory, outdated checks, and updates; project and workspace module inventory and outdated checks through `go.mod`, plus pinned native `go get` project updates guarded by manifest permission and Git checks; project updates do not change the global tool journal or promise rollback.
 - Poetry and pnpm: project inventory, outdated checks, and updates.
 - Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
 - Yarn and Bun: project inventory; outdated checks and updates unsupported.

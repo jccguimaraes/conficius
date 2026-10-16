@@ -881,14 +881,43 @@ func TestValidateProjectMutationsKeepsSafetyGuards(t *testing.T) {
 			writeExecutable(t, filepath.Join(dir, "git"), "#!/bin/sh\n"+test.git+"\n")
 			t.Setenv("PATH", dir)
 			profile := config.Profile{Projects: []config.ProfileProject{{Name: "app", Path: project, ResolvedPath: project, AllowManifestChanges: test.manifest}}}
-			err := ValidateProjectMutations(plans, profile, test.dirty, test.unversioned)
-			if test.want == "" {
-				if err != nil {
-					t.Fatal(err)
+			for _, kind := range []string{"project", "workspace"} {
+				plans[0].Scope = kind
+				err := ValidateProjectMutations(plans, profile, test.dirty, test.unversioned)
+				if test.want == "" {
+					if err != nil {
+						t.Fatal(err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("%s error = %v; want %q", kind, err, test.want)
 				}
-			} else if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("error = %v; want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestProjectMutationErrorsIdentifyWholeDirtyBatch(t *testing.T) {
+	bin := t.TempDir()
+	writeExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nif [ \"$3\" = status ]; then echo ' M go.mod'; else printf '%s\\n' \"$2\"; fi\n")
+	t.Setenv("PATH", bin)
+	first, second := t.TempDir(), t.TempDir()
+	plans := []UpdatePlan{{Scope: "project", Directory: first}, {Scope: "workspace", Directory: second}, {Scope: "project", Directory: first}}
+	profile := config.Profile{Projects: []config.ProfileProject{{Path: first, AllowManifestChanges: true}, {Path: second, AllowManifestChanges: true}}}
+	err := ValidateProjectMutations(plans, profile, false, false)
+	var mutation *ProjectMutationError
+	if !errors.Is(err, ErrDirtyProject) || !errors.As(err, &mutation) || len(mutation.Paths) != 2 || mutation.Paths[0] != first || mutation.Paths[1] != second {
+		t.Fatalf("dirty batch error: %v", err)
+	}
+	profile.Projects[1].AllowManifestChanges = false
+	for _, allowDirty := range []bool{false, true} {
+		err := ValidateProjectMutations(plans, profile, allowDirty, false)
+		if err == nil || errors.Is(err, ErrDirtyProject) || !strings.Contains(err.Error(), "does not allow manifest changes") {
+			t.Fatalf("manifest guard lost: %v", err)
+		}
+	}
+	writeExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nexit 1\n")
+	err = ValidateProjectMutations(plans, profile, true, false)
+	if !errors.Is(err, ErrUnversionedProject) {
+		t.Fatalf("unversioned error: %v", err)
 	}
 }

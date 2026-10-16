@@ -10,9 +10,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 
 	"golang.org/x/mod/modfile"
+	goModule "golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 )
 
@@ -21,22 +24,40 @@ type Go struct{}
 func (Go) name() string                 { return PM_GO }
 func (Go) testedVersions() VersionRange { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
 func (Go) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate}
+	return []Capability{CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate}
 }
-func (Go) updateImpact(Scope) MutationImpact { return MutationImpact{} }
-func (Go) recoveryArgs(_ Scope, packages []Package) [][]string {
+func (Go) updateImpact(scope Scope) MutationImpact {
+	return MutationImpact{MayChangeManifests: scope.Kind == "project" || scope.Kind == "workspace"}
+}
+func (Go) recoveryArgs(scope Scope, packages []Package) [][]string {
+	if scope.Kind == "project" || scope.Kind == "workspace" {
+		return nil
+	}
 	args := make([][]string, 0, len(packages))
 	for _, pkg := range packages {
 		args = append(args, []string{"install", pkg.Name + "@" + pkg.Current})
 	}
 	return args
 }
-func (Go) projectFiles() []string { return []string{"go.mod"} }
+func (Go) projectFiles() []string { return []string{"go.mod", "go.sum"} }
 func (Go) updateArgs(packages []Package) []string {
-	if len(packages) != 1 {
+	if len(packages) == 0 {
 		return nil
 	}
-	return []string{"install", packages[0].Name + "@" + packages[0].Latest}
+	project := packages[0].Scope == "project" || packages[0].Scope == "workspace"
+	args := []string{"install"}
+	if project {
+		args[0] = "get"
+	} else if len(packages) != 1 {
+		return nil
+	}
+	for _, pkg := range packages {
+		if goModule.CheckPath(pkg.Name) != nil || !semver.IsValid(pkg.Latest) || pkg.Scope != packages[0].Scope || pkg.Path != packages[0].Path {
+			return nil
+		}
+		args = append(args, pkg.Name+"@"+pkg.Latest)
+	}
+	return args
 }
 func (Go) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
 	if scope.Kind == "project" || scope.Kind == "workspace" {
@@ -176,6 +197,9 @@ func (module goProjectModule) validate(local bool) error {
 	if module.Path == "go" || module.Path == "toolchain" {
 		return nil
 	}
+	if !module.Main && (!local || module.Version != "") && goModule.CheckPath(module.Path) != nil {
+		return fmt.Errorf("invalid Go module path: %q", module.Path)
+	}
 	if !module.Main && (!local || module.Version != "") && !semver.IsValid(module.Version) {
 		return fmt.Errorf("invalid Go module version for %q: %q", module.Path, module.Version)
 	}
@@ -193,6 +217,78 @@ func (module goProjectModule) validate(local bool) error {
 		}
 	}
 	return nil
+}
+
+// resolveGoOperations identifies compilers in each scope, where shims may select
+// different installations. Keep discovery path identity when self-identification fails.
+func resolveGoOperations[T any](ctx context.Context, operations []readOperation[T], statuses []ManagerStatus) []readOperation[T] {
+	type key struct {
+		executable string
+		scope      Scope
+	}
+	resolved := make(map[key]string)
+	seen := make(map[key]bool)
+	paths := make(map[int][]string)
+	scopedPaths := make(map[Scope]map[string]bool)
+	result := operations[:0]
+	for _, operation := range operations {
+		if operation.manager != PM_GO {
+			result = append(result, operation)
+			continue
+		}
+		lookup := key{operation.executable, operation.scope}
+		identity, cached := resolved[lookup]
+		if !cached {
+			identity = operation.executable
+			probeContext, cancel := context.WithTimeout(ctx, operationTimeout)
+			output, err := runOutputDir(probeContext, operation.scope.Path, operation.executable, "env", "GOROOT")
+			cancel()
+			root := strings.TrimSpace(string(output))
+			if err == nil && filepath.IsAbs(root) {
+				binary := "go"
+				if runtime.GOOS == "windows" {
+					binary += ".exe"
+				}
+				canonical, err := filepath.EvalSymlinks(filepath.Join(root, "bin", binary))
+				if err == nil && isExecutable(canonical) {
+					identity = canonical
+				}
+			}
+			resolved[lookup] = identity
+		}
+		operationKey := key{identity, operation.scope}
+		if seen[operationKey] {
+			continue
+		}
+		seen[operationKey] = true
+		// The run closure retains the selected PATH entry; expose that same entry
+		// in records and plans rather than switching the command after inspection.
+		result = append(result, operation)
+		paths[operation.managerIndex] = append(paths[operation.managerIndex], operation.executable)
+		if scopedPaths[operation.scope] == nil {
+			scopedPaths[operation.scope] = make(map[string]bool)
+		}
+		scopedPaths[operation.scope][identity] = true
+	}
+	for i, executables := range paths {
+		status := &statuses[i]
+		status.Executables = nil
+		for _, executable := range executables {
+			if !slices.Contains(status.Executables, executable) {
+				status.Executables = append(status.Executables, executable)
+			}
+		}
+		status.Warnings = slices.DeleteFunc(status.Warnings, func(warning string) bool {
+			return strings.HasPrefix(warning, "multiple executables found on PATH: ")
+		})
+		for _, identities := range scopedPaths {
+			if len(identities) > 1 {
+				status.Warnings = append(status.Warnings, "multiple executables found on PATH: "+strings.Join(status.Executables, ", "))
+				break
+			}
+		}
+	}
+	return result
 }
 
 func goProjectModules(ctx context.Context, executable string, scope Scope, outdated bool) ([]goProjectModule, error) {

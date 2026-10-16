@@ -694,3 +694,41 @@ func writeCLIExecutable(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestPackagesGoProjectUpdatePreviewAndGuard(t *testing.T) {
+	bin, project := t.TempDir(), t.TempDir()
+	manifest := filepath.Join(project, "go.mod")
+	original := "module example.com/main\n\ngo 1.26.0\n"
+	if err := os.WriteFile(manifest, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIExecutable(t, filepath.Join(bin, "go"), `#!/bin/sh
+case "$1" in
+version) printf 'go version go1.26.8' ;;
+list) printf '%s' '{"Path":"example.com/direct","Version":"v1.0.0","Update":{"Path":"example.com/direct","Version":"v1.2.0"}}' ;;
+*) exit 99 ;;
+esac
+`)
+	t.Setenv("PATH", bin)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	args := []string{"conficius", "packages", "update", "--pm", "go", "--project", project}
+	if err := cli.Command.Run(t.Context(), args); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"get" "example.com/direct@v1.2.0"`, "go.mod, go.sum and transitive dependencies", "no automatic rollback"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("missing %q in %s", want, output.String())
+		}
+	}
+	if err := cli.Command.Run(t.Context(), append(args, "--apply", "--allow-dirty", "--allow-unversioned")); err == nil || !strings.Contains(err.Error(), "does not allow manifest changes") {
+		t.Fatalf("guard error = %v", err)
+	}
+	data, err := os.ReadFile(manifest)
+	if err != nil || string(data) != original {
+		t.Fatalf("manifest changed: %q, %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(project, "go.sum")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected go.sum: %v", err)
+	}
+}

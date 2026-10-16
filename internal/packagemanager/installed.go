@@ -269,6 +269,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 			}
 		}
 	}
+	operations = resolveGoOperations(ctx, operations, result.Managers)
 	inventoryErrors := requiredManagerErrors(result.Managers)
 	for _, operationResult := range runReadOperations(ctx, operations) {
 		status := &result.Managers[operationResult.operation.managerIndex]

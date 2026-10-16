@@ -19,6 +19,7 @@ const (
 const adapterVersion = "1"
 
 type MutationImpact struct {
+	MayChangeManifests bool `json:"may_change_manifests"`
 	RequiresAdmin      bool `json:"requires_admin"`
 	MayRestartServices bool `json:"may_restart_services"`
 	MayReboot          bool `json:"may_reboot"`

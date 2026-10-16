@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -99,6 +100,7 @@ func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
 }
 
 func prepareUpgrade(data *model, app *glyph.App, all bool) {
+	resetUpgradePlans(data)
 	if data.packageConfigErr != nil {
 		data.status = fmt.Sprintf("Package upgrades blocked: %v", data.packageConfigErr)
 		app.RequestRender()
@@ -124,12 +126,21 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 	if err == nil {
 		err = validateUpgradePlans(data, plans)
 	}
+	if errors.Is(err, packagemanager.ErrDirtyProject) {
+		data.plans = plans
+		showDirtyConfirmation(data, app, err)
+		return
+	}
 	if err != nil {
 		data.status = "Package upgrade preview blocked; no packages were upgraded"
-		data.updateErrorLines = strings.Split(err.Error()+"\n\nNo packages were upgraded. The entire requested batch was blocked; no packages were skipped.\n\nEsc returns to packages. Use Space to unmark unsupported or blocked rows, then u to preview marked packages. U includes every listed package, including unsupported rows.\n\nFor unsupported updates, use the native package manager outside this TUI. For project safety errors, review package configuration and Git state before retrying; TUI safety checks remain enforced.", "\n")
+		data.updateErrorLines = strings.Split(upgradeErrorMessage(err)+"\n\nNo packages were upgraded. The entire requested batch was blocked; no packages were skipped.\n\nEsc returns to packages. Use Space to unmark unsupported or blocked rows, then u to preview marked packages. U includes every listed package, including unsupported rows.\n\nFor unsupported updates, use the native package manager outside this TUI. For project safety errors, review package configuration and Git state before retrying; TUI safety checks remain enforced.", "\n")
 		app.Go("update-error")
 		return
 	}
+	showUpgradePreview(data, app, plans)
+}
+
+func showUpgradePreview(data *model, app *glyph.App, plans []packagemanager.UpdatePlan) {
 	data.plans, data.preview = plans, formatPlans(plans)
 	data.commands = commandRows(plans)
 	packageCount := 0
@@ -170,6 +181,9 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 	if plan.Directory != "" {
 		line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)
 	}
+	if plan.Impact.MayChangeManifests {
+		line += " # may change go.mod, go.sum and transitive dependencies; no automatic rollback"
+	}
 	return line
 }
 
@@ -191,7 +205,7 @@ func validateUpgradePlans(data *model, plans []packagemanager.UpdatePlan) error 
 			seen[key] = plan.Executable
 		}
 	}
-	return packagemanager.ValidateProjectMutations(plans, data.profile.Profile, false, false)
+	return packagemanager.ValidateProjectMutations(plans, data.profile.Profile, data.allowDirty, false)
 }
 
 func applyUpgrades(data *model, app *glyph.App) {
@@ -204,7 +218,11 @@ func applyUpgrades(data *model, app *glyph.App) {
 		return
 	}
 	if err := validateUpgradePlans(data, data.plans); err != nil {
-		data.status = fmt.Sprintf("Package upgrades blocked: %v", err)
+		if errors.Is(err, packagemanager.ErrDirtyProject) {
+			showDirtyConfirmation(data, app, err)
+			return
+		}
+		data.status = fmt.Sprintf("Package upgrades blocked: %s", upgradeErrorMessage(err))
 		app.RequestRender()
 		return
 	}
@@ -219,7 +237,7 @@ func runInteractiveUpgrades(data *model) error {
 		return err
 	}
 	if err := validateUpgradePlans(data, data.plans); err != nil {
-		data.status = fmt.Sprintf("Package upgrades blocked: %v", err)
+		data.status = fmt.Sprintf("Package upgrades blocked: %s", upgradeErrorMessage(err))
 		return err
 	}
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
@@ -262,4 +280,52 @@ func runInteractiveUpgrades(data *model) error {
 		data.status = "Upgrades applied"
 	}
 	return execFreshTUI(tty, data)
+}
+
+func resetUpgradePlans(data *model) {
+	data.plans, data.commands = nil, nil
+	data.preview, data.planSummary, data.dirtyWarning = "", "", ""
+	data.allowDirty, data.runInteractive = false, false
+}
+
+func upgradeErrorMessage(err error) string {
+	var mutation *packagemanager.ProjectMutationError
+	if errors.As(err, &mutation) {
+		paths := strings.Join(mutation.Paths, "\n")
+		if errors.Is(err, packagemanager.ErrUnversionedProject) {
+			return "Projects are not in a Git repository:\n" + paths + "\nInitialize or restore Git tracking before retrying."
+		}
+		return "Projects have uncommitted changes:\n" + paths + "\nReview changes, then confirm this batch in the TUI."
+	}
+	return err.Error()
+}
+
+func showDirtyConfirmation(data *model, app *glyph.App, err error) {
+	data.dirtyWarning = upgradeErrorMessage(err) + "\n\nUpdates may change manifests, lockfiles and transitive dependencies. No automatic rollback. Approval applies only to this batch; commands still require review."
+	data.status = "Continue with uncommitted changes"
+	app.Go("dirty-confirm")
+}
+
+func registerUpgradeConfirmations(data *model, app *glyph.App) {
+	cancel := func() { resetUpgradePlans(data); app.Go("results") }
+	app.View("dirty-confirm", screenFrame("Continue with uncommitted changes", packageContext(data), &data.status,
+		glyph.TextBlock(&data.dirtyWarning).CharWrap(), "y continue to command preview  n/Esc cancel")).
+		Handle("y", func() {
+			if len(data.plans) == 0 {
+				cancel()
+				return
+			}
+			data.allowDirty = true
+			if err := validateUpgradePlans(data, data.plans); err != nil {
+				data.allowDirty = false
+				data.status = "Package upgrades blocked: " + upgradeErrorMessage(err)
+				app.RequestRender()
+				return
+			}
+			showUpgradePreview(data, app, data.plans)
+		}).Handle("n", cancel).Handle("<Esc>", cancel).Handle("q", func() { resetUpgradePlans(data); app.Stop() })
+	app.View("confirm", confirmView(data)).
+		Handle("q", func() { resetUpgradePlans(data); app.Stop() }).
+		Handle("y", func() { applyUpgrades(data, app) }).
+		Handle("n", cancel).Handle("<Esc>", cancel)
 }

@@ -228,6 +228,7 @@ func TestGoProjectInspection(t *testing.T) {
 			writeExecutable(t, filepath.Join(bin, PM_GO), `#!/bin/sh
 if [ "$1" = version ]; then printf 'go version go1.26.8'; exit; fi
 [ "$PWD" = "$ROOT" ] || exit 2
+[ "$1" = env ] && exit 4
 printf '%s\n' "$*" >> "$ARGS_FILE"
 case "$*" in
 'list -m -json -mod=readonly all')
@@ -296,7 +297,7 @@ printf '%s' '
 					t.Fatalf("record = %#v", record)
 				}
 			}
-			if plans, err := PlanUpdates(outdated, nil, nil); err == nil || !strings.Contains(err.Error(), "updates are unsupported") || len(plans) != 0 {
+			if plans, err := PlanUpdates(outdated, nil, nil); err != nil || len(plans) != 1 || plans[0].Args[0] != "get" || len(plans[0].Args) != 5 || !plans[0].Impact.MayChangeManifests || len(plans[0].Recovery) != 0 {
 				t.Fatalf("plans = %#v, error = %v", plans, err)
 			}
 			args, err := os.ReadFile(argsFile)
@@ -366,6 +367,8 @@ printf '%s' '
 func TestGoProjectRejectsInvalidModuleStreams(t *testing.T) {
 	for _, output := range []string{
 		"", "null", "[]", "{}", `{`,
+		`{"Path":"-bad","Version":"v1.0.0"}`,
+		`{"Path":"example.com/bad@other","Version":"v1.0.0"}`,
 		`{"Path":"example.com/bad"}`,
 		`{"Path":"example.com/bad","Version":"1.0.0"}`,
 		`{"Path":"example.com/bad","Version":7}`,
@@ -412,7 +415,7 @@ func TestGoProjectManifestEvidence(t *testing.T) {
 	if !hasProjectManagerManifest(Go{}, Scope{Kind: "workspace", Path: root}) {
 		t.Fatal("go.mod did not enable Go")
 	}
-	if files := (Go{}).projectFiles(); len(files) != 1 || files[0] != "go.mod" {
+	if files := (Go{}).projectFiles(); len(files) != 2 || files[0] != "go.mod" || files[1] != "go.sum" {
 		t.Fatalf("files = %v", files)
 	}
 }
@@ -469,5 +472,243 @@ func TestGoProjectCommandFailure(t *testing.T) {
 	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_GO}, scopes)
 	if err == nil || len(outdated.Packages) != 0 || outdated.Managers[0].Operations[0].Category != ErrorCommand {
 		t.Fatalf("outdated = %#v, error = %v", outdated, err)
+	}
+}
+
+func TestGoProjectUpdateSelectionAndJournalIsolation(t *testing.T) {
+	for _, kind := range []string{"project", "workspace"} {
+		t.Run(kind, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			journal, err := GoToolJournalPath()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(journal), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			// Invalid journal proves project apply/verification never reads or writes it.
+			if err := os.WriteFile(journal, []byte("unchanged"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			manifest := filepath.Join(root, "go.mod")
+			original := "module example.com/main\n\ngo 1.26.0\n\ntool example.com/tool/cmd\n"
+			if err := os.WriteFile(manifest, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			executable := filepath.Join(t.TempDir(), "go")
+			t.Setenv("ROOT", root)
+			writeExecutable(t, executable, `#!/bin/sh
+[ "$PWD" = "$ROOT" ] || exit 2
+case "$*" in
+'get example.com/direct@v1.2.0 example.com/tool@v1.3.0')
+  printf '\nrequire example.com/direct v1.2.0\n' >> go.mod
+  printf 'updated checksums\n' > go.sum ;;
+'list -m -json -mod=readonly -u all')
+  printf '%s' '{"Path":"example.com/direct","Version":"v1.2.0"}' ;;
+*) exit 3 ;;
+esac
+`)
+			query := QueryResult{Packages: Packages{}}
+			for _, name := range []string{"direct", "tool", "excluded"} {
+				latest := "v1.2.0"
+				if name == "tool" {
+					latest = "v1.3.0"
+				}
+				path := "example.com/" + name
+				query.Packages[path] = []Tool{scopedTool{Tool: goTool{module: path, current: "v1.0.0", latest: latest, executable: executable}, scope: Scope{Kind: kind, Path: root}}}
+			}
+			plans, err := PlanUpdates(query, []string{"go:example.com/direct", "go:example.com/tool"}, nil)
+			if err != nil || len(plans) != 1 {
+				t.Fatalf("plans = %#v, error = %v", plans, err)
+			}
+			plan := plans[0]
+			if plan.Directory != root || plan.Executable != executable || strings.Join(plan.Args, " ") != "get example.com/direct@v1.2.0 example.com/tool@v1.3.0" {
+				t.Fatalf("plan = %#v", plan)
+			}
+			if !plan.Impact.MayChangeManifests || plan.Impact.MayRestartServices || len(plan.Recovery) != 0 {
+				t.Fatalf("impact/recovery = %#v", plan)
+			}
+			data, err := os.ReadFile(manifest)
+			if err != nil || string(data) != original {
+				t.Fatalf("preview changed manifest: %q, %v", data, err)
+			}
+			if _, err := os.Stat(filepath.Join(root, "go.sum")); !os.IsNotExist(err) {
+				t.Fatalf("preview created go.sum: %v", err)
+			}
+			outcomes, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, nil, nil)
+			if err != nil || len(outcomes) != 1 || strings.Join(outcomes[0].ChangedFiles, ",") != "go.mod,go.sum" {
+				t.Fatalf("outcomes = %#v, error = %v", outcomes, err)
+			}
+			outcomes, err = VerifyUpdateOutcomes(context.Background(), plans, outcomes, QueryOptions{})
+			if err != nil || outcomes[0].Status != "completed" {
+				t.Fatalf("verification = %#v, %v", outcomes, err)
+			}
+			data, err = os.ReadFile(journal)
+			if err != nil || string(data) != "unchanged" {
+				t.Fatalf("journal changed: %q, %v", data, err)
+			}
+			data, err = os.ReadFile(manifest)
+			if err != nil || !strings.Contains(string(data), "tool example.com/tool/cmd") {
+				t.Fatalf("tool directive lost: %q, %v", data, err)
+			}
+		})
+	}
+}
+
+func TestGoProjectPlanRejectsStaleManifestsAndVersions(t *testing.T) {
+	root := t.TempDir()
+	query := QueryResult{Packages: Packages{"example.com/direct": {scopedTool{Tool: goTool{module: "example.com/direct", current: "v1.0.0", latest: "v1.2.0", executable: "/must/not/run"}, scope: Scope{Kind: "project", Path: root}}}}}
+	plans, err := PlanUpdates(query, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"go.mod", "go.sum"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("changed"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		fresh, err := PlanUpdates(query, nil, nil)
+		if err != nil || fresh[0].StateHash == plans[0].StateHash {
+			t.Fatalf("%s hash unchanged: %v", name, err)
+		}
+		if _, err := ApplyUpdatesWithOutcomes(context.Background(), plans, false, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "stale") {
+			t.Fatalf("stale %s error = %v", name, err)
+		}
+		plans = fresh
+	}
+	query.Packages["example.com/direct"] = []Tool{scopedTool{Tool: goTool{module: "example.com/direct", current: "v1.0.0", latest: "v1.3.0", executable: "/must/not/run"}, scope: Scope{Kind: "project", Path: root}}}
+	fresh, err := PlanUpdates(query, nil, nil)
+	if err != nil || fresh[0].StateHash == plans[0].StateHash {
+		t.Fatalf("version hash unchanged: %v", err)
+	}
+}
+
+func TestGoUpdateRejectsUnsafeTargets(t *testing.T) {
+	for _, pkg := range []Package{
+		{Name: "-flag", Latest: "v1.0.0"},
+		{Name: "example.com/mod@other", Latest: "v1.0.0"},
+		{Name: "example.com/mod", Latest: "latest"},
+		{Name: "example.com/mod", Latest: ""},
+	} {
+		for _, scope := range []string{"global", "project", "workspace"} {
+			pkg.Scope = scope
+			if args := (Go{}).updateArgs([]Package{pkg}); len(args) != 0 {
+				t.Fatalf("unsafe args = %q", args)
+			}
+			query := QueryResult{Packages: Packages{pkg.Name: {scopedTool{Tool: goTool{module: pkg.Name, current: "v0.1.0", latest: pkg.Latest}, scope: Scope{Kind: scope, Path: t.TempDir()}}}}}
+			if plans, err := PlanUpdates(query, nil, nil); err == nil || len(plans) != 0 {
+				t.Fatalf("unsafe plans = %#v, %v", plans, err)
+			}
+		}
+	}
+}
+
+func TestGoScopedCompilerIdentity(t *testing.T) {
+	for _, mode := range []string{"same root", "different roots", "project roots", "env failure", "invalid root"} {
+		t.Run(mode, func(t *testing.T) {
+			root, otherRoot, shimDir := t.TempDir(), t.TempDir(), t.TempDir()
+			project, otherProject := t.TempDir(), t.TempDir()
+			for _, dir := range []string{project, otherProject} {
+				if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/main\n\ngo 1.26.0\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			alias := filepath.Join(t.TempDir(), "root-alias")
+			if err := os.Symlink(root, alias); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(t.TempDir(), "commands")
+			t.Setenv("GO_IDENTITY_LOG", log)
+			t.Setenv("GO_IDENTITY_ROOT", root)
+			t.Setenv("GO_IDENTITY_ALIAS", alias)
+			t.Setenv("GO_IDENTITY_OTHER_ROOT", otherRoot)
+			t.Setenv("GO_IDENTITY_OTHER_PROJECT", otherProject)
+			t.Setenv("GO_IDENTITY_MODE", mode)
+			script := `#!/bin/sh
+if [ "$1" = version ]; then printf 'go version go1.26.8'; exit; fi
+printf '%s|%s|%s\n' "$0" "$PWD" "$*" >> "$GO_IDENTITY_LOG"
+if [ "$1" = env ]; then
+  case "$GO_IDENTITY_MODE" in
+    'env failure') printf 'unrelated error' >&2; exit 1 ;;
+    'invalid root') printf 'unrelated output'; exit ;;
+  esac
+  if [ "$0" = "$GO_IDENTITY_SHIM" ]; then
+    case "$GO_IDENTITY_MODE" in
+      'different roots') printf '%s' "$GO_IDENTITY_OTHER_ROOT"; exit ;;
+      'project roots')
+        if [ "$PWD" = "$GO_IDENTITY_OTHER_PROJECT" ]; then printf '%s' "$GO_IDENTITY_OTHER_ROOT"; exit; fi ;;
+    esac
+    printf '%s' "$GO_IDENTITY_ALIAS"
+  else
+    printf '%s' "$GO_IDENTITY_ROOT"
+  fi
+  exit
+fi
+if [ "$1" = list ]; then
+  printf '%s' '{"Path":"example.com/dependency","Version":"v1.0.0","Update":{"Path":"example.com/dependency","Version":"v1.1.0"}}'
+  exit
+fi
+exit 2
+`
+			real := filepath.Join(root, "bin", PM_GO)
+			other := filepath.Join(otherRoot, "bin", PM_GO)
+			shim := filepath.Join(shimDir, PM_GO)
+			for _, executable := range []string{real, other, shim} {
+				if err := os.MkdirAll(filepath.Dir(executable), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeExecutable(t, executable, script)
+			}
+			t.Setenv("GO_IDENTITY_SHIM", shim)
+			// Shim first also verifies plans retain the selected PATH entry.
+			t.Setenv("PATH", shimDir+string(os.PathListSeparator)+filepath.Dir(real))
+			scopes := []Scope{{Kind: "project", Path: project}}
+			wantOperations := 1
+			ambiguous := mode != "same root"
+			if mode == "project roots" {
+				scopes = append(scopes, Scope{Kind: "project", Path: otherProject})
+				wantOperations = 3
+			} else if ambiguous {
+				wantOperations = 2
+			}
+			inventory, err := QueryInstalledScopes(context.Background(), []string{PM_GO}, scopes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_GO}, scopes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, statuses := range [][]ManagerStatus{inventory.Managers, outdated.Managers} {
+				status := statuses[0]
+				if len(status.Operations) != wantOperations {
+					t.Fatalf("operations = %#v; want %d", status.Operations, wantOperations)
+				}
+				hasWarning := false
+				for _, warning := range status.Warnings {
+					hasWarning = hasWarning || strings.Contains(warning, "multiple executables found on PATH")
+				}
+				if hasWarning != ambiguous {
+					t.Fatalf("warnings = %v; ambiguous = %v", status.Warnings, ambiguous)
+				}
+			}
+			plans, err := PlanUpdates(outdated, nil, nil)
+			if err != nil || len(plans) != wantOperations {
+				t.Fatalf("plans = %#v, error = %v; want %d", plans, err, wantOperations)
+			}
+			if !ambiguous && plans[0].Executable != shim {
+				t.Fatalf("plan executable = %q; want %q", plans[0].Executable, shim)
+			}
+			commands, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Count(string(commands), "|env GOROOT\n"); got != 4*len(scopes) {
+				t.Fatalf("GOROOT probes = %d; want %d", got, 4*len(scopes))
+			}
+			if got := strings.Count(string(commands), "|list "); got != 2*wantOperations {
+				t.Fatalf("list queries = %d; want %d", got, 2*wantOperations)
+			}
+		})
 	}
 }

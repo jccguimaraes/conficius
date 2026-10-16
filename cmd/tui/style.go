@@ -164,6 +164,7 @@ var screenHelp = map[string]string{
 	"package-detail":              "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nEsc package list\nq / Ctrl-C quit",
 	"update-error":                "↑/↓ or j/k scroll\nEsc outdated\nq / Ctrl-C quit",
 	"cache-confirm":               "y refresh APT cache only\nn / Esc cancel",
+	"dirty-confirm":               "y continue to command preview\nn / Esc cancel",
 	"confirm":                     "y apply upgrades\nn / Esc cancel\nq / Ctrl-C quit",
 	"dotfiles":                    "↑/↓ or j/k move\nEnter open area\ne environment\nl links\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"dotfiles-links":              "↑/↓ or j/k move\nTab filter\nSpace mark\na toggle visible\nEnter details\nl preview\nr refresh\nEsc Dotfiles\nq / Ctrl-C quit",

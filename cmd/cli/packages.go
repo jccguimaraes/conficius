@@ -599,6 +599,11 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 				return err
 			}
 		}
+		if plan.Impact.MayChangeManifests {
+			if _, err := fmt.Fprintf(writer, "Impact: may change go.mod, go.sum and transitive dependencies in %s; no automatic rollback\n", plan.Directory); err != nil {
+				return err
+			}
+		}
 		for _, recovery := range plan.Recovery {
 			parts := append([]string{recovery.Executable}, recovery.Args...)
 			for i, part := range parts {

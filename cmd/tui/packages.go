@@ -156,8 +156,7 @@ func switchProfile(data *model, name string) {
 	clear(data.selected)
 	clear(data.failed)
 	clear(data.attempted)
-	data.plans, data.commands = nil, nil
-	data.preview, data.planSummary = "", ""
+	resetUpgradePlans(data)
 	data.packages, data.rows, data.findings = nil, nil, nil
 	data.query = packagemanager.QueryResult{}
 	data.detail, data.packageDetailText = vulnerabilityRow{}, ""
