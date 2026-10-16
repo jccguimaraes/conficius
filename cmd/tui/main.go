@@ -235,29 +235,7 @@ func runSession(data *model, startView string) error {
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
-	resultComponent, packageList := resultView(data)
-	app.View("results", resultComponent).
-		Handle("q", app.Stop).
-		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
-		Handle("p", func() { app.Go("profiles") }).
-		Handle("r", func() { refresh(data, app) }).
-		Handle("v", func() { app.Go("vulnerabilities") }).
-		Handle("<Enter>", func() {
-			if row := packageList.Selected(); row != nil {
-				data.packageDetailText = packageDetails(row)
-				app.Go("package-detail")
-			}
-		}).
-		Handle("<down>", packageList.Down).
-		Handle("<up>", packageList.Up).
-		Handle("j", packageList.Down).
-		Handle("k", packageList.Up).
-		Handle("<C-d>", packageList.HalfPageDown).
-		Handle("<C-u>", packageList.HalfPageUp).
-		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()); app.RequestRender() }).
-		Handle("a", func() { toggleAll(data); app.RequestRender() }).
-		Handle("u", func() { prepareUpgrade(data, app, false) }).
-		Handle("U", func() { prepareUpgrade(data, app, true) })
+	packageList := registerResults(data, app)
 	errorComponent, errorList := updateErrorView(data)
 	app.View("update-error", errorComponent).
 		Handle("q", app.Stop).

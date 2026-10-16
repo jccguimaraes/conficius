@@ -71,6 +71,33 @@ type commandRow struct {
 	Command  string
 }
 
+func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
+	resultComponent, packageList := resultView(data)
+	app.View("results", resultComponent).
+		Handle("q", app.Stop).
+		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
+		Handle("p", func() { app.Go("profiles") }).
+		Handle("r", func() { refresh(data, app) }).
+		Handle("v", func() { app.Go("vulnerabilities") }).
+		Handle("<Enter>", func() {
+			if row := packageList.Selected(); row != nil {
+				data.packageDetailText = packageDetails(row)
+				app.Go("package-detail")
+			}
+		}).
+		Handle("<down>", packageList.Down).
+		Handle("<up>", packageList.Up).
+		Handle("j", packageList.Down).
+		Handle("k", packageList.Up).
+		Handle("<C-d>", packageList.HalfPageDown).
+		Handle("<C-u>", packageList.HalfPageUp).
+		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()); app.RequestRender() }).
+		Handle("a", func() { toggleAll(data); app.RequestRender() }).
+		Handle("u", func() { prepareUpgrade(data, app, false) }).
+		Handle("U", func() { prepareUpgrade(data, app, true) })
+	return packageList
+}
+
 func prepareUpgrade(data *model, app *glyph.App, all bool) {
 	if data.packageConfigErr != nil {
 		data.status = fmt.Sprintf("Package upgrades blocked: %v", data.packageConfigErr)
@@ -98,8 +125,9 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 		err = validateUpgradePlans(data, plans)
 	}
 	if err != nil {
-		data.status = err.Error()
-		app.RequestRender()
+		data.status = "Package upgrade preview blocked; no packages were upgraded"
+		data.updateErrorLines = strings.Split(err.Error()+"\n\nNo packages were upgraded. The entire requested batch was blocked; no packages were skipped.\n\nEsc returns to packages. Use Space to unmark unsupported or blocked rows, then u to preview marked packages. U includes every listed package, including unsupported rows.\n\nFor unsupported updates, use the native package manager outside this TUI. For project safety errors, review package configuration and Git state before retrying; TUI safety checks remain enforced.", "\n")
+		app.Go("update-error")
 		return
 	}
 	data.plans, data.preview = plans, formatPlans(plans)
@@ -109,6 +137,7 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 		packageCount += len(plan.Packages)
 	}
 	data.planSummary = fmt.Sprintf("%d packages in %d commands", packageCount, len(plans))
+	data.status = "Review commands before applying upgrades"
 	app.Go("confirm")
 }
 
