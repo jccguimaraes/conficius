@@ -10,6 +10,25 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+## [0.0.4]
+
+### Features
+
+- Inspect and upgrade direct Go project dependencies and declared tools while preserving native manifest ownership.
+- Classify Go vulnerability findings by application, test, tool, and graph-only usage; add opt-in indirect scans and TUI scan cancellation.
+- Add confirmed cross-user global manager execution through a controlling terminal on macOS and Linux.
+- Add batch-scoped TUI confirmation for uncommitted project changes and clearer detail-view styling.
+
+### Fixes
+
+- Deduplicate mise Go shims and direct binaries that resolve to the same compiler.
+- Show actionable upgrade errors and explicit vulnerability scan scope and progress.
+
+### Documentation
+
+- Expand configuration, privilege, vulnerability-scope, and Go update guidance.
+- Add collapsible website navigation, active-section tracking, and clearer command headings.
+
 ## [0.0.3]
 
 ### Features
