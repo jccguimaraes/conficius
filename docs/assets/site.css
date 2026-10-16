@@ -44,6 +44,7 @@
     code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
     code { font-size: .9em; overflow-wrap: anywhere; }
     :not(pre) > code { color: var(--ink); background: var(--wash); border: 1px solid var(--rule); border-radius: .2rem; padding: .08em .3em; }
+    :is(h1, h2, h3, h4, h5, h6) > code { color: inherit; background: none; border: 0; border-radius: 0; padding: 0; font-size: inherit; font-weight: inherit; }
     pre { background: var(--wash); padding: 1rem 1.2rem; margin: 1rem 0; font-size: .78rem; line-height: 1.9; overflow-x: auto; }
     pre code { font-size: inherit; overflow-wrap: normal; }
     pre code .syntax-command, pre code .syntax-section { color: var(--accent); font-weight: 700; }
