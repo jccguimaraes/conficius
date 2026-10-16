@@ -367,7 +367,7 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 		}
 		if width >= 120 {
 			for j, column := range packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0])) {
-				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5}[j] {
+				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5, 12}[j] {
 					t.Fatalf("%dx30 column %s stretched to %d", width, column.heading, column.width)
 				}
 			}

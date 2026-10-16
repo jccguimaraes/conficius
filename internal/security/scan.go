@@ -25,6 +25,8 @@ type Summary struct {
 	Unmapped   int `json:"unmapped"`
 	Unknown    int `json:"unknown"`
 	Errors     int `json:"errors"`
+	GraphOnly  int `json:"graph_only"`
+	Tools      int `json:"tools"`
 }
 
 type Report struct {
@@ -55,6 +57,15 @@ func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, opti
 		report.Evidence = append(report.Evidence, result.evidence...)
 		if result.err != nil {
 			scanErrors = append(scanErrors, fmt.Errorf("%s scan: %w", result.source, result.err))
+		}
+	}
+	for i := range report.Evidence {
+		item := &report.Evidence[i]
+		for _, pkg := range inventory {
+			if pkg.Manager == packagemanager.PM_GO && item.Manager == pkg.Manager && item.Package == pkg.Name && item.Version == pkg.Version && item.Scope == pkg.Scope && (item.Path == pkg.Path || item.Path == "") {
+				item.DependencyClass, item.ScanScope = pkg.DependencyClass, pkg.ScanScope
+				break
+			}
 		}
 	}
 	Sort(report.Evidence)
@@ -122,6 +133,14 @@ func normalizeStatus(status string) string {
 func summarize(evidence []Evidence) Summary {
 	var summary Summary
 	for _, item := range evidence {
+		if item.Status == StatusVulnerable && item.DependencyClass == "graph-only" {
+			summary.GraphOnly++
+			continue
+		}
+		if item.Status == StatusVulnerable && item.DependencyClass == "tool" {
+			summary.Tools++
+			continue
+		}
 		switch item.Status {
 		case StatusVulnerable:
 			summary.Vulnerable++

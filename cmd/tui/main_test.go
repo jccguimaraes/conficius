@@ -110,7 +110,7 @@ func TestVulnerabilitySummaryCountsActionableUnknownFindings(t *testing.T) {
 		{Status: security.StatusUnknown, Advisory: "CVE-2", Rules: []string{">=20"}},
 	}
 	got := vulnerabilitySummary(3, security.Summary{Vulnerable: 1, Unmapped: 1, Unknown: 2, Errors: 1}, evidence)
-	want := "3 outdated; 1 vulnerable, 1 unknown, 1 security errors"
+	want := "3 outdated; 1 vulnerable, 1 unknown, 1 security errors; 0 tool, 0 graph-only (g toggles)"
 	if got != want {
 		t.Fatalf("summary = %q", got)
 	}
@@ -274,5 +274,25 @@ func TestSelectedScopesUsesActiveScope(t *testing.T) {
 	selected := selectedScopes(data)
 	if len(selected) != 1 || selected[0].Path != "/repo" {
 		t.Fatalf("selected = %#v", selected)
+	}
+}
+
+func TestGraphOnlyToggleRetainsEvidence(t *testing.T) {
+	data := &model{allEvidence: []security.Evidence{
+		{Package: "app", DependencyClass: "application", Status: security.StatusVulnerable, Advisory: "GO-1"},
+		{Package: "tool", DependencyClass: "tool", Status: security.StatusVulnerable, Advisory: "GO-2"},
+		{Package: "grpc", DependencyClass: "graph-only", Status: security.StatusVulnerable, Advisory: "GO-3"},
+	}}
+	data.findings = vulnerabilityRows(data.allEvidence)
+	if len(data.findings) != 2 {
+		t.Fatal(data.findings)
+	}
+	toggleGraphOnly(data)
+	if len(data.findings) != 3 || !data.includeGraphOnly {
+		t.Fatal(data.findings)
+	}
+	toggleGraphOnly(data)
+	if len(data.findings) != 2 || len(data.allEvidence) != 3 {
+		t.Fatal(data.findings)
 	}
 }

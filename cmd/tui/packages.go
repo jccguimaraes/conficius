@@ -29,6 +29,9 @@ func packageColumns(kind string, width int, columns []packageColumn) []packageCo
 			}
 		}
 	default:
+		if kind == "vulnerability" && width < 140 {
+			count--
+		}
 		if width < 118 {
 			count--
 		}
@@ -227,7 +230,7 @@ func confirmView(data *model) glyph.Component {
 
 func vulnerabilityColumns(row *vulnerabilityRow) []packageColumn {
 	color := glyph.Match(&row.Score, glyph.Where(func(score float64) bool { return score >= 9 }, glyph.Red), glyph.Where(func(score float64) bool { return score >= 7 }, glyph.Yellow), glyph.Where(func(score float64) bool { return score >= 4 }, glyph.Yellow), glyph.Where(func(score float64) bool { return score > 0 }, glyph.Blue)).Default(glyph.Color{})
-	return []packageColumn{{"Tool", &row.Package, 22, glyph.Color{}}, {"Status", &row.Status, 12, glyph.Match(&row.Status, glyph.Eq("vulnerable", glyph.Red), glyph.Eq("error", glyph.Red), glyph.Eq("unknown", glyph.Yellow), glyph.Eq("unmapped", glyph.Yellow), glyph.Eq("clean", glyph.Green)).Default(glyph.Color{})}, {"CVSS", &row.Score, 6, color}, {"Current", &row.Current, 14, glyph.Color{}}, {"Fix", &row.UpgradeTo, 14, glyph.Color{}}, {"Source", &row.Source, 6, glyph.Color{}}, {"Advisory", &row.Advisory, 24, glyph.Color{}}, {"Rules", &row.RuleCount, 5, glyph.Color{}}}
+	return []packageColumn{{"Tool", &row.Package, 22, glyph.Color{}}, {"Status", &row.Status, 12, glyph.Match(&row.Status, glyph.Eq("vulnerable", glyph.Red), glyph.Eq("error", glyph.Red), glyph.Eq("unknown", glyph.Yellow), glyph.Eq("unmapped", glyph.Yellow), glyph.Eq("clean", glyph.Green)).Default(glyph.Color{})}, {"CVSS", &row.Score, 6, color}, {"Current", &row.Current, 14, glyph.Color{}}, {"Fix", &row.UpgradeTo, 14, glyph.Color{}}, {"Source", &row.Source, 6, glyph.Color{}}, {"Advisory", &row.Advisory, 24, glyph.Color{}}, {"Rules", &row.RuleCount, 5, glyph.Color{}}, {"Class", &row.DependencyClass, 12, glyph.Color{}}}
 }
 
 func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerabilityRow]) {
@@ -235,7 +238,7 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 		return packageTableRow("vulnerability", func() []packageColumn { return vulnerabilityColumns(row) }, false)
 	})
 	content := packageTable("vulnerability", func() []packageColumn { return vulnerabilityColumns(&vulnerabilityRow{}) }, &data.loading, list)
-	return screenFrame("Packages / Vulnerabilities", packageContext(data), &data.status, content, "↑/↓ move  Enter details"), list
+	return screenFrame("Packages / Vulnerabilities", packageContext(data), &data.status, content, "↑/↓ move  Enter details  g include graph-only"), list
 }
 
 func vulnerabilityDetailContent(row *vulnerabilityRow) (glyph.Component, *glyph.TextViewC) {
@@ -243,7 +246,7 @@ func vulnerabilityDetailContent(row *vulnerabilityRow) (glyph.Component, *glyph.
 	viewer := glyph.TextView(&text).Grow(1).BindNav("j", "k").BindNav("<down>", "<up>").BindPageNav("<C-d>", "<C-u>")
 	// TextBlock funcs are not evaluated by glyph v0.8.0; Text evaluates before the layer sync.
 	binding := glyph.HBox.Height(0)(glyph.Text(func() string {
-		formatted := fmt.Sprintf("Package\n%s\n\nManager\n%s\n\nScope\n%s\n\nPath\n%s\n\nStatus\n%s\n\nCurrent\n%s\n\nSource\n%s\n\nCVE/advisory\n%s\n\nSource ID\n%s\n\nCVSS\n%g\n\nUnsupported rules\n%s\n\nAliases\n%s\n\nUpgrade target\n%s\n\nUpgrade note\n%s\n\nDescription\n%s\n\nReference\n%s\n\nCVE URL\n%s\n\nReason/error\n%s", row.Package, row.Manager, row.Scope, row.Path, row.Status, row.Current, row.Source, row.Advisory, row.SourceID, row.Score, strings.Join(row.Rules, ", "), strings.Join(row.Aliases, ", "), row.UpgradeTo, row.UpgradeNote, row.Description, row.Reference, row.CVELink, row.Reason)
+		formatted := fmt.Sprintf("Package\n%s\n\nClass\n%s\n\nScan scope\n%s\n\nManager\n%s\n\nScope\n%s\n\nPath\n%s\n\nStatus\n%s\n\nCurrent\n%s\n\nSource\n%s\n\nCVE/advisory\n%s\n\nSource ID\n%s\n\nCVSS\n%g\n\nUnsupported rules\n%s\n\nAliases\n%s\n\nUpgrade target\n%s\n\nUpgrade note\n%s\n\nDescription\n%s\n\nReference\n%s\n\nCVE URL\n%s\n\nReason/error\n%s", row.Package, row.DependencyClass, row.ScanScope, row.Manager, row.Scope, row.Path, row.Status, row.Current, row.Source, row.Advisory, row.SourceID, row.Score, strings.Join(row.Rules, ", "), strings.Join(row.Aliases, ", "), row.UpgradeTo, row.UpgradeNote, row.Description, row.Reference, row.CVELink, row.Reason)
 		if text != formatted {
 			text = formatted
 			viewer.Layer().ScrollToTop()

@@ -732,3 +732,31 @@ esac
 		t.Fatalf("unexpected go.sum: %v", err)
 	}
 }
+
+func TestGraphOnlyOutputScopeFilterAndJSON(t *testing.T) {
+	evidence := []security.Evidence{{Manager: "go", Package: "google.golang.org/grpc", DependencyClass: "graph-only", ScanScope: "current build; not call reachability", Status: security.StatusVulnerable, Advisory: "GO-1"}}
+	var output bytes.Buffer
+	if err := printVulnerabilityFindings(&output, evidence); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "GO-1") || !strings.Contains(output.String(), "current build") {
+		t.Fatal(output.String())
+	}
+	output.Reset()
+	if err := printVulnerabilityFindings(&output, evidence, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "[graph-only]") || !strings.Contains(output.String(), "GO-1") {
+		t.Fatal(output.String())
+	}
+	output.Reset()
+	cli := New(&output, "test")
+	if err := cli.writePackageJSON(vulnerabilityOutput{Report: security.Report{Evidence: evidence}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"dependency_class": "graph-only"`, `"scan_scope": "current build; not call reachability"`, `"advisory": "GO-1"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatal(output.String())
+		}
+	}
+}

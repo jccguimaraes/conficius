@@ -88,6 +88,8 @@ type model struct {
 	cacheReturnView   string
 	cacheRefreshDone  bool
 	cacheRefreshErr   string
+	allEvidence       []security.Evidence
+	includeGraphOnly  bool
 	findings          []vulnerabilityRow
 	detail            vulnerabilityRow
 	mappings          []config.VulnerabilityMapping
@@ -248,6 +250,7 @@ func runSession(data *model, startView string) error {
 	registerUpgradeConfirmations(data, app)
 	vulnerabilityComponent, vulnerabilityList := vulnerabilityView(data)
 	app.View("vulnerabilities", vulnerabilityComponent).
+		Handle("g", func() { toggleGraphOnly(data) }).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
@@ -320,6 +323,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	clear(data.selected)
 	resetUpgradePlans(data)
 	data.packages, data.rows = nil, nil
+	data.allEvidence = nil
 	data.findings, data.detail = nil, vulnerabilityRow{}
 	data.packageDetailText = ""
 	data.securitySummary, data.securityCount = security.Summary{}, 0
@@ -469,9 +473,10 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
-			data.securityScanning, data.securityChecked, data.securityErr = false, true, scanErr
+			data.securityScanning, data.securityChecked, data.securityErr = false, true, errors.Join(inventoryErr, scanErr)
 			data.securitySummary, data.securityCount = report.Summary, len(scanPackages)
-			data.findings = vulnerabilityRows(report.Evidence)
+			data.allEvidence = report.Evidence
+			data.findings = vulnerabilityRows(report.Evidence, data.includeGraphOnly)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), report.Summary, report.Evidence), err, scanErr)
 			if len(data.failed) > 0 {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
@@ -490,7 +495,7 @@ func vulnerabilitySummary(outdated int, summary security.Summary, evidence []sec
 		}
 	}
 	return fmt.Sprintf("%d outdated; %d vulnerable, %d unknown, %d security errors", outdated,
-		summary.Vulnerable, unknown, summary.Errors)
+		summary.Vulnerable, unknown, summary.Errors) + fmt.Sprintf("; %d tool, %d graph-only (g toggles)", summary.Tools, summary.GraphOnly)
 }
 
 func queryStatus(err error) string {
@@ -531,9 +536,17 @@ func appendCollisionStatus(summary string, commands []packagemanager.ExposedComm
 	return fmt.Sprintf("%s; %d command collisions: %s", summary, len(collisions), strings.Join(names, ", "))
 }
 
-func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
+func toggleGraphOnly(data *model) {
+	data.includeGraphOnly = !data.includeGraphOnly
+	data.findings = vulnerabilityRows(data.allEvidence, data.includeGraphOnly)
+}
+
+func vulnerabilityRows(evidence []security.Evidence, includeGraphOnly ...bool) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, 0, len(evidence))
 	for _, item := range evidence {
+		if item.DependencyClass == "graph-only" && (len(includeGraphOnly) == 0 || !includeGraphOnly[0]) {
+			continue
+		}
 		if item.Status == security.StatusClean || item.Advisory == "" || (item.Status == security.StatusUnknown && len(item.Rules) == 0) {
 			continue
 		}

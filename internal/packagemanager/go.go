@@ -138,6 +138,7 @@ func (Go) listInstalled(ctx context.Context, executable string, scope Scope) ([]
 		if err != nil {
 			return nil, err
 		}
+		classes, scanScope, loadErr := goDependencyClasses(ctx, executable, scope)
 		var packages []InstalledPackage
 		for _, module := range modules {
 			if module.Main || module.Path == "go" || module.Path == "toolchain" {
@@ -151,13 +152,13 @@ func (Go) listInstalled(ctx context.Context, executable string, scope Scope) ([]
 					continue
 				}
 			}
-			class := "direct"
-			if module.Indirect {
-				class = "indirect"
+			class := classes[module.Path]
+			if class == "" {
+				class = "graph-only"
 			}
-			packages = append(packages, InstalledPackage{Manager: PM_GO, Name: identity.Path, Version: identity.Version, Role: RoleLibrary, Manifest: filepath.Join(scope.Path, "go.mod"), DependencyClass: class, Transitive: module.Indirect, OSVEcosystem: "Go", OSVName: identity.Path})
+			packages = append(packages, InstalledPackage{Manager: PM_GO, Name: identity.Path, Version: identity.Version, Role: RoleLibrary, Manifest: filepath.Join(scope.Path, "go.mod"), DependencyClass: class, ScanScope: scanScope, Transitive: module.Indirect, OSVEcosystem: "Go", OSVName: identity.Path})
 		}
-		return packages, nil
+		return packages, loadErr
 	}
 	path, err := GoToolJournalPath()
 	if err != nil {
@@ -175,6 +176,67 @@ func (Go) listInstalled(ctx context.Context, executable string, scope Scope) ([]
 		packages = append(packages, InstalledPackage{Manager: PM_GO, Name: imported.Module, Version: imported.Version, Role: RoleDevelopmentTool})
 	}
 	return packages, nil
+}
+
+// goDependencyClasses uses package membership, not go.mod's indirect marker.
+// Application wins over test, which wins over tool when a module serves several roles.
+func goDependencyClasses(ctx context.Context, executable string, scope Scope) (map[string]string, string, error) {
+	classes := make(map[string]string)
+	scanScope := "Go host " + runtime.GOOS + "/" + runtime.GOARCH + "; selected Go current build environment (may override host): GOOS/GOARCH, CGO_ENABLED and GOFLAGS/build tags; ./... application and tests, declared tools; module/version matches, not call reachability; local replacements excluded"
+	var loadErrors []error
+	for _, load := range []struct {
+		class string
+		args  []string
+	}{
+		{"application", []string{"./..."}},
+		{"test", []string{"-test", "./..."}},
+		{"tool", []string{"tool"}},
+	} {
+		args := append([]string{"list", "-deps", "-e", "-json", "-mod=readonly"}, load.args...)
+		cmd := commandContext(ctx, executable, args...)
+		cmd.Dir = scope.Path
+		cmd.Env = append(managerEnvironment(scope.Path), "GOPROXY=off", "GONOPROXY=none", "GOSUMDB=off", "GOTOOLCHAIN=local")
+		output, err := cmd.Output()
+		if err != nil {
+			var exitErr *exec.ExitError
+			var stderr string
+			if errors.As(err, &exitErr) {
+				stderr = string(exitErr.Stderr)
+			}
+			loadErrors = append(loadErrors, fmt.Errorf("Go %s package loading incomplete: %w", load.class, classifyOperationError(ctx, err, stderr)))
+		}
+		decoder := json.NewDecoder(bytes.NewReader(output))
+		for {
+			var pkg struct {
+				Module     *goProjectModule
+				Incomplete bool
+				Error      *struct{ Err string }
+				DepsErrors []struct{ Err string }
+			}
+			if err := decoder.Decode(&pkg); err != nil {
+				if !errors.Is(err, io.EOF) {
+					loadErrors = append(loadErrors, parserError(fmt.Errorf("decode Go %s packages: %w", load.class, err)))
+				}
+				break
+			}
+			if pkg.Incomplete || pkg.Error != nil || len(pkg.DepsErrors) > 0 {
+				reason := "missing dependency metadata"
+				if pkg.Error != nil {
+					reason = pkg.Error.Err
+				} else if len(pkg.DepsErrors) > 0 {
+					reason = pkg.DepsErrors[0].Err
+				}
+				loadErrors = append(loadErrors, fmt.Errorf("Go %s package loading incomplete: %s", load.class, reason))
+			}
+			if pkg.Module != nil && classes[pkg.Module.Path] == "" {
+				classes[pkg.Module.Path] = load.class
+			}
+		}
+	}
+	if len(loadErrors) > 0 {
+		scanScope += "; INCOMPLETE package loading: graph-only means usage unconfirmed"
+	}
+	return classes, scanScope, errors.Join(loadErrors...)
 }
 
 type goProjectModule struct {

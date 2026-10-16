@@ -227,7 +227,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "vulnerabilities",
 				Description: "Check installed packages against OSV using exact package versions.",
 				Usage:       "Show known vulnerabilities and unsupported package mappings.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}}, scopeFlags()...),
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}, &urfave.BoolFlag{Name: "include-graph-only", Usage: "Show Go module graph findings not used by current build (JSON always retains all evidence)"}}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
@@ -265,7 +265,16 @@ func (cli *Cli) packages() *urfave.Command {
 					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
 						return err
 					}
-					if err := printVulnerabilityFindings(cli.Writer, report.Evidence); err != nil {
+					hasGo := false
+					for _, item := range report.Evidence {
+						hasGo = hasGo || item.Manager == packagemanager.PM_GO
+					}
+					if hasGo {
+						if _, err := fmt.Fprintf(cli.Writer, "Findings: %d default relevance, %d Go tool, %d Go graph-only (use --include-graph-only); graph-only usage unconfirmed if loading incomplete.\n", report.Summary.Vulnerable, report.Summary.Tools, report.Summary.GraphOnly); err != nil {
+							return err
+						}
+					}
+					if err := printVulnerabilityFindings(cli.Writer, report.Evidence, c.Bool("include-graph-only")); err != nil {
 						return err
 					}
 					return errors.Join(inventoryErr, outdatedErr, scanErr)
@@ -558,8 +567,18 @@ func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerSta
 	return nil
 }
 
-func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) error {
+func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence, includeGraphOnly ...bool) error {
+	seenScopes := make(map[string]bool)
 	for _, item := range evidence {
+		if item.ScanScope != "" && !seenScopes[item.ScanScope] {
+			if _, err := fmt.Fprintln(writer, item.ScanScope); err != nil {
+				return err
+			}
+			seenScopes[item.ScanScope] = true
+		}
+		if item.DependencyClass == "graph-only" && (len(includeGraphOnly) == 0 || !includeGraphOnly[0]) {
+			continue
+		}
 		if item.Advisory == "" {
 			continue
 		}
@@ -573,7 +592,11 @@ func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) 
 		if rule != "" {
 			rule = " " + rule
 		}
-		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s%s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote, rule); err != nil {
+		status := item.Status
+		if item.DependencyClass != "" {
+			status += " [" + item.DependencyClass + "]"
+		}
+		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s%s\n", item.Source, item.Manager, item.Package, item.Version, status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote, rule); err != nil {
 			return err
 		}
 	}

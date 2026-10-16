@@ -234,6 +234,9 @@ case "$*" in
 'list -m -json -mod=readonly all')
   [ "$GOPROXY" = off ] && [ "$GONOPROXY" = none ] && [ "$GOSUMDB" = off ] && [ "$GOTOOLCHAIN" = local ] || exit 3 ;;
 'list -m -json -mod=readonly -u all') ;;
+'list -deps -e -json -mod=readonly ./...'|'list -deps -e -json -mod=readonly -test ./...')
+  printf '%s' '{"Module":{"Path":"example.com/transitive"}}'; exit ;;
+'list -deps -e -json -mod=readonly tool') exit ;;
 *) exit 4 ;;
 esac
 printf '%s' '
@@ -271,7 +274,7 @@ printf '%s' '
 					foundFork = pkg.Version == "v1.2.3"
 				}
 				if pkg.Name == "example.com/transitive" {
-					foundTransitive = pkg.Transitive && pkg.DependencyClass == "indirect"
+					foundTransitive = pkg.Transitive && pkg.DependencyClass == "application"
 				}
 			}
 			if !foundFork || !foundTransitive {
@@ -301,7 +304,7 @@ printf '%s' '
 				t.Fatalf("plans = %#v, error = %v", plans, err)
 			}
 			args, err := os.ReadFile(argsFile)
-			if err != nil || string(args) != "list -m -json -mod=readonly all\nlist -m -json -mod=readonly -u all\n" {
+			if err != nil || string(args) != "list -m -json -mod=readonly all\nlist -deps -e -json -mod=readonly ./...\nlist -deps -e -json -mod=readonly -test ./...\nlist -deps -e -json -mod=readonly tool\nlist -m -json -mod=readonly -u all\n" {
 				t.Fatalf("args = %q, error = %v", args, err)
 			}
 			contents, err := os.ReadFile(manifest)
@@ -706,8 +709,55 @@ exit 2
 			if got := strings.Count(string(commands), "|env GOROOT\n"); got != 4*len(scopes) {
 				t.Fatalf("GOROOT probes = %d; want %d", got, 4*len(scopes))
 			}
-			if got := strings.Count(string(commands), "|list "); got != 2*wantOperations {
-				t.Fatalf("list queries = %d; want %d", got, 2*wantOperations)
+			if got := strings.Count(string(commands), "|list "); got != 5*wantOperations {
+				t.Fatalf("list queries = %d; want %d", got, 5*wantOperations)
+			}
+		})
+	}
+}
+
+func TestGoDependencyRelevanceRetainsGraphOnLoadFailure(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(map[bool]string{false: "complete", true: "incomplete"}[fail], func(t *testing.T) {
+			root, bin := t.TempDir(), t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/main\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin)
+			if fail {
+				t.Setenv("FAIL_LOAD", "1")
+			} else {
+				t.Setenv("FAIL_LOAD", "0")
+			}
+			writeExecutable(t, filepath.Join(bin, "go"), `#!/bin/sh
+if [ "$1" = version ]; then printf 'go version go1.27.0'; exit; fi
+if [ "$1" = env ]; then exit 1; fi
+case "$*" in
+'list -m -json -mod=readonly all')
+ printf '%s' '{"Path":"example.com/app","Version":"v1.0.0","Indirect":true}
+{"Path":"example.com/test","Version":"v1.0.0"}
+{"Path":"example.com/tool","Version":"v1.0.0"}
+{"Path":"github.com/jackc/pgx/v5","Version":"v5.0.0"}
+{"Path":"google.golang.org/grpc","Version":"v1.0.0"}';;
+'list -deps -e -json -mod=readonly ./...')
+ printf '%s' '{"Module":{"Path":"example.com/app"}}'
+ if [ "$FAIL_LOAD" = 1 ]; then printf '%s' '{"Incomplete":true,"Error":{"Err":"source missing offline"}}'; fi;;
+'list -deps -e -json -mod=readonly -test ./...')
+ printf '%s' '{"Module":{"Path":"example.com/app"}}{"Module":{"Path":"example.com/test"}}';;
+'list -deps -e -json -mod=readonly tool')
+ printf '%s' '{"Module":{"Path":"example.com/app"}}{"Module":{"Path":"example.com/test"}}{"Module":{"Path":"example.com/tool"}}';;
+*) exit 2;;
+esac
+`)
+			result, err := QueryInstalledScopes(t.Context(), []string{PM_GO}, []Scope{{Kind: "project", Path: root}})
+			if (err != nil) != fail || len(result.Packages) != 5 {
+				t.Fatalf("inventory = %#v, err = %v", result, err)
+			}
+			want := map[string]string{"example.com/app": "application", "example.com/test": "test", "example.com/tool": "tool", "github.com/jackc/pgx/v5": "graph-only", "google.golang.org/grpc": "graph-only"}
+			for _, pkg := range result.Packages {
+				if pkg.DependencyClass != want[pkg.Name] || strings.Contains(pkg.ScanScope, "INCOMPLETE") != fail {
+					t.Fatalf("package = %#v", pkg)
+				}
 			}
 		})
 	}

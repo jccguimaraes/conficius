@@ -130,6 +130,7 @@ type InstalledPackage struct {
 	Manifest        string      `json:"manifest,omitempty"`
 	Config          string      `json:"config,omitempty"`
 	DependencyClass string      `json:"dependency_class,omitempty"`
+	ScanScope       string      `json:"scan_scope,omitempty"`
 	OSVEcosystem    string      `json:"osv_ecosystem,omitempty"`
 	OSVName         string      `json:"osv_name,omitempty"`
 	Transitive      bool        `json:"transitive,omitempty"`
@@ -277,7 +278,9 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		if operationResult.err != nil {
 			status.Error = redactSensitive(operationResult.err.Error())
 			inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
-			continue
+			if operationResult.operation.manager != PM_GO {
+				continue
+			}
 		}
 		for _, pkg := range operationResult.value {
 			classes := options.DependencyClasses[pkg.Path]

@@ -65,3 +65,19 @@ func product(name, vendor, version string) euvd.ProductEntry {
 	entry.ProductVersion = version
 	return entry
 }
+
+func TestGoEvidenceProvenanceAndSeparateCounts(t *testing.T) {
+	var inventory []packagemanager.InstalledPackage
+	for _, class := range []string{"application", "test", "tool", "graph-only"} {
+		inventory = append(inventory, packagemanager.InstalledPackage{Manager: "go", Name: "example.com/" + class, Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/" + class, DependencyClass: class, ScanScope: "current build only"})
+	}
+	report, err := Scan(t.Context(), inventory, Options{OSVClient: osvStub{}, EUVDClient: euvdStub{}})
+	if err != nil || report.Summary.Vulnerable != 2 || report.Summary.Tools != 1 || report.Summary.GraphOnly != 1 {
+		t.Fatalf("report = %#v, err = %v", report, err)
+	}
+	for _, item := range report.Evidence {
+		if item.DependencyClass == "" || item.ScanScope != "current build only" {
+			t.Fatalf("evidence = %#v", item)
+		}
+	}
+}
