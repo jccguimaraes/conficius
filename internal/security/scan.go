@@ -12,12 +12,33 @@ import (
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
+// SelectInventory excludes optional Go work before either security source is queried.
+// Graph-only is independent of indirect modules used by applications, tests or tools.
+func SelectInventory(inventory []packagemanager.InstalledPackage, options Options) []packagemanager.InstalledPackage {
+	selected := make([]packagemanager.InstalledPackage, 0, len(inventory))
+	for _, pkg := range inventory {
+		if pkg.Manager == packagemanager.PM_GO {
+			if pkg.DependencyClass == "graph-only" {
+				if !options.IncludeGraphOnly {
+					continue
+				}
+			} else if pkg.Transitive && !pkg.DeclaredTool && !options.IncludeIndirect {
+				continue
+			}
+		}
+		selected = append(selected, pkg)
+	}
+	return selected
+}
+
 type Options struct {
-	Outdated     []packagemanager.Package
-	OSVMappings  []config.VulnerabilityMapping
-	EUVDMappings []config.EUVDMapping
-	OSVClient    vulnerability.Queryer
-	EUVDClient   euvd.Queryer
+	IncludeIndirect  bool
+	IncludeGraphOnly bool
+	Outdated         []packagemanager.Package
+	OSVMappings      []config.VulnerabilityMapping
+	EUVDMappings     []config.EUVDMapping
+	OSVClient        vulnerability.Queryer
+	EUVDClient       euvd.Queryer
 }
 
 type Summary struct {
@@ -35,6 +56,7 @@ type Report struct {
 }
 
 func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, options Options) (Report, error) {
+	inventory = SelectInventory(inventory, options)
 	type result struct {
 		source   string
 		evidence []Evidence
@@ -64,6 +86,7 @@ func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, opti
 		for _, pkg := range inventory {
 			if pkg.Manager == packagemanager.PM_GO && item.Manager == pkg.Manager && item.Package == pkg.Name && item.Version == pkg.Version && item.Scope == pkg.Scope && (item.Path == pkg.Path || item.Path == "") {
 				item.DependencyClass, item.ScanScope = pkg.DependencyClass, pkg.ScanScope
+				item.Transitive, item.DeclaredTool = pkg.Transitive, pkg.DeclaredTool
 				break
 			}
 		}

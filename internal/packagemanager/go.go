@@ -138,6 +138,27 @@ func (Go) listInstalled(ctx context.Context, executable string, scope Scope) ([]
 		if err != nil {
 			return nil, err
 		}
+		manifest := filepath.Join(scope.Path, "go.mod")
+		data, err := os.ReadFile(manifest)
+		if err != nil {
+			return nil, parserError(fmt.Errorf("read Go project manifest: %w", err))
+		}
+		file, err := modfile.Parse(manifest, data, nil)
+		if err != nil {
+			return nil, parserError(fmt.Errorf("parse Go project manifest: %w", err))
+		}
+		toolModules := make(map[string]bool)
+		for _, tool := range file.Tool {
+			var path string
+			for _, module := range modules {
+				if (tool.Path == module.Path || strings.HasPrefix(tool.Path, module.Path+"/")) && len(module.Path) > len(path) {
+					path = module.Path
+				}
+			}
+			if path != "" {
+				toolModules[path] = true
+			}
+		}
 		classes, scanScope, loadErr := goDependencyClasses(ctx, executable, scope)
 		var packages []InstalledPackage
 		for _, module := range modules {
@@ -153,10 +174,13 @@ func (Go) listInstalled(ctx context.Context, executable string, scope Scope) ([]
 				}
 			}
 			class := classes[module.Path]
+			if toolModules[module.Path] && class == "" {
+				class = "tool"
+			}
 			if class == "" {
 				class = "graph-only"
 			}
-			packages = append(packages, InstalledPackage{Manager: PM_GO, Name: identity.Path, Version: identity.Version, Role: RoleLibrary, Manifest: filepath.Join(scope.Path, "go.mod"), DependencyClass: class, ScanScope: scanScope, Transitive: module.Indirect, OSVEcosystem: "Go", OSVName: identity.Path})
+			packages = append(packages, InstalledPackage{Manager: PM_GO, Name: identity.Path, Version: identity.Version, Role: RoleLibrary, Manifest: filepath.Join(scope.Path, "go.mod"), DependencyClass: class, ScanScope: scanScope, Transitive: module.Indirect, DeclaredTool: toolModules[module.Path], OSVEcosystem: "Go", OSVName: identity.Path})
 		}
 		return packages, loadErr
 	}

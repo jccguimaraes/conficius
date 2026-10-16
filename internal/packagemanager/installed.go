@@ -120,6 +120,7 @@ func (imported GoToolImport) Validate() error {
 }
 
 type InstalledPackage struct {
+	DeclaredTool    bool        `json:"declared_tool,omitempty"`
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`
 	Version         string      `json:"version"`

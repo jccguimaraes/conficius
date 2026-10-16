@@ -79,6 +79,7 @@ func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
 		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
 		Handle("p", func() { app.Go("profiles") }).
 		Handle("r", func() { refresh(data, app) }).
+		Handle("x", func() { cancelSecurity(data, app) }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("<Enter>", func() {
 			if row := packageList.Selected(); row != nil {

@@ -227,7 +227,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "vulnerabilities",
 				Description: "Check installed packages against OSV using exact package versions.",
 				Usage:       "Show known vulnerabilities and unsupported package mappings.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}, &urfave.BoolFlag{Name: "include-graph-only", Usage: "Show Go module graph findings not used by current build (JSON always retains all evidence)"}}, scopeFlags()...),
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}, &urfave.BoolFlag{Name: "include-indirect", Usage: "Scan indirect Go dependencies used by applications, tests or tools"}, &urfave.BoolFlag{Name: "include-graph-only", Usage: "Scan Go graph-only modules: not confirmed used by current build, independently of --include-indirect"}}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
@@ -254,6 +254,7 @@ func (cli *Cli) packages() *urfave.Command {
 					packagemanager.MergePackages(outdated.Packages, managerUpdates)
 					outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 					report, scanErr := security.Scan(ctx, inventory.Packages, security.Options{
+						IncludeIndirect: c.Bool("include-indirect"), IncludeGraphOnly: c.Bool("include-graph-only"),
 						Outdated: packagemanager.Records(outdated.Packages), OSVMappings: osvMappings, EUVDMappings: euvdMappings,
 						OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
 						EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),

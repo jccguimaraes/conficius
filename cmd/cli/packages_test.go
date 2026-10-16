@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -758,5 +759,66 @@ func TestGraphOnlyOutputScopeFilterAndJSON(t *testing.T) {
 		if !strings.Contains(output.String(), want) {
 			t.Fatal(output.String())
 		}
+	}
+}
+
+func TestGoVulnerabilityFlagsSelectJSONAndRequests(t *testing.T) {
+	bin, project := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module example.com/main\ntool example.com/tool/cmd\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIExecutable(t, filepath.Join(bin, "go"), `#!/bin/sh
+case "$*" in
+version) printf 'go version go1.27.1' ;;
+'list -m -json -mod=readonly all'|'list -m -json -mod=readonly -u all')
+printf '%s\n' '{"Path":"example.com/direct","Version":"v1.0.0"}' '{"Path":"example.com/indirect","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/tool","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/nested","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/graph","Version":"v1.0.0","Indirect":true}' ;;
+'list -deps -e -json -mod=readonly ./...'|'list -deps -e -json -mod=readonly -test ./...')
+printf '%s\n' '{"Module":{"Path":"example.com/direct"}}' '{"Module":{"Path":"example.com/indirect"}}' ;;
+'list -deps -e -json -mod=readonly tool')
+printf '%s\n' '{"Module":{"Path":"example.com/tool"}}' '{"Module":{"Path":"example.com/nested"}}' ;;
+*) exit 99 ;;
+esac
+`)
+	t.Setenv("PATH", bin)
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		_, _ = fmt.Fprint(w, `{"vulns":[]}`)
+	}))
+	defer server.Close()
+	t.Setenv("CONFICIUS_OSV_URL", server.URL)
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  int
+	}{
+		{"default", nil, 2}, {"indirect", []string{"--include-indirect"}, 4},
+		{"graph", []string{"--include-graph-only"}, 3},
+		{"both", []string{"--include-indirect", "--include-graph-only"}, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requests.Store(0)
+			var output bytes.Buffer
+			cli := New(&output, "test")
+			args := append([]string{"conficius", "packages", "vulnerabilities", "--pm", "go", "--project", project, "--json"}, tc.flags...)
+			if err := cli.Command.Run(t.Context(), args); err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Data vulnerabilityOutput `json:"data"`
+			}
+			if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			// Go has no automatic EUVD identity, so each selected module has OSV and unmapped EUVD evidence.
+			if int(requests.Load()) != tc.want || len(result.Data.Report.Evidence) != tc.want*2 {
+				t.Fatalf("requests=%d report=%#v", requests.Load(), result.Data.Report)
+			}
+			for _, item := range result.Data.Report.Evidence {
+				if item.Package == "example.com/tool" && (!item.DeclaredTool || !item.Transitive) {
+					t.Fatal(item)
+				}
+			}
+		})
 	}
 }

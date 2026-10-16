@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/jccguimaraes/conficius/internal/vulnerability"
 	"strings"
 	"testing"
+	"time"
 
 	glyph "github.com/kungfusheep/glyph"
 
@@ -277,22 +283,286 @@ func TestSelectedScopesUsesActiveScope(t *testing.T) {
 	}
 }
 
-func TestGraphOnlyToggleRetainsEvidence(t *testing.T) {
-	data := &model{allEvidence: []security.Evidence{
-		{Package: "app", DependencyClass: "application", Status: security.StatusVulnerable, Advisory: "GO-1"},
-		{Package: "tool", DependencyClass: "tool", Status: security.StatusVulnerable, Advisory: "GO-2"},
-		{Package: "grpc", DependencyClass: "graph-only", Status: security.StatusVulnerable, Advisory: "GO-3"},
+func TestScopeTogglesRescanSelectedInventory(t *testing.T) {
+	data := &model{inventory: []packagemanager.InstalledPackage{
+		{Manager: "go", Name: "direct", DependencyClass: "application"},
+		{Manager: "go", Name: "indirect", DependencyClass: "test", Transitive: true},
+		{Manager: "go", Name: "graph", DependencyClass: "graph-only", Transitive: true},
 	}}
-	data.findings = vulnerabilityRows(data.allEvidence)
-	if len(data.findings) != 2 {
-		t.Fatal(data.findings)
+	calls := 0
+	rescan := func() {
+		calls++
+		selected := security.SelectInventory(data.inventory, security.Options{IncludeIndirect: data.includeIndirect, IncludeGraphOnly: data.includeGraphOnly})
+		want := 1
+		if data.includeIndirect {
+			want++
+		}
+		if data.includeGraphOnly {
+			want++
+		}
+		if len(selected) != want {
+			t.Fatalf("selected = %#v", selected)
+		}
 	}
-	toggleGraphOnly(data)
-	if len(data.findings) != 3 || !data.includeGraphOnly {
-		t.Fatal(data.findings)
+	toggleIndirect(data, rescan)
+	toggleGraphOnly(data, rescan)
+	toggleIndirect(data, rescan)
+	toggleGraphOnly(data, rescan)
+	if calls != 4 || data.includeIndirect || data.includeGraphOnly {
+		t.Fatal(data, calls)
 	}
-	toggleGraphOnly(data)
-	if len(data.findings) != 2 || len(data.allEvidence) != 3 {
-		t.Fatal(data.findings)
+}
+
+type scopeQueryClient struct{ requests chan string }
+
+func (c scopeQueryClient) Query(_ context.Context, pkg vulnerability.Package) ([]vulnerability.Vulnerability, error) {
+	c.requests <- pkg.Name
+	return nil, nil
+}
+
+func TestSecurityToggleStartsRealExpandedScan(t *testing.T) {
+	requests := make(chan string, 8)
+	data := &model{localChecked: true, outdatedChecked: true, installedCount: 3,
+		osvClient: scopeQueryClient{requests: requests},
+		inventory: []packagemanager.InstalledPackage{
+			{Manager: "go", Name: "example.com/direct", Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/direct", DependencyClass: "application"},
+			{Manager: "go", Name: "example.com/indirect", Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/indirect", DependencyClass: "test", Transitive: true},
+			{Manager: "go", Name: "example.com/graph", Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/graph", DependencyClass: "graph-only", Transitive: true},
+		},
 	}
+	app := glyph.NewApp()
+	for _, graph := range []bool{false, true} {
+		if graph {
+			toggleGraphOnly(data, func() { refreshSecurity(data, app) })
+		} else {
+			toggleIndirect(data, func() { refreshSecurity(data, app) })
+		}
+		want := 2
+		if graph {
+			want = 3
+		}
+		seen := map[string]bool{}
+		for range want {
+			select {
+			case name := <-requests:
+				seen[name] = true
+			case <-time.After(time.Second):
+				t.Fatal("toggle did not start selected scan")
+			}
+		}
+		if !seen["example.com/indirect"] || seen["example.com/graph"] != graph {
+			t.Fatal(seen)
+		}
+		if !data.loading || !data.securityScanning || !strings.Contains(data.status, "Busy: checking security") {
+			t.Fatal(data.status)
+		}
+	}
+	data.securityCancel()
+	if data.securityGeneration != 2 {
+		t.Fatal(data.securityGeneration)
+	}
+}
+
+// Requests stay blocked until cancellation or explicit release, including clients
+// that return successful results after cancellation.
+type securityRequest struct {
+	ctx      context.Context
+	release  chan struct{}
+	returned chan struct{}
+}
+
+type blockingSecurityClient struct {
+	requests chan securityRequest
+}
+
+func (c blockingSecurityClient) Query(ctx context.Context, _ vulnerability.Package) ([]vulnerability.Vulnerability, error) {
+	request := securityRequest{ctx, make(chan struct{}), make(chan struct{})}
+	c.requests <- request
+	<-request.release
+	close(request.returned)
+	return nil, nil
+}
+
+func waitSecurityApply(t *testing.T, app *glyph.App, ready func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		app.RenderNow()
+		if ready() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("security callback not applied")
+}
+
+func TestCancelSecurityAndRestartRejectsLateResponse(t *testing.T) {
+	client := blockingSecurityClient{make(chan securityRequest, 4)}
+	parent, stop := context.WithCancel(context.Background())
+	defer stop()
+	data := &model{localChecked: true, outdatedChecked: true, cancel: stop,
+		osvClient: client, generation: 7,
+		inventory:   []packagemanager.InstalledPackage{{Manager: "go", Name: "example.com/direct", Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/direct"}},
+		allEvidence: []security.Evidence{{Package: "previous", Status: security.StatusVulnerable}},
+		findings:    []vulnerabilityRow{{Evidence: security.Evidence{Package: "previous"}}},
+	}
+	app := glyph.NewApp()
+	refreshSecurity(data, app)
+	var first securityRequest
+	select {
+	case first = <-client.requests:
+	case <-time.After(time.Second):
+		t.Fatal("scan did not start")
+	}
+	cancelSecurity(data, app)
+	select {
+	case <-first.ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("request context not canceled")
+	}
+	if parent.Err() != nil || data.generation != 7 || data.securityChecked || data.securityScanning || data.loading || !errors.Is(data.securityErr, context.Canceled) {
+		t.Fatalf("cancellation state: %+v", data)
+	}
+	if len(data.allEvidence) != 1 || len(data.findings) != 1 || data.status != "Vulnerability scan canceled; results incomplete" {
+		t.Fatal("cancellation discarded results or hid incomplete state")
+	}
+	summary, color := packageHomeSummary(data)
+	if !strings.Contains(summary, "Security: canceled; results incomplete") || color == glyph.Red {
+		t.Fatalf("home: %s, %v", summary, color)
+	}
+	cancelSecurity(data, app)
+	if data.status != "Vulnerability scan canceled; results incomplete" {
+		t.Fatal(data.status)
+	}
+	refreshSecurity(data, app)
+	var second securityRequest
+	select {
+	case second = <-client.requests:
+	case <-time.After(time.Second):
+		t.Fatal("restart did not start")
+	}
+	close(first.release)
+	<-first.returned
+	// Drain late old completion before releasing replacement scan.
+	for range 20 {
+		app.RenderNow()
+		time.Sleep(time.Millisecond)
+	}
+	if data.securityChecked || !data.securityScanning || len(data.allEvidence) != 1 {
+		t.Fatal("late response overwrote replacement scan")
+	}
+	close(second.release)
+	<-second.returned
+	waitSecurityApply(t, app, func() bool { return data.securityChecked })
+	if data.securityScanning || data.securityErr != nil || data.securityCancel != nil {
+		t.Fatal("replacement scan failed to complete")
+	}
+}
+
+func TestCancelSecurityWithoutActiveScanPreservesPackageWork(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	data := &model{cancel: cancel, loading: true, localLoading: true, networkPending: true}
+	cancelSecurity(data, glyph.NewApp())
+	if ctx.Err() != nil || !data.loading || !data.localLoading || !data.networkPending || data.status != "No vulnerability scan running" {
+		t.Fatalf("inactive cancellation changed package work: %+v", data)
+	}
+}
+
+func TestFullRefreshSecurityCancelCannotResurrect(t *testing.T) {
+	t.Setenv(config.ProfileEnvironment, "")
+	root := t.TempDir()
+	// Native commands are local fixtures; no inventory or network dependency.
+	npm := `#!/bin/sh
+case "$1" in
+  --version) printf '10.0.0' ;;
+  ls) printf '{"dependencies":{"example":{"version":"1.0.0"}}}' ;;
+  outdated) printf '{"example":{"current":"1.0.0","wanted":"2.0.0","latest":"2.0.0"}}' ;;
+esac
+`
+	for name, content := range map[string]string{
+		"npm":               npm,
+		"package.json":      `{"dependencies":{"example":"1.0.0"}}`,
+		"package-lock.json": `{"lockfileVersion":3,"packages":{"":{"dependencies":{"example":"1.0.0"}},"node_modules/example":{"version":"1.0.0"}}}`,
+		"packages.toml":     fmt.Sprintf("version = 2\n[[profiles.default.projects]]\nname = \"test\"\npath = %q\n", root),
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", root)
+	data, err := startupModel("", filepath.Join(root, "packages.toml"))
+	if err != nil || data.packageConfigErr != nil {
+		t.Fatalf("startup: %v, %v", err, data.packageConfigErr)
+	}
+	data.active = &data.scopes[1]
+	client := blockingSecurityClient{make(chan securityRequest, 4)}
+	data.osvClient = client
+	app := glyph.NewApp()
+	refresh(data, app)
+	var request securityRequest
+	select {
+	case request = <-client.requests:
+	case <-time.After(2 * time.Second):
+		t.Fatal("full refresh did not start security request")
+	}
+	waitSecurityApply(t, app, func() bool { return data.securityScanning })
+	if !data.localChecked || !data.outdatedChecked || len(data.packages) != 1 {
+		t.Fatal("package results missing before cancellation")
+	}
+	cancelSecurity(data, app)
+	select {
+	case <-request.ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("full refresh security request not canceled")
+	}
+	close(request.release)
+	<-request.returned
+	for range 20 {
+		app.RenderNow()
+		time.Sleep(time.Millisecond)
+	}
+	if data.securityChecked || data.securityScanning || data.loading || !errors.Is(data.securityErr, context.Canceled) || len(data.packages) != 1 || !data.outdatedChecked {
+		t.Fatalf("full refresh resurrected scan or lost outdated results: %+v", data)
+	}
+}
+
+func TestSecurityGenerationRejectsQueuedCompletion(t *testing.T) {
+	client := blockingSecurityClient{make(chan securityRequest, 1)}
+	data := &model{localChecked: true, outdatedChecked: true, osvClient: client,
+		inventory: []packagemanager.InstalledPackage{{Manager: "go", Name: "example.com/direct", Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/direct"}},
+	}
+	app := glyph.NewApp()
+	refreshSecurity(data, app)
+	var request securityRequest
+	select {
+	case request = <-client.requests:
+	case <-time.After(time.Second):
+		t.Fatal("scan did not start")
+	}
+	stop := data.securityCancel
+	defer stop()
+	// Leave context live: generation alone must reject stale Apply callbacks.
+	data.securityCancel = func() {}
+	cancelSecurity(data, app)
+	close(request.release)
+	<-request.returned
+	for range 20 {
+		app.RenderNow()
+		time.Sleep(time.Millisecond)
+	}
+	if data.securityChecked || data.securityScanning || !errors.Is(data.securityErr, context.Canceled) {
+		t.Fatal("stale generation marked canceled scan complete")
+	}
+}
+
+func TestSecurityCancelFooterTracksActiveScan(t *testing.T) {
+	data := &model{securityScanning: true}
+	results, _ := resultView(data)
+	vulnerabilities, _ := vulnerabilityView(data)
+	assertRenderedContains(t, results, "x cancel scan")
+	assertRenderedContains(t, vulnerabilities, "x cancel scan")
+	data.securityScanning = false
+	assertRenderedContains(t, results, "Space mark")
+	assertRenderedContains(t, vulnerabilities, "i indirect")
 }

@@ -336,6 +336,8 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 		pairs := [][2]string{{"Tool", "lodash"}, {"Status", "vulnerable"}, {"CVSS", fmt.Sprint(score)}, {"Current", "4.17.20"}, {"Fix", "4.17.21"}, {"Source", "OSV"}, {"Advisory", "GHSA-29mw-wpgm-hmr9"}, {"Rules", "2"}}
 		if width < 120 {
 			pairs = pairs[:3]
+		} else if width < 140 {
+			pairs = pairs[:7]
 		}
 		for j, pair := range pairs {
 			x := -1
@@ -346,7 +348,11 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 				}
 			}
 			if width >= 120 {
-				x = []int{3, 26, 39, 46, 61, 76, 83, 108}[j]
+				columns := packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0]))
+				x = 3
+				for k := 0; k < j; k++ {
+					x += columns[k].width + 1
+				}
 			}
 			if x < 0 {
 				t.Fatalf("missing %s heading", pair[0])
@@ -365,9 +371,9 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 				t.Fatalf("stale severity at width %d", width)
 			}
 		}
-		if width >= 120 {
+		if width >= 140 {
 			for j, column := range packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0])) {
-				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5, 12}[j] {
+				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5, 12, 13}[j] {
 					t.Fatalf("%dx30 column %s stretched to %d", width, column.heading, column.width)
 				}
 			}
