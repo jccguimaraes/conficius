@@ -71,6 +71,7 @@ type ManagerEvidence struct {
 }
 
 type ManagerStatus struct {
+	RunAs          string            `json:"run_as,omitempty"`
 	Name           string            `json:"name"`
 	Status         string            `json:"status"`
 	Evidence       ManagerEvidence   `json:"evidence"`
@@ -92,6 +93,9 @@ type ManagerIntegrity struct {
 }
 
 func CheckManagerIntegrity(pms []string, options QueryOptions) ([]ManagerIntegrity, error) {
+	if hasRunAs(pms, options) {
+		return checkRunAsIntegrity(pms, options)
+	}
 	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
 		return nil, err
@@ -119,6 +123,7 @@ type ManagerOptions struct {
 }
 
 type QueryOptions struct {
+	RunAs             map[string]string
 	Managers          map[string]ManagerOptions
 	Executables       map[string]string
 	GlobalConfig      map[string]bool
@@ -130,12 +135,19 @@ type QueryOptions struct {
 
 func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 	options := QueryOptions{
+		RunAs:        nil,
 		GlobalConfig: make(map[string]bool),
 		Disabled:     make(map[string]bool),
 		Required:     make(map[string]bool),
 	}
 	for manager, settings := range profile.Managers {
 		options.GlobalConfig[manager] = true
+		if settings.RunAs != "" {
+			if options.RunAs == nil {
+				options.RunAs = make(map[string]string)
+			}
+			options.RunAs[manager] = settings.RunAs
+		}
 		if settings.Enabled != nil {
 			if *settings.Enabled {
 				options.Required[manager] = true
@@ -153,6 +165,7 @@ type QueryResult struct {
 }
 
 type Package struct {
+	RunAs           string      `json:"run_as,omitempty"`
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`
 	Current         string      `json:"current"`
@@ -181,6 +194,7 @@ type RecoveryCommand struct {
 }
 
 type UpdatePlan struct {
+	RunAs      string            `json:"run_as,omitempty"`
 	Manager    string            `json:"manager"`
 	Executable string            `json:"executable"`
 	Directory  string            `json:"directory,omitempty"`
@@ -280,6 +294,9 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 }
 
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
+	if hasRunAs(pms, options) {
+		return queryRunAsOutdated(ctx, pms, scopes, options)
+	}
 	var err error
 	scopes, err = normalizeScopes(scopes)
 	if err != nil {
@@ -671,6 +688,9 @@ func Filter(packages Packages, keep func(Package) bool) Packages {
 			scope := toolScope(tool)
 			class := toolDependencyClass(tool)
 			record := Package{Manager: tool.GetPackageManager(), Name: tool.GetName(), Current: tool.GetCurrentVersion(), Latest: tool.GetLatestVersion(), Requested: tool.GetRequestedVersion(), Role: packageRole(tool.GetPackageManager(), class), DependencyClass: class, Manifest: packageManifest(tool.GetPackageManager(), scope), Config: packageConfig(tool.GetPackageManager(), scope), Executable: tool.GetExecutable(), Scope: scope.Kind, Path: scope.Path}
+			if remote, ok := tool.(recordTool); ok {
+				record = remote.Package
+			}
 			if keep(record) {
 				filtered[name] = append(filtered[name], tool)
 			}
@@ -722,6 +742,10 @@ func Records(packages Packages) []Package {
 	records := make([]Package, 0)
 	for _, tools := range packages {
 		for _, tool := range tools {
+			if remote, ok := tool.(recordTool); ok {
+				records = append(records, remote.Package)
+				continue
+			}
 			records = append(records, Package{
 				Manager:         tool.GetPackageManager(),
 				Name:            tool.GetName(),
@@ -786,7 +810,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		}
 		plan := plansByKey[key]
 		if plan == nil {
-			plan = &UpdatePlan{Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
+			plan = &UpdatePlan{RunAs: record.RunAs, Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
 			plansByKey[key] = plan
 			keys = append(keys, key)
 		}
@@ -832,7 +856,7 @@ func updatePlanHash(plan UpdatePlan) string {
 		_, _ = hash.Write([]byte(value))
 		_, _ = hash.Write([]byte{0})
 	}
-	for _, value := range []string{plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
+	for _, value := range []string{plan.RunAs, plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
 		strconv.FormatBool(plan.Impact.MayChangeManifests), strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
 		writeHashValue(value)
 	}
@@ -1022,6 +1046,21 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 			break
 		}
+		if plan.RunAs != "" {
+			response, err := callManagerWorker(ctx, workerRequest{Operation: "apply", Manager: plan.Manager, User: plan.RunAs, Plan: &plan})
+			outcomes = append(outcomes, response.Outcomes...)
+			if err != nil && len(response.Outcomes) == 0 {
+				outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(err.Error())})
+			}
+			if err != nil {
+				updateErrors = append(updateErrors, err)
+				failedManagers[plan.Manager] = err
+				if !bestEffort {
+					break
+				}
+			}
+			continue
+		}
 		beforeFiles := snapshotProjectFiles(plan)
 		planContext, cancel := context.WithTimeout(ctx, mutationTimeout)
 		cmd := commandContext(planContext, plan.Executable, plan.Args...)
@@ -1122,6 +1161,9 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 		if !ok {
 			continue
 		}
+		if plan.RunAs != "" {
+			continue
+		} // Worker applies and verifies under target identity.
 		var err error
 		if plan.Manager == PM_GO && plan.Scope == "global" {
 			versions := make(map[string]string, len(plan.Packages))
@@ -1164,7 +1206,7 @@ func runOutputDir(ctx context.Context, dir, executable string, args ...string) (
 	cmd := commandContext(ctx, executable, args...)
 	cmd.Dir = dir
 	cmd.Env = managerEnvironment(dir)
-	output, err := cmd.Output()
+	output, err := managerCommandOutput(cmd)
 	if err == nil {
 		return output, nil
 	}

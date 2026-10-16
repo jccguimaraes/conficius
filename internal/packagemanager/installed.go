@@ -231,6 +231,9 @@ func QueryInstalledScopes(ctx context.Context, pms []string, scopes []Scope) (In
 }
 
 func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (InstalledResult, error) {
+	if hasRunAs(pms, options) {
+		return queryRunAsInstalled(ctx, pms, scopes, options)
+	}
 	var err error
 	scopes, err = normalizeScopes(scopes)
 	if err != nil {
@@ -658,6 +661,12 @@ func ManagerPackages(ctx context.Context, statuses []ManagerStatus) ([]Installed
 	var packages []InstalledPackage
 	var versionErrors []error
 	for _, status := range statuses {
+		if status.RunAs != "" {
+			if status.ManagerVersion != "" {
+				packages = append(packages, InstalledPackage{Manager: "manager", Name: status.Name, Version: status.ManagerVersion, Role: RolePackageManager, Scope: "global"})
+			}
+			continue
+		}
 		if status.Status != StatusAvailable || len(status.Executables) == 0 {
 			continue
 		}
@@ -691,6 +700,9 @@ func ManagerUpdates(ctx context.Context, statuses []ManagerStatus, installed []I
 			continue
 		}
 		status, ok := managerStatus(statuses, PM_NPM)
+		if ok && status.RunAs != "" {
+			continue
+		} // Target inventory owns manager self-update discovery.
 		if !ok || len(status.Executables) == 0 || npmManagedByOtherTool(ctx, status.Executables[0], statuses) {
 			continue
 		}

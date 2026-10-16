@@ -7,8 +7,9 @@
 - Independent central package `config.toml` with strict schema version 2; dotfile configuration is separate.
 - XDG and OS-native layout discovery, conflict rejection, explicit `--config`, and preview/apply `config layout` moves.
 - CLI, `CONFICIUS_PROFILE`, central config selection, and default profile resolution.
-- Profiles group named project paths and manager `enabled` settings only, with per-project `allow_manifest_changes` update permission.
+- Profiles group named project paths and manager `enabled` and optional `run_as` settings, with per-project `allow_manifest_changes` update permission.
 - Global, project, Cargo, and npm workspace inspection.
+- macOS/Linux `run_as`: explicit terminal-confirmed sudo login-account global inspection and supported package updates, with target-side discovery and plan revalidation; no password capture or caller fallback. TUI merges target/current-user results after foreground prefetch. Project/workspace delegation, delegated manager self-updates, and delegated APT cache refresh are blocked; Windows delegation is unsupported. APT upgrades remain unsupported. See [account requirements and privilege examples](../cli.html#manager-run-as).
 - Working-directory discovery recognizes five project files: `package.json`, `Cargo.toml`, `go.mod`, `mise.toml`, and `.mise.toml`. Go modules and mise runtimes are discovered independently in combined roots.
 - npm project inventory, freshness, and doctor checks run only where `package.json` exists.
 - npm project inventory uses `npm ls --package-lock-only --json`; global inventory reads installed packages.
@@ -45,7 +46,7 @@
 - Go manager inspection uses `go version`; global outdated checks use structured `go list -m -json MODULE@latest` metadata.
 - Go updates run one exact `go install module@version` plan per tool, write verified versions to journal, and use fake-executable execution coverage.
 - Bun command and changed-output parser failure fixtures.
-- Registered apt adapter for global system inventory via `dpkg-query` and outdated checks via `apt-get --simulate` against cached lists only on Debian/Ubuntu and other apt-based Linux systems. No project operations or automated package upgrades; inspection does not refresh metadata or escalate privileges. Users explicitly refresh lists separately with `sudo apt-get update`, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline inventory has unknown freshness.
+- Registered apt adapter for global system inventory via `dpkg-query` and outdated checks via `apt-get --simulate` against cached lists only on Debian/Ubuntu and other apt-based Linux systems. No project operations or automated package upgrades; inspection does not refresh metadata or automatically escalate privileges unless explicitly configured via `run_as`. Users explicitly refresh lists separately with `sudo apt-get update`, or on Linux without APT `run_as`, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline inventory has unknown freshness.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
 - `PATH` executable discovery; no profile executable overrides.

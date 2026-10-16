@@ -82,6 +82,8 @@ type model struct {
 	packageFocus       func(func())
 	updateErrorLines   []string
 	updating           bool
+	sessionStarting    bool
+	runManagerRefresh  bool
 	runInteractive     bool
 	runCacheRefresh    bool
 	cacheExecutable    string
@@ -114,6 +116,9 @@ func main() {
 }
 
 func run() error {
+	if handled, err := packagemanager.HandleManagerWorker(os.Args[1:], os.Stdout); handled {
+		return err
+	}
 	configFlag, packageFlag, err := parseConfigFlags(os.Args[1:], os.Stdout)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
@@ -134,8 +139,26 @@ func run() error {
 		startView = restoreRestartState(data, state)
 		_ = os.Unsetenv(restartStateEnv)
 	}
+	{ // Always seal worker launches before glyph, even if config changes later.
+		scopes := selectedScopes(data)
+		managerScopes := make([]packagemanager.Scope, len(scopes))
+		for i, scope := range scopes {
+			managerScopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
+		}
+		if err := packagemanager.PrepareRunAsQueries(context.Background(), managerScopes, packagemanager.QueryOptionsFromProfile(data.profile.Profile)); err != nil {
+			data.status = err.Error()
+		}
+	}
 	if err := runSession(data, startView); err != nil {
 		return err
+	}
+	if data.runManagerRefresh {
+		tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tty.Close() }()
+		return execFreshTUI(tty, data)
 	}
 	if data.runCacheRefresh {
 		return runInteractiveCacheRefresh(data)
@@ -220,11 +243,13 @@ func runSession(data *model, startView string) error {
 			app.EnterJumpMode()
 		}
 	})
+	data.sessionStarting = true
 	if fullRefreshOnStart(data, startView) {
 		refresh(data, app)
 	} else {
 		refreshLocal(data, app)
 	}
+	data.sessionStarting = false
 	if data.dotfiles != nil {
 		registerDotfiles(data.dotfiles, app)
 	}
@@ -360,6 +385,11 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		updateHome(data)
 		app.Go("scopes")
 		app.RequestRender()
+		return
+	}
+	if !data.sessionStarting && packagemanager.HasRunAs(packagemanager.QueryOptionsFromProfile(data.profile.Profile)) {
+		data.runManagerRefresh = true
+		app.Stop()
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())

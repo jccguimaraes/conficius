@@ -19,7 +19,8 @@ type Profile struct {
 }
 
 type ManagerSettings struct {
-	Enabled *bool `toml:"enabled" json:"enabled,omitempty"`
+	Enabled *bool  `toml:"enabled" json:"enabled,omitempty"`
+	RunAs   string `toml:"run_as" json:"run_as,omitempty"`
 }
 
 type ProfileProject struct {
@@ -86,7 +87,10 @@ func defaultProfile() Profile {
 }
 
 func normalizeProfile(profile *Profile, root string) error {
-	for manager := range profile.Managers {
+	for manager, settings := range profile.Managers {
+		if settings.RunAs != "" && !ValidRunAsUser(settings.RunAs) {
+			return fmt.Errorf("manager %s: invalid run_as user %q", manager, settings.RunAs)
+		}
 		if !supportedManager(manager) {
 			return fmt.Errorf("unsupported manager %q", manager)
 		}
@@ -123,6 +127,11 @@ func normalizeProfile(profile *Profile, root string) error {
 		seenPaths[project.ResolvedPath] = project.Name
 	}
 	return nil
+}
+
+// ValidRunAsUser accepts local account names, never sudo options or shell syntax.
+func ValidRunAsUser(name string) bool {
+	return len(name) <= 64 && regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.-]*[$]?$`).MatchString(name)
 }
 
 func supportedManager(manager string) bool {

@@ -438,3 +438,23 @@ func TestProfilesRejectRemovedFields(t *testing.T) {
 		})
 	}
 }
+
+func TestPackageRunAsConfiguration(t *testing.T) {
+	packageTestHome(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writePackageTest(t, path, "version = 2\n[profiles.work.managers.brew]\nrun_as = 'builder'\n")
+	project, err := LoadPackages(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := project.ResolveProfile("work", false)
+	if err != nil || profile.Profile.Managers["brew"].RunAs != "builder" {
+		t.Fatal(profile, err)
+	}
+	for _, name := range []string{"-root", "root;id", "name with spaces", strings.Repeat("x", 65)} {
+		project.Profiles["work"] = Profile{Managers: map[string]ManagerSettings{"brew": {RunAs: name}}}
+		if _, err := project.ResolveProfile("work", false); err == nil {
+			t.Fatalf("accepted %q", name)
+		}
+	}
+}

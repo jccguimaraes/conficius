@@ -213,6 +213,7 @@ Repository linking and `config layout` migration are separate workflows. Choose 
 | `layout` | Optional: `"xdg"` | `"xdg"` or `"os-native"`; chooses the default for an explicit `config layout` action, not automatic relocation. |
 | `profile` | Optional: `"default"` fallback | Selection priority: `--profile NAME`, `CONFICIUS_PROFILE`, this field, then `default`. |
 | `profiles.<name>.managers.<manager>.enabled` | Optional: `true` | Managers stay enabled unless explicitly disabled. Enabling one does not disable others. |
+| `profiles.<name>.managers.<manager>.run_as` | Optional: current user | Local account for global manager operations, e.g. `run_as = "builder"` under `[profiles.work.managers.brew]`. Uses `sudo -i -u USER` with explicit foreground `/dev/tty` confirmation; no password arguments or fallback. |
 | `profiles.<name>.projects[].name` | Required per project | Unique project name within the profile, used by `--profile-project`. |
 | `profiles.<name>.projects[].path` | Required per project | Absolute path or path relative to the package config file's directory, not the repository root. Supports `$HOME`, `${HOME}`, and other set environment variables via `$VAR` or `${VAR}`; HOME/XDG variables have defaults. Unset variables without defaults fail; `~` is not expanded. |
 | `profiles.<name>.projects[].allow_manifest_changes` | Optional: `false` | Set `true` explicitly to permit native project updates that may change manifests or lockfiles. Git overrides do not bypass this guard. |
@@ -224,6 +225,10 @@ For example, disable a manager with `[profiles.work.managers.brew]` and `enabled
 conficius config resolve --profile work --verbose
 conficius packages outdated --profile work --profile-project project-y --pm npm
 ```
+
+`run_as` currently supports global scopes only: use `--global` in CLI, or select global scope in TUI. Target account must exist, be allowed by sudo policy, and be able to execute this Conficius binary. Manager lookup uses target login environment; configure that account’s PATH rather than caller executable overrides. stdout carries bounded internal JSON; stdin and stderr use controlling terminal. TUI refresh stops and restarts before confirmation; results from target and current-user managers remain combined. Noninteractive execution cannot bypass this confirmation, even with `--yes`. Plans bind target username, executable, packages and command; worker rebuilds and checks plan before mutation and verifies afterwards. Project operations fail closed rather than running as caller. Manager self-update discovery for delegated managers is not supported.
+
+Use separate accounts according to manager ownership: Homebrew normally runs as its non-root owner; APT system updates require root privileges and appropriate sudo authorization, but Conficius currently supports APT inspection only. Setting `run_as = "root"` does not enable unsupported APT upgrades. APT cache refresh with `run_as` is blocked; use an authorized target-account terminal instead. Switching to an unprivileged account does not grant APT write access. Grant only needed sudo permissions; Conficius does not install sudo rules or change ownership.
 
 The example leaves project mutation disabled. Set `allow_manifest_changes = true` in the matching project entry only when you intend to permit updates, then preview before using `--apply`.
 
