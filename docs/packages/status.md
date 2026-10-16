@@ -9,6 +9,7 @@
 - CLI, `CONFICIUS_PROFILE`, central config selection, and default profile resolution.
 - Profiles group named project paths and manager `enabled` settings only, with per-project `allow_manifest_changes` update permission.
 - Global, project, Cargo, and npm workspace inspection.
+- Working-directory discovery recognizes five project files: `package.json`, `Cargo.toml`, `go.mod`, `mise.toml`, and `.mise.toml`. Go modules and mise runtimes are discovered independently in combined roots.
 - npm project inventory, freshness, and doctor checks run only where `package.json` exists.
 - npm project inventory uses `npm ls --package-lock-only --json`; global inventory reads installed packages.
 - Absolute scope paths, symlink-aware deduplication, and workspace precedence.
@@ -38,6 +39,9 @@
 - Read-only Go tool journal parser rejects unsupported schemas and ambiguous command ownership.
 - `packages go-tools import` records explicit Go module/version/command ownership without running `go install`.
 - Registered Go adapter with journal-backed global inventory and exposed-command ownership. Missing journal means empty inventory.
+- Go project/workspace inventory uses `go list -m -json -mod=readonly all` with `GOPROXY=off`, `GONOPROXY=none`, `GOSUMDB=off`, and `GOTOOLCHAIN=local`; cache misses are errors.
+- Go project/workspace outdated checks use `go list -m -json -mod=readonly -u all`; network access and metadata-cache writes are possible, but `go.mod` is not written. Replaced modules are excluded from outdated candidates; project updates use pinned `go get` batches with manifest permission and Git guards. Native resolution may change `go.mod`, `go.sum` and transitive dependencies; no automatic rollback is offered. Global tool installs and journal writes remain separate.
+- Go native OSV inventory uses actual module path/version, including versioned replacements. Local replacements lack published identity and are omitted; omission is a security coverage gap, not a clean result.
 - Go manager inspection uses `go version`; global outdated checks use structured `go list -m -json MODULE@latest` metadata.
 - Go updates run one exact `go install module@version` plan per tool, write verified versions to journal, and use fake-executable execution coverage.
 - Bun command and changed-output parser failure fixtures.
@@ -48,7 +52,7 @@
 - Disabled, optional, required, and unavailable manager states.
 - Separate executable and global profile-config evidence in manager status.
 - Missing optional manager with global profile config remains unavailable and reports both facts.
-- Manifest evidence from mise config, Brewfile, and package.json; explicit `enabled = true` also requires a manager.
+- Manifest evidence from mise config, Brewfile, package.json, and go.mod; explicit `enabled = true` also requires a manager.
 - Homebrew refreshes metadata with `brew update` before `brew outdated --json=v2 --greedy`; refresh errors fail the outdated operation.
 
 ### Inspection

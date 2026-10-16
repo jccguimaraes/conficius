@@ -227,7 +227,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Name:        "vulnerabilities",
 				Description: "Check installed packages against OSV using exact package versions.",
 				Usage:       "Show known vulnerabilities and unsupported package mappings.",
-				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}}, scopeFlags()...),
+				Flags:       append([]urfave.Flag{pmFlag(), jsonFlag(), &urfave.BoolFlag{Name: "transitive", Usage: "Include transitive package inventory"}, &urfave.BoolFlag{Name: "include-indirect", Usage: "Scan indirect Go dependencies used by applications, tests or tools"}, &urfave.BoolFlag{Name: "include-graph-only", Usage: "Scan Go graph-only modules: not confirmed used by current build, independently of --include-indirect"}}, scopeFlags()...),
 				Action: func(ctx context.Context, c *urfave.Command) error {
 					scopes, resolved, err := resolvePackageScopes(c)
 					if err != nil {
@@ -254,6 +254,7 @@ func (cli *Cli) packages() *urfave.Command {
 					packagemanager.MergePackages(outdated.Packages, managerUpdates)
 					outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 					report, scanErr := security.Scan(ctx, inventory.Packages, security.Options{
+						IncludeIndirect: c.Bool("include-indirect"), IncludeGraphOnly: c.Bool("include-graph-only"),
 						Outdated: packagemanager.Records(outdated.Packages), OSVMappings: osvMappings, EUVDMappings: euvdMappings,
 						OSVClient:  vulnerability.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_OSV_URL")),
 						EUVDClient: euvd.NewClient(http.DefaultClient, os.Getenv("CONFICIUS_EUVD_URL")),
@@ -265,7 +266,16 @@ func (cli *Cli) packages() *urfave.Command {
 					if err := printManagerWarnings(cli.Writer, inventory.Managers); err != nil {
 						return err
 					}
-					if err := printVulnerabilityFindings(cli.Writer, report.Evidence); err != nil {
+					hasGo := false
+					for _, item := range report.Evidence {
+						hasGo = hasGo || item.Manager == packagemanager.PM_GO
+					}
+					if hasGo {
+						if _, err := fmt.Fprintf(cli.Writer, "Findings: %d default relevance, %d Go tool, %d Go graph-only (use --include-graph-only); graph-only usage unconfirmed if loading incomplete.\n", report.Summary.Vulnerable, report.Summary.Tools, report.Summary.GraphOnly); err != nil {
+							return err
+						}
+					}
+					if err := printVulnerabilityFindings(cli.Writer, report.Evidence, c.Bool("include-graph-only")); err != nil {
 						return err
 					}
 					return errors.Join(inventoryErr, outdatedErr, scanErr)
@@ -491,8 +501,12 @@ func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectInteg
 }
 
 func hasPackageManifest(path string) bool {
-	info, err := os.Stat(filepath.Join(path, "package.json"))
-	return err == nil && !info.IsDir()
+	for _, name := range []string{"package.json", "go.mod"} {
+		if info, err := os.Stat(filepath.Join(path, name)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 func printProjectIntegrity(writer io.Writer, checks []packagemanager.ProjectIntegrity) error {
@@ -554,8 +568,18 @@ func printManagerWarnings(writer io.Writer, statuses []packagemanager.ManagerSta
 	return nil
 }
 
-func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) error {
+func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence, includeGraphOnly ...bool) error {
+	seenScopes := make(map[string]bool)
 	for _, item := range evidence {
+		if item.ScanScope != "" && !seenScopes[item.ScanScope] {
+			if _, err := fmt.Fprintln(writer, item.ScanScope); err != nil {
+				return err
+			}
+			seenScopes[item.ScanScope] = true
+		}
+		if item.DependencyClass == "graph-only" && (len(includeGraphOnly) == 0 || !includeGraphOnly[0]) {
+			continue
+		}
 		if item.Advisory == "" {
 			continue
 		}
@@ -569,7 +593,11 @@ func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence) 
 		if rule != "" {
 			rule = " " + rule
 		}
-		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s%s\n", item.Source, item.Manager, item.Package, item.Version, item.Status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote, rule); err != nil {
+		status := item.Status
+		if item.DependencyClass != "" {
+			status += " [" + item.DependencyClass + "]"
+		}
+		if _, err := fmt.Fprintf(writer, "%s %s %s %s %s %.1f %s %s %s %s%s\n", item.Source, item.Manager, item.Package, item.Version, status, item.Score, item.Advisory, item.CVELink, item.UpgradeTo, item.UpgradeNote, rule); err != nil {
 			return err
 		}
 	}
@@ -592,6 +620,11 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 		}
 		if plan.Impact.RequiresAdmin || plan.Impact.MayRestartServices || plan.Impact.MayReboot || plan.Impact.Interactive {
 			if _, err := fmt.Fprintf(writer, "Impact: admin=%t restart-services=%t reboot=%t interactive=%t\n", plan.Impact.RequiresAdmin, plan.Impact.MayRestartServices, plan.Impact.MayReboot, plan.Impact.Interactive); err != nil {
+				return err
+			}
+		}
+		if plan.Impact.MayChangeManifests {
+			if _, err := fmt.Fprintf(writer, "Impact: may change go.mod, go.sum and transitive dependencies in %s; no automatic rollback\n", plan.Directory); err != nil {
 				return err
 			}
 		}

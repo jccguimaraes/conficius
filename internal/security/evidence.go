@@ -14,24 +14,28 @@ const (
 )
 
 type Evidence struct {
-	Source      string   `json:"source"`
-	Manager     string   `json:"manager"`
-	Package     string   `json:"package"`
-	Version     string   `json:"version"`
-	Scope       string   `json:"scope,omitempty"`
-	Path        string   `json:"path,omitempty"`
-	Status      string   `json:"status"`
-	Advisory    string   `json:"advisory,omitempty"`
-	SourceID    string   `json:"source_id,omitempty"`
-	Aliases     []string `json:"aliases,omitempty"`
-	UpgradeTo   string   `json:"upgrade_to,omitempty"`
-	UpgradeNote string   `json:"upgrade_note,omitempty"`
-	Rules       []string `json:"rules,omitempty"`
-	Reason      string   `json:"reason,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Reference   string   `json:"reference,omitempty"`
-	CVELink     string   `json:"cve_link,omitempty"`
-	Score       float64  `json:"score,omitempty"`
+	Transitive      bool     `json:"transitive,omitempty"`
+	DeclaredTool    bool     `json:"declared_tool,omitempty"`
+	DependencyClass string   `json:"dependency_class,omitempty"`
+	ScanScope       string   `json:"scan_scope,omitempty"`
+	Source          string   `json:"source"`
+	Manager         string   `json:"manager"`
+	Package         string   `json:"package"`
+	Version         string   `json:"version"`
+	Scope           string   `json:"scope,omitempty"`
+	Path            string   `json:"path,omitempty"`
+	Status          string   `json:"status"`
+	Advisory        string   `json:"advisory,omitempty"`
+	SourceID        string   `json:"source_id,omitempty"`
+	Aliases         []string `json:"aliases,omitempty"`
+	UpgradeTo       string   `json:"upgrade_to,omitempty"`
+	UpgradeNote     string   `json:"upgrade_note,omitempty"`
+	Rules           []string `json:"rules,omitempty"`
+	Reason          string   `json:"reason,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	Reference       string   `json:"reference,omitempty"`
+	CVELink         string   `json:"cve_link,omitempty"`
+	Score           float64  `json:"score,omitempty"`
 }
 
 func Sort(items []Evidence) {

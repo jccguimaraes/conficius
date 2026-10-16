@@ -12,12 +12,33 @@ import (
 	"github.com/jccguimaraes/conficius/internal/vulnerability"
 )
 
+// SelectInventory excludes optional Go work before either security source is queried.
+// Graph-only is independent of indirect modules used by applications, tests or tools.
+func SelectInventory(inventory []packagemanager.InstalledPackage, options Options) []packagemanager.InstalledPackage {
+	selected := make([]packagemanager.InstalledPackage, 0, len(inventory))
+	for _, pkg := range inventory {
+		if pkg.Manager == packagemanager.PM_GO {
+			if pkg.DependencyClass == "graph-only" {
+				if !options.IncludeGraphOnly {
+					continue
+				}
+			} else if pkg.Transitive && !pkg.DeclaredTool && !options.IncludeIndirect {
+				continue
+			}
+		}
+		selected = append(selected, pkg)
+	}
+	return selected
+}
+
 type Options struct {
-	Outdated     []packagemanager.Package
-	OSVMappings  []config.VulnerabilityMapping
-	EUVDMappings []config.EUVDMapping
-	OSVClient    vulnerability.Queryer
-	EUVDClient   euvd.Queryer
+	IncludeIndirect  bool
+	IncludeGraphOnly bool
+	Outdated         []packagemanager.Package
+	OSVMappings      []config.VulnerabilityMapping
+	EUVDMappings     []config.EUVDMapping
+	OSVClient        vulnerability.Queryer
+	EUVDClient       euvd.Queryer
 }
 
 type Summary struct {
@@ -25,6 +46,8 @@ type Summary struct {
 	Unmapped   int `json:"unmapped"`
 	Unknown    int `json:"unknown"`
 	Errors     int `json:"errors"`
+	GraphOnly  int `json:"graph_only"`
+	Tools      int `json:"tools"`
 }
 
 type Report struct {
@@ -33,6 +56,7 @@ type Report struct {
 }
 
 func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, options Options) (Report, error) {
+	inventory = SelectInventory(inventory, options)
 	type result struct {
 		source   string
 		evidence []Evidence
@@ -55,6 +79,16 @@ func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, opti
 		report.Evidence = append(report.Evidence, result.evidence...)
 		if result.err != nil {
 			scanErrors = append(scanErrors, fmt.Errorf("%s scan: %w", result.source, result.err))
+		}
+	}
+	for i := range report.Evidence {
+		item := &report.Evidence[i]
+		for _, pkg := range inventory {
+			if pkg.Manager == packagemanager.PM_GO && item.Manager == pkg.Manager && item.Package == pkg.Name && item.Version == pkg.Version && item.Scope == pkg.Scope && (item.Path == pkg.Path || item.Path == "") {
+				item.DependencyClass, item.ScanScope = pkg.DependencyClass, pkg.ScanScope
+				item.Transitive, item.DeclaredTool = pkg.Transitive, pkg.DeclaredTool
+				break
+			}
 		}
 	}
 	Sort(report.Evidence)
@@ -122,6 +156,14 @@ func normalizeStatus(status string) string {
 func summarize(evidence []Evidence) Summary {
 	var summary Summary
 	for _, item := range evidence {
+		if item.Status == StatusVulnerable && item.DependencyClass == "graph-only" {
+			summary.GraphOnly++
+			continue
+		}
+		if item.Status == StatusVulnerable && item.DependencyClass == "tool" {
+			summary.Tools++
+			continue
+		}
 		switch item.Status {
 		case StatusVulnerable:
 			summary.Vulnerable++

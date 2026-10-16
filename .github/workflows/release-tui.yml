@@ -46,7 +46,7 @@ jobs:
       - name: Test
         run: go test -race ./...
       - name: Build snapshot
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           args: build --snapshot --clean --config .goreleaser-tui.yaml
           distribution: goreleaser
@@ -79,7 +79,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           GORELEASER_CURRENT_TAG: "${{ github.ref_name }}"
         name: Publish with GoReleaser
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           args: release --clean --skip=validate --config .goreleaser-tui.yaml
           distribution: goreleaser

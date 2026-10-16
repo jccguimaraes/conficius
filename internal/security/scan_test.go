@@ -3,6 +3,7 @@ package security
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/euvd"
@@ -64,4 +65,76 @@ func product(name, vendor, version string) euvd.ProductEntry {
 	entry.Product.Vendor.Name = vendor
 	entry.ProductVersion = version
 	return entry
+}
+
+func TestGoEvidenceProvenanceAndSeparateCounts(t *testing.T) {
+	var inventory []packagemanager.InstalledPackage
+	for _, class := range []string{"application", "test", "tool", "graph-only"} {
+		inventory = append(inventory, packagemanager.InstalledPackage{Manager: "go", Name: "example.com/" + class, Version: "v1.0.0", OSVEcosystem: "Go", OSVName: "example.com/" + class, DependencyClass: class, ScanScope: "current build only"})
+	}
+	report, err := Scan(t.Context(), inventory, Options{IncludeGraphOnly: true, OSVClient: osvStub{}, EUVDClient: euvdStub{}})
+	if err != nil || report.Summary.Vulnerable != 2 || report.Summary.Tools != 1 || report.Summary.GraphOnly != 1 {
+		t.Fatalf("report = %#v, err = %v", report, err)
+	}
+	for _, item := range report.Evidence {
+		if item.DependencyClass == "" || item.ScanScope != "current build only" {
+			t.Fatalf("evidence = %#v", item)
+		}
+	}
+}
+
+type countingOSV struct{ calls atomic.Int32 }
+
+func (c *countingOSV) Query(context.Context, vulnerability.Package) ([]vulnerability.Vulnerability, error) {
+	c.calls.Add(1)
+	return nil, nil
+}
+
+func TestGoScanSelectionQueriesOnlySelectedInventory(t *testing.T) {
+	inventory := []packagemanager.InstalledPackage{
+		{Manager: "go", Name: "example.com/direct", DependencyClass: "application"},
+		{Manager: "go", Name: "example.com/indirect", DependencyClass: "application", Transitive: true},
+		{Manager: "go", Name: "example.com/test", DependencyClass: "test", Transitive: true},
+		{Manager: "go", Name: "example.com/tool", DependencyClass: "tool", Transitive: true, DeclaredTool: true},
+		{Manager: "go", Name: "example.com/nested-tool", DependencyClass: "tool", Transitive: true},
+		{Manager: "go", Name: "example.com/graph", DependencyClass: "graph-only", Transitive: true},
+	}
+	for i := range inventory {
+		inventory[i].Version = "v1.0.0"
+		inventory[i].OSVEcosystem = "Go"
+		inventory[i].OSVName = inventory[i].Name
+	}
+	for _, tc := range []struct {
+		name            string
+		indirect, graph bool
+		want            int
+	}{
+		{"default", false, false, 2}, {"indirect", true, false, 5}, {"graph", false, true, 3}, {"both", true, true, 6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &countingOSV{}
+			report, err := Scan(t.Context(), inventory, Options{IncludeIndirect: tc.indirect, IncludeGraphOnly: tc.graph, OSVClient: client, EUVDClient: euvdStub{}})
+			if err != nil || int(client.calls.Load()) != tc.want {
+				t.Fatalf("requests = %d, err = %v", client.calls.Load(), err)
+			}
+			clean := 0
+			for _, item := range report.Evidence {
+				if item.Status == StatusClean {
+					clean++
+				}
+			}
+			if clean != tc.want {
+				t.Fatalf("clean = %d; skipped must not be clean", clean)
+			}
+			for _, item := range report.Evidence {
+				if item.Package == "example.com/tool" && (!item.Transitive || !item.DeclaredTool) {
+					t.Fatal(item)
+				}
+			}
+		})
+	}
+	npm := []packagemanager.InstalledPackage{{Manager: "npm", Transitive: true}}
+	if len(SelectInventory(npm, Options{})) != 1 {
+		t.Fatal("non-Go behavior changed")
+	}
 }

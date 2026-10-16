@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -142,6 +143,29 @@ func TestProjectIntegrityChecksSkipCargoOnlyProject(t *testing.T) {
 	}
 	if checks := projectIntegrityChecks([]config.Scope{{Kind: "project", Path: project}}); len(checks) != 0 {
 		t.Fatalf("checks = %#v", checks)
+	}
+}
+
+func TestHasPackageManifestDetectsGoProject(t *testing.T) {
+	project := t.TempDir()
+	if hasPackageManifest(project) {
+		t.Fatal("empty directory has package manifest")
+	}
+	manifest := filepath.Join(project, "go.mod")
+	if err := os.Mkdir(manifest, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if hasPackageManifest(project) {
+		t.Fatal("go.mod directory treated as manifest")
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("module example.com/app\n\ngo 1.26\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !hasPackageManifest(project) {
+		t.Fatal("go.mod not detected")
 	}
 }
 
@@ -669,5 +693,132 @@ func writeCLIExecutable(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPackagesGoProjectUpdatePreviewAndGuard(t *testing.T) {
+	bin, project := t.TempDir(), t.TempDir()
+	manifest := filepath.Join(project, "go.mod")
+	original := "module example.com/main\n\ngo 1.26.0\n"
+	if err := os.WriteFile(manifest, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIExecutable(t, filepath.Join(bin, "go"), `#!/bin/sh
+case "$1" in
+version) printf 'go version go1.26.8' ;;
+list) printf '%s' '{"Path":"example.com/direct","Version":"v1.0.0","Update":{"Path":"example.com/direct","Version":"v1.2.0"}}' ;;
+*) exit 99 ;;
+esac
+`)
+	t.Setenv("PATH", bin)
+	var output bytes.Buffer
+	cli := New(&output, "test")
+	args := []string{"conficius", "packages", "update", "--pm", "go", "--project", project}
+	if err := cli.Command.Run(t.Context(), args); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"get" "example.com/direct@v1.2.0"`, "go.mod, go.sum and transitive dependencies", "no automatic rollback"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("missing %q in %s", want, output.String())
+		}
+	}
+	if err := cli.Command.Run(t.Context(), append(args, "--apply", "--allow-dirty", "--allow-unversioned")); err == nil || !strings.Contains(err.Error(), "does not allow manifest changes") {
+		t.Fatalf("guard error = %v", err)
+	}
+	data, err := os.ReadFile(manifest)
+	if err != nil || string(data) != original {
+		t.Fatalf("manifest changed: %q, %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(project, "go.sum")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected go.sum: %v", err)
+	}
+}
+
+func TestGraphOnlyOutputScopeFilterAndJSON(t *testing.T) {
+	evidence := []security.Evidence{{Manager: "go", Package: "google.golang.org/grpc", DependencyClass: "graph-only", ScanScope: "current build; not call reachability", Status: security.StatusVulnerable, Advisory: "GO-1"}}
+	var output bytes.Buffer
+	if err := printVulnerabilityFindings(&output, evidence); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "GO-1") || !strings.Contains(output.String(), "current build") {
+		t.Fatal(output.String())
+	}
+	output.Reset()
+	if err := printVulnerabilityFindings(&output, evidence, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "[graph-only]") || !strings.Contains(output.String(), "GO-1") {
+		t.Fatal(output.String())
+	}
+	output.Reset()
+	cli := New(&output, "test")
+	if err := cli.writePackageJSON(vulnerabilityOutput{Report: security.Report{Evidence: evidence}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"dependency_class": "graph-only"`, `"scan_scope": "current build; not call reachability"`, `"advisory": "GO-1"`} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatal(output.String())
+		}
+	}
+}
+
+func TestGoVulnerabilityFlagsSelectJSONAndRequests(t *testing.T) {
+	bin, project := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module example.com/main\ntool example.com/tool/cmd\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIExecutable(t, filepath.Join(bin, "go"), `#!/bin/sh
+case "$*" in
+version) printf 'go version go1.27.1' ;;
+'list -m -json -mod=readonly all'|'list -m -json -mod=readonly -u all')
+printf '%s\n' '{"Path":"example.com/direct","Version":"v1.0.0"}' '{"Path":"example.com/indirect","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/tool","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/nested","Version":"v1.0.0","Indirect":true}' '{"Path":"example.com/graph","Version":"v1.0.0","Indirect":true}' ;;
+'list -deps -e -json -mod=readonly ./...'|'list -deps -e -json -mod=readonly -test ./...')
+printf '%s\n' '{"Module":{"Path":"example.com/direct"}}' '{"Module":{"Path":"example.com/indirect"}}' ;;
+'list -deps -e -json -mod=readonly tool')
+printf '%s\n' '{"Module":{"Path":"example.com/tool"}}' '{"Module":{"Path":"example.com/nested"}}' ;;
+*) exit 99 ;;
+esac
+`)
+	t.Setenv("PATH", bin)
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		_, _ = fmt.Fprint(w, `{"vulns":[]}`)
+	}))
+	defer server.Close()
+	t.Setenv("CONFICIUS_OSV_URL", server.URL)
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  int
+	}{
+		{"default", nil, 2}, {"indirect", []string{"--include-indirect"}, 4},
+		{"graph", []string{"--include-graph-only"}, 3},
+		{"both", []string{"--include-indirect", "--include-graph-only"}, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requests.Store(0)
+			var output bytes.Buffer
+			cli := New(&output, "test")
+			args := append([]string{"conficius", "packages", "vulnerabilities", "--pm", "go", "--project", project, "--json"}, tc.flags...)
+			if err := cli.Command.Run(t.Context(), args); err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Data vulnerabilityOutput `json:"data"`
+			}
+			if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			// Go has no automatic EUVD identity, so each selected module has OSV and unmapped EUVD evidence.
+			if int(requests.Load()) != tc.want || len(result.Data.Report.Evidence) != tc.want*2 {
+				t.Fatalf("requests=%d report=%#v", requests.Load(), result.Data.Report)
+			}
+			for _, item := range result.Data.Report.Evidence {
+				if item.Package == "example.com/tool" && (!item.DeclaredTool || !item.Transitive) {
+					t.Fatal(item)
+				}
+			}
+		})
 	}
 }

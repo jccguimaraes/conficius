@@ -36,14 +36,84 @@
         <div class="rail-inner">
           <nav aria-label="CLI reference sections">
             <ul>
-              <li><a href="#overview">Overview &amp; shared flags</a></li>
-              <li><a href="#config">Configuration</a></li>
-              <li><a href="#dotfiles">Dotfiles</a></li>
-              <li><a href="#packages">Package inspection</a></li>
-              <li><a href="#vulnerabilities">Vulnerabilities</a></li>
-              <li><a href="#updates">Updates &amp; safeguards</a></li>
-              <li><a href="#logs">Logs &amp; Go tool records</a></li>
-              <li><a href="#managers">Manager support matrix</a></li>
+              <li>
+                <details>
+                  <summary><a href="#overview">Overview &amp; shared flags</a></summary>
+                  <ul>
+                    <li><a href="#install-and-start">Install and start</a></li>
+                    <li><a href="#global-options">Global options</a></li>
+                    <li><a href="#command-index">Command index</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details open>
+                  <summary><a href="#config">Configuration</a></summary>
+                  <ul>
+                    <li><a href="#init">init</a></li>
+                    <li><a href="#config-resolve">config resolve</a></li>
+                    <li><a href="#config-layout">config layout</a></li>
+                    <li><a href="#config-migrate">config migrate</a></li>
+                    <li><a href="#minimal-link-configuration">Minimal link configuration</a></li>
+                    <li><a href="#self-managed-config">Manage Conficius from your dotfiles repository</a></li>
+                    <li><a href="#package-config-fields">Package config fields</a></li>
+                    <li><a href="#tui-configuration-and-profiles">TUI configuration and profiles</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#dotfiles">Dotfiles</a></summary>
+                  <ul>
+                    <li><a href="#dotfiles-audit">dotfiles audit</a></li>
+                    <li><a href="#dotfiles-link">dotfiles link [tools...]</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#packages">Package inspection</a></summary>
+                  <ul>
+                    <li><a href="#shared-package-options">Shared package options</a></li>
+                    <li><a href="#packages-pms">packages pms</a></li>
+                    <li><a href="#packages-doctor">packages doctor</a></li>
+                    <li><a href="#packages-outdated">packages outdated</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#vulnerabilities">Vulnerabilities</a></summary>
+                  <ul>
+                    <li><a href="#packages-vulnerabilities">packages vulnerabilities</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#updates">Updates &amp; safeguards</a></summary>
+                  <ul>
+                    <li><a href="#packages-update">packages update</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#logs">Logs &amp; Go tool records</a></summary>
+                  <ul>
+                    <li><a href="#update-logs">Update logs</a></li>
+                    <li><a href="#packages-go-tools-import">packages go-tools import MODULE VERSION COMMAND [COMMAND...]</a></li>
+                  </ul>
+                </details>
+              </li>
+              <li>
+                <details>
+                  <summary><a href="#managers">Manager support matrix</a></summary>
+                  <ul>
+                    <li><a href="#manager-capabilities">Declared adapter capabilities</a></li>
+                  </ul>
+                </details>
+              </li>
             </ul>
           </nav>
         </div>
@@ -56,7 +126,7 @@
 <span class="syntax-command">conficius</span> <span class="syntax-flag">--help</span>
 <span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--help</span>
 <span class="syntax-command">conficius</span> help packages</code></pre>
-          <h2>Install and start</h2>
+          <h2 id="install-and-start">Install and start</h2>
           <p>Download a CLI or TUI archive from <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>. Choose <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code>. Verify against the release’s <code>checksums.txt</code>, extract, and put the binary on your <code>PATH</code>.</p>
           <p>CLI archives use <code>conficius_VERSION_OS_ARCH.tar.gz</code>; TUI archives use <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code>. Either binary runs independently.</p>
           <pre><code><span class="syntax-command">conficius</span> init
@@ -68,13 +138,13 @@
 <span class="syntax-command">cd</span> conficius
 <span class="syntax-command">go</span> build <span class="syntax-flag">-o</span> <span class="syntax-string">./bin/conficius</span> <span class="syntax-string">./cmd/cli</span>
 <span class="syntax-command">go</span> build <span class="syntax-flag">-o</span> <span class="syntax-string">./bin/conficius-tui</span> <span class="syntax-string">./cmd/tui</span></code></pre>
-          <h2>Global options</h2>
+          <h2 id="global-options">Global options</h2>
           <dl>
             <dt><code>--config FILE</code></dt><dd>Use an explicit file for the command’s config domain: dotfiles for <code>init</code>, <code>dotfiles</code>, and <code>config migrate</code>; packages for profile-aware package commands and <code>config resolve</code>. <code>packages pms</code> does not load config. Put this before the command; supply it only once. <code>config layout</code> rejects this flag.</dd>
             <dt><code>--help</code>, <code>-h</code></dt><dd>Show help. Available on subcommands too.</dd>
             <dt><code>--version</code>, <code>-v</code></dt><dd>Print the CLI version.</dd>
           </dl>
-          <h2>Command index</h2>
+          <h2 id="command-index">Command index</h2>
           <ul>
             <li><code>init</code>; <code>config resolve</code>; <code>config layout</code>; <code>config migrate</code></li>
             <li><code>dotfiles audit</code>; <code>dotfiles link [tools...]</code></li>
@@ -91,28 +161,28 @@
           <div class="section-head"><h2 id="config-title">Configuration</h2></div>
           <p>Dotfiles and packages have independent TOML files. Dotfiles discovery checks <code>--config FILE</code> first, then <code>conficius.toml</code> in the working directory and each parent, then <code>$XDG_CONFIG_HOME/conficius/conficius.toml</code> (normally <code>~/.config/conficius/conficius.toml</code>). Relative link sources use that file’s directory.
           </p><p>Package discovery uses <code>$XDG_CONFIG_HOME/conficius/config.toml</code>, defaulting to <code>~/.config/conficius/config.toml</code>, or the native macOS path <code>~/Library/Application Support/conficius/config.toml</code>. If both exist, discovery fails rather than choosing one. Linux uses the same location for both layouts. An explicit package <code>--config FILE</code> bypasses discovery. Package commands never discover repository <code>conficius.toml</code>; missing central config uses defaults, while invalid config fails.</p>
-          <h3><code>init</code></h3>
+          <h3 id="init"><code>init</code></h3>
           <p>Create a commented version-2 <code>conficius.toml</code> in the working directory, or at <code>--config FILE</code>. This writes immediately; it has no <code>--apply</code> option and refuses to overwrite an existing file.</p>
           <pre><code><span class="syntax-command">conficius</span> init
 <span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> init
 <span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/.config/conficius/config.toml</span> config resolve <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--verbose</span></code></pre>
-          <h3><code>config resolve</code></h3>
+          <h3 id="config-resolve"><code>config resolve</code></h3>
           <dl>
             <dt><code>--profile NAME</code></dt><dd>Select a package profile. Selection order: command flag, <code>CONFICIUS_PROFILE</code>, top-level <code>profile</code> in the configuration, then <code>default</code>. Package config requires version 2.</dd>
             <dt><code>--json</code></dt><dd>Print the resolved profile as JSON, rather than the package-output envelope.</dd>
             <dt><code>--verbose</code></dt><dd>Include provenance showing where resolved settings came from.</dd>
           </dl>
-          <h3><code>config layout</code></h3>
+          <h3 id="config-layout"><code>config layout</code></h3>
           <p>Preview creation or relocation of the central package config. Choose <code>--xdg</code> or <code>--os-native</code>, never both. Without either flag, use the stored <code>layout</code>, defaulting to <code>xdg</code>. <code>--apply</code> writes the change and retains the old config beside its original path as <code>.conficius-layout-backup-*</code>. This command rejects <code>--config</code>; it does not relocate dotfiles. Conflicting central package configs must be resolved first.</p>
           <pre><code><span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--xdg</span>
 <span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--xdg</span> <span class="syntax-flag">--apply</span>
 <span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--os-native</span>
 <span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--os-native</span> <span class="syntax-flag">--apply</span></code></pre>
-          <h3><code>config migrate</code></h3>
+          <h3 id="config-migrate"><code>config migrate</code></h3>
           <p>Print a dotfiles version-2 migration preview by default. <code>--apply</code> creates a backup and replaces the configuration atomically.</p>
           <pre><code><span class="syntax-command">conficius</span> config migrate
 <span class="syntax-command">conficius</span> config migrate <span class="syntax-flag">--apply</span></code></pre>
-          <h3>Minimal link configuration</h3>
+          <h3 id="minimal-link-configuration">Minimal link configuration</h3>
           <p>Create the source files or directories before linking. Tool names are free-form; one tool can have several links.</p>
           <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 
@@ -177,7 +247,7 @@
           <pre><code><span class="syntax-command">conficius</span> config resolve <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--verbose</span>
 <span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--profile-project</span> project-y <span class="syntax-flag">--pm</span> npm</code></pre>
           <p>The example leaves project mutation disabled. Set <code>allow_manifest_changes = true</code> in the matching project entry only when you intend to permit updates, then preview before using <code>--apply</code>.</p>
-          <h3>TUI configuration and profiles</h3>
+          <h3 id="tui-configuration-and-profiles">TUI configuration and profiles</h3>
           <pre><code><span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span>
 <span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span>
 <span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span></code></pre>
@@ -187,7 +257,7 @@
 
         <section id="dotfiles" aria-labelledby="dotfiles-title">
           <div class="section-head"><h2 id="dotfiles-title">Dotfiles</h2></div>
-          <h3><code>dotfiles audit</code></h3>
+          <h3 id="dotfiles-audit"><code>dotfiles audit</code></h3>
           <p>Audit environment layout, Zsh configuration when the detected shell is Zsh, and configured link state. This does not repair files.</p>
           <dl>
             <dt><code>--xdg</code> or <code>--os-native</code></dt><dd>Exactly one layout choice is required. Use XDG directories or OS-native configuration directories. Environment alternatives: <code>CONFICIUS_XDG</code> and <code>CONFICIUS_OS_NATIVE</code>; do not enable both.</dd>
@@ -196,7 +266,7 @@
           </dl>
           <pre><code><span class="syntax-command">conficius</span> dotfiles audit <span class="syntax-flag">--xdg</span>
 <span class="syntax-command">conficius</span> dotfiles audit <span class="syntax-flag">--os-native</span> <span class="syntax-flag">--strict</span> <span class="syntax-flag">--json</span></code></pre>
-          <h3><code>dotfiles link [tools...]</code></h3>
+          <h3 id="dotfiles-link"><code>dotfiles link [tools...]</code></h3>
           <p>Preview links for all configured tools by default. Positional tool names select a subset; platform filters still apply.</p>
           <dl>
             <dt><code>--exclude TOOL</code></dt><dd>Exclude a configured tool. Repeat for multiple exclusions.</dd>
@@ -212,7 +282,7 @@
 
         <section id="packages" aria-labelledby="packages-title">
           <div class="section-head"><h2 id="packages-title">Package inspection</h2></div>
-          <h3>Shared package options</h3>
+          <h3 id="shared-package-options">Shared package options</h3>
           <p>These options apply to <code>packages doctor</code>, <code>packages outdated</code>, <code>packages vulnerabilities</code>, and <code>packages update</code>, not to every command in the group.</p>
           <dl>
             <dt><code>--pm NAME</code></dt><dd>Limit managers; repeat to select more than one, for example <code>--pm mise --pm npm</code>. Supported names appear in the <a href="#managers">matrix</a>. Without this flag, manager discovery is not restricted by a CLI filter; resolved profile settings still affect queries and selection.</dd>
@@ -222,12 +292,13 @@
             <dt><code>--profile-project NAME</code></dt><dd>Select a named project in the resolved profile; repeat for multiple projects. Named-project selection takes precedence over explicit project paths.</dd>
             <dt><code>--json</code></dt><dd>Write JSON with <code>schema_version: 1</code>, <code>snapshot</code> (timestamp, platform, architecture, CLI version), and command-specific <code>data</code>.</dd>
           </dl>
-          <p>Without scope selectors, queries include global packages plus all configured profile projects. If no projects are configured, the working directory is included when it contains <code>package.json</code>, <code>Cargo.toml</code>, <code>mise.toml</code>, or <code>.mise.toml</code>; otherwise only global packages are inspected. Recognized npm workspaces are expanded. A missing discovered config is allowed for package inspection; invalid configuration is not ignored.</p>
-          <h3><code>packages pms</code></h3>
+          <p>Without scope selectors, queries include global packages plus all configured profile projects. If no projects are configured, the working directory is included when it contains one of five project files: <code>package.json</code>, <code>Cargo.toml</code>, <code>go.mod</code>, <code>mise.toml</code>, or <code>.mise.toml</code>; otherwise only global packages are inspected. Recognized npm workspaces are expanded. A missing discovered config is allowed for package inspection; invalid configuration is not ignored.</p>
+          <p>Go project discovery uses <code>go.mod</code> independently of mise: a root containing both <code>go.mod</code> and mise configuration can inspect module dependencies and the Go runtime through separate managers.</p>
+          <h3 id="packages-pms"><code>packages pms</code></h3>
           <p>List all 13 supported managers and availability. Its only command-specific flag is <code>--json</code>. Reports can include resolved executable, manager version, tested-version status, and capabilities; support does not mean a manager is installed.</p>
-          <h3><code>packages doctor</code></h3>
+          <h3 id="packages-doctor"><code>packages doctor</code></h3>
           <p>Check manager environment integrity and selected project roots without freshness queries. Accepts the shared package options. Use this to investigate executable paths, prefixes, and project setup before updating.</p>
-          <h3><code>packages outdated</code></h3>
+          <h3 id="packages-outdated"><code>packages outdated</code></h3>
           <p>Query available updates from native managers. Accepts the shared package options plus:</p>
           <dl>
             <dt><code>--offline</code></dt><dd>Read installed inventory without network freshness checks. Reports freshness as <code>unknown</code>, not up-to-date. Offline output can include command collision candidates and PATH resolution. It does not establish update availability.</dd>
@@ -240,18 +311,23 @@
 <span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--offline</span> <span class="syntax-flag">--json</span></code></pre>
           <p class="small">Offline <code>--check</code> cannot detect updates: successful inventory exits normally. The offline text branch maps query failures to exit 2 with <code>--check</code>; the offline JSON branch returns the query error directly. Do not treat either offline success as a freshness assertion.</p>
           <p>apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Inventory uses <code>dpkg-query</code>; outdated checks use <code>apt-get --simulate</code> against locally cached package lists, not live latest versions. Inspection never refreshes apt lists or escalates privileges. To refresh lists, explicitly run <code>sudo apt-get update</code> yourself as a separate step before inspection, or on Linux, press <code>c</code> (Update package cache, currently APT) on TUI package scopes/results. The TUI previews the command: <code>y</code> approves; <code>n</code>/Esc cancels. It runs <code>sudo -- &lt;apt-get&gt; update --error-on=any</code> without a shell through the controlling TTY; sudo handles passwords, while root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline mode reads inventory only, with freshness unknown. Project operations and automated package updates are unsupported. Debian security identity mapping is not implemented; coverage remains unknown, not clean.</p>
+          <p>Go project inventory runs <code>go list -m -json -mod=readonly all</code> with <code>GOPROXY=off</code>, <code>GONOPROXY=none</code>, <code>GOSUMDB=off</code>, and <code>GOTOOLCHAIN=local</code>. It uses cached module metadata only; cache misses are query errors, not empty or healthy inventory. Project outdated checks run <code>go list -m -json -mod=readonly -u all</code>; they may access the network and populate metadata caches but do not write <code>go.mod</code>. By default, outdated candidates include only direct dependencies and modules providing explicitly declared <code>tool</code> packages in the scope's <code>go.mod</code>, including indirect tool modules. Vulnerability inventory retains the full module graph; security queries use the explicit selection described below. Replaced modules are excluded from outdated candidates; Go project updates are unsupported.</p>
           <p>Online Homebrew queries run <code>brew update</code> before <code>brew outdated</code>. This refreshes local Homebrew metadata even during update previews or vulnerability checks that query outdated packages. Offline inventory skips freshness queries.</p>
         </section>
 
         <section id="vulnerabilities" aria-labelledby="vulnerabilities-title">
           <div class="section-head"><h2 id="vulnerabilities-title">Vulnerability checks</h2></div>
-          <h3><code>packages vulnerabilities</code></h3>
+          <h3 id="packages-vulnerabilities"><code>packages vulnerabilities</code></h3>
           <p>Check exact installed versions using OSV and EUVD evidence. Accepts the shared package options plus <code>--transitive</code>, which requests transitive inventory where the adapter supports it. The command also queries available updates to annotate findings. It has no offline mode and does not install fixes.</p>
           <pre><code><span class="syntax-command">conficius</span> packages vulnerabilities <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm
 <span class="syntax-command">conficius</span> packages vulnerabilities <span class="syntax-flag">--project</span> <span class="syntax-string">./app</span> <span class="syntax-flag">--transitive</span> <span class="syntax-flag">--json</span></code></pre>
           <ul>
             <li><strong>OSV requires reliable ecosystem identity.</strong> Built-in inventory metadata supplies identities where available; npm has a direct mapping. Other packages may require explicit <code>[[vulnerabilities.mappings]]</code> entries. Never map an OS runtime or distribution package to an unrelated same-named registry package merely to obtain results.</li>
+            <li><strong>Go project modules:</strong> native OSV identities use ecosystem <code>Go</code> and the actual module path/version, including versioned replacement modules. Local replacements have no published identity and are omitted from native inventory; this is a coverage gap, not a clean security result.</li>
+            <li><strong>Go scan selection:</strong> default scans include direct dependencies and declared tool modules. <code>--include-indirect</code> adds indirect application/test/tool modules, including nested tool dependencies. <code>--include-graph-only</code> separately adds modules not confirmed used by the current build; neither optional group is queried by default. JSON retains all selected evidence with independent <code>transitive</code>, <code>declared_tool</code>, <code>dependency_class</code> and <code>scan_scope</code>. Skipped modules are not clean. Classes describe current-build package membership, not call reachability; incomplete loading leaves usage unconfirmed. TUI <code>i</code> and <code>g</code> restart security scans for the active scope using existing inventory, not outdated queries; expanded scans take time. Session toggles persist. Read-only dim Origin labels are not marks; Enter explains installed/advisory/fixed versions and usage. Vulnerability views have no update keys. Busy phases show dependency graph loading, installed-version checking and security checking with known counts, not fake percentages.</li>
             <li><strong>EUVD requires product and vendor identity.</strong> Built-in identities or <code>[[vulnerabilities.euvd]]</code> mappings identify the product. Results are checked against vendor, product, and installed version; unsupported version rules produce unknown evidence, not a clean result.</li>
+            <li><strong>TUI scan scope:</strong> the persistent summary starts at <code>Direct + tools · Indirect off · Graph off</code>. Direct dependencies and declared tools remain included when <code>i</code> or <code>g</code> toggles an optional group; the summary shows its current on/off state and uses two lines on narrow terminals. A completed empty scan says “No findings in selected scope”; an incomplete scan says “No findings yet.” Findings outside the selected scope have not been checked.</li>
+            <li>In TUI vulnerabilities and outdated results, <code>x</code> cancels an active vulnerability scan only; inventory and outdated checks are unaffected. The cancel footer appears only during security scanning. Canceled results remain incomplete, not clean; retained findings may be from the previous scan. Restart with <code>i</code>/<code>g</code> or <code>r</code>.</li>
             <li>Unmapped, unknown, and error results are coverage gaps. An empty advisory list is not proof that a package is safe. Inventory-only adapters can still contribute scan data without supporting outdated queries or updates.</li>
             <li>Global scans also inspect available package-manager binaries. Manager enablement and selected scopes control inventory; there is no separate profile security-selection policy.</li>
             <li>OSV and EUVD evidence stays separate; the same CVE can appear from both sources. Summary counts describe evidence, not necessarily unique vulnerabilities.</li>
@@ -275,7 +351,7 @@
 
         <section id="updates" aria-labelledby="updates-title">
           <div class="section-head"><h2 id="updates-title">Updates and safeguards</h2></div>
-          <h3><code>packages update</code></h3>
+          <h3 id="packages-update"><code>packages update</code></h3>
           <p>Preview manager-specific update plans by default for enabled managers and selected scopes. Plans show commands, scope, state hashes, and mutation impact. Accepts the shared package options plus:</p>
           <dl>
             <dt><code>--include PACKAGE</code></dt><dd>Include a package by <code>manager:name</code> or a globally unique name. Repeat for multiple selections.</dd>
@@ -300,7 +376,7 @@
   <span class="syntax-flag">--apply</span> <span class="syntax-flag">--yes</span> <span class="syntax-flag">--accept-plan</span> HASH_FROM_PREVIEW</code></pre>
           <ol>
             <li>Inspect manager status and preview the exact intended scope. <code>--json</code> works for previews but is rejected with <code>--apply</code>.</li>
-            <li>For project mutation, explicitly allow manifest changes in the matching profile project. By default its containing Git repository must be clean. <code>--allow-dirty</code> and <code>--allow-unversioned</code> bypass only their respective Git checks.</li>
+            <li>For project mutation, explicitly allow manifest changes in the matching profile project. By default its containing Git repository must be clean. CLI flags <code>--allow-dirty</code> and <code>--allow-unversioned</code> bypass only their respective Git checks. The TUI instead asks <strong>Continue with uncommitted changes</strong>, lists affected project paths, and warns that there is no automatic rollback. Press <code>y</code> to approve dirty Git state for this batch, then review and confirm the normal command preview; <code>n</code> or Esc cancels. Cancellation, a new preview, refresh, profile changes, and restart clear approval. Execution rechecks Git safety, so newly dirty projects require confirmation. TUI unversioned projects remain blocked; neither interface bypasses <code>allow_manifest_changes = true</code>.</li>
             <li>Application checks manager version ranges, then re-queries available updates and rebuilds plans. Fresh-query failures abort execution. Automation must accept the refreshed plans exactly; if state changed, preview and review again.</li>
             <li>A durable update log is written before execution. Failure to create it prevents updates. Commands run through the native managers; permission prompts and service impacts depend on the manager.</li>
             <li>Execution outcomes are verified against installed state and the log is finalized. Partial changes can remain after failure; review outcomes and any recovery guidance before retrying.</li>
@@ -312,20 +388,20 @@
         <section id="logs" aria-labelledby="logs-title">
           <div class="section-head"><h2 id="logs-title">Logs and Go tool records</h2></div>
           <p>State lives in <code>$XDG_STATE_HOME/conficius</code>, falling back to <code>~/.local/state/conficius</code>.</p>
-          <h3>Update logs</h3>
+          <h3 id="update-logs">Update logs</h3>
           <p>Applied updates write timestamp-named JSON files under <code>updates/</code>. Logs contain start/completion times, status, plans, outcomes, and error text. Status starts as <code>planned</code> and is finalized as <code>completed</code>, <code>failed</code>, or <code>interrupted</code>. Abrupt termination can leave an unfinished planned log.</p>
           <p>The newest 30 JSON logs are retained. New log directories use mode <code>0700</code>; log files use <code>0600</code>. Home-directory prefixes in plan directories and package paths become <code>${HOME}</code>. Error redaction replaces home paths and common <code>token=</code>, <code>password=</code>, <code>passwd=</code>, <code>secret=</code>, and API-key assignments. Redaction is limited; review logs before sharing. Logs are not a full transcript or automatic restore point.</p>
-          <h3><code>packages go-tools import MODULE VERSION COMMAND [COMMAND...]</code></h3>
+          <h3 id="packages-go-tools-import"><code>packages go-tools import MODULE VERSION COMMAND [COMMAND...]</code></h3>
           <p>Immediately append an ownership record to <code>go-tools.json</code> in the state directory. Supply a module, version, and at least one command. No command-specific flags; no <code>--apply</code> needed. This records ownership only: it neither installs tools nor changes installed binaries.</p>
           <pre><code><span class="syntax-command">conficius</span> packages go-tools import golang.org/x/tools v0.30.0 stringer</code></pre>
-          <p>The Go adapter uses ownership and installed build metadata to reason about tools. An import record is not proof that the recorded binary/version is installed. Verify module, version, and command ownership before recording them.</p>
+          <p>Global Go inventory and command ownership use the journal only; the adapter does not scan installed binaries or infer ownership from build metadata. An import record is not proof that the recorded binary/version is installed. Verify module, version, and command ownership before recording them.</p>
         </section>
 
         <section id="managers" aria-labelledby="managers-title">
           <div class="section-head"><h2 id="managers-title">Package-manager support</h2></div>
           <p>These are the capabilities declared by the 13 registered adapters, not features offered by the upstream tools themselves. “No” means Conficius does not declare that operation. Inventory support enables inspection and can supply vulnerability data, subject to identity mapping and installed-version coverage.</p>
           <div class="table-scroll" role="region" aria-label="Package-manager capability matrix" tabindex="0">
-            <table>
+            <table id="manager-capabilities">
               <caption>Declared adapter capabilities and tested manager major versions</caption>
               <thead><tr><th scope="col">Manager / <code>--pm</code></th><th scope="col">Global inventory</th><th scope="col">Project inventory</th><th scope="col">Global outdated</th><th scope="col">Project outdated</th><th scope="col">Global update</th><th scope="col">Project update</th><th scope="col">Tested majors</th></tr></thead>
               <tbody>
@@ -340,7 +416,7 @@
                 <tr><th scope="row">Cargo / <code>cargo</code></th><td>Yes</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>1</td></tr>
                 <tr><th scope="row">Yarn / <code>yarn</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>4</td></tr>
                 <tr><th scope="row">Bun / <code>bun</code></th><td>No</td><td>Yes</td><td>No</td><td>No</td><td>No</td><td>No</td><td>1</td></tr>
-                <tr><th scope="row">Go / <code>go</code></th><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>1</td></tr>
+                <tr><th scope="row">Go / <code>go</code></th><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>1</td></tr>
                 <tr><th scope="row">apt / <code>apt</code></th><td>Yes</td><td>No</td><td>Cached lists only</td><td>No</td><td>No</td><td>No</td><td>2–3</td></tr>
               </tbody>
             </table>
@@ -352,7 +428,7 @@
             <li><strong>uv and pipx:</strong> global tool installations, not arbitrary project environments.</li>
             <li><strong>Poetry:</strong> project support uses <code>pyproject.toml</code> and <code>poetry.lock</code>. <strong>pnpm:</strong> <code>package.json</code> and <code>pnpm-lock.yaml</code>. Select project scope explicitly when it is not discovered automatically.</li>
             <li><strong>Cargo:</strong> inventory only; project inventory reads <code>Cargo.lock</code>. <strong>Yarn:</strong> project inventory only, with <code>package.json</code> and <code>yarn.lock</code>. <strong>Bun:</strong> project inventory only, with <code>package.json</code>, <code>bun.lock</code>, or <code>bun.lockb</code>.</li>
-            <li><strong>Go:</strong> global installed tools only, not project module dependencies. Ownership records are managed through <a href="#logs"><code>packages go-tools import</code></a>.</li>
+            <li><strong>Go:</strong> journal-backed global tool inventory, outdated checks, and updates remain unchanged; ownership records are managed through <a href="#logs"><code>packages go-tools import</code></a>. Project and workspace module inventory and outdated checks require <code>go.mod</code>; CLI and TUI project updates batch selected modules using pinned <code>go get module@version ...</code> in the project directory. Configure <code>allow_manifest_changes = true</code> and satisfy Git safety checks. Native Go may change <code>go.mod</code>, <code>go.sum</code>, transitive dependencies and Go/toolchain requirements while retaining existing tool directives. Review the diff and run project tests. Both manifests are hashed to reject stale plans. Project updates never write the global tool journal and have no automatic rollback or recovery command; keep Git history or backups.</li>
           </ul>
           <p class="small">Declared project files do not all trigger automatic working-directory scope discovery; see <a href="#packages">scope defaults</a>. Tested ranges are adapter guards, not a promise that every release or OS combination was tested. Availability depends on the host, installed executable, and manager setup. Use <code>packages pms --json</code> for runtime status and <code>packages doctor</code> for integrity checks.</p>
         </section>
@@ -376,6 +452,42 @@
       updateThemeButtons();
       try { localStorage.setItem('conficius-theme', theme); } catch {}
     }));
+
+    const sections = Array.from(document.querySelectorAll('.rail nav a[href^="#"]'), link => ({
+      link,
+      target: document.getElementById(link.hash.slice(1)),
+      group: link.closest('details')
+    })).filter(section => section.target);
+    let activeSection;
+    let scrollFrame;
+    const updateActiveSection = () => {
+      scrollFrame = null;
+      let current = sections[0];
+      const top = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+      for (const section of sections) {
+        if (section.target.getBoundingClientRect().top <= top + 1) current = section;
+      }
+      if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+        current = sections[sections.length - 1];
+      }
+      if (!current || current === activeSection) return;
+      if (activeSection) {
+        activeSection.link.removeAttribute('aria-current');
+        activeSection.group.classList.remove('is-active');
+      }
+      current.link.setAttribute('aria-current', 'location');
+      current.group.classList.add('is-active');
+      current.group.open = true;
+      activeSection = current;
+    };
+    const scheduleActiveSection = () => {
+      if (scrollFrame == null) scrollFrame = requestAnimationFrame(updateActiveSection);
+    };
+    window.addEventListener('scroll', scheduleActiveSection, { passive: true });
+    window.addEventListener('hashchange', scheduleActiveSection);
+    window.addEventListener('resize', scheduleActiveSection);
+    window.addEventListener('load', scheduleActiveSection);
+    scheduleActiveSection();
   </script>
 </body>
 </html>

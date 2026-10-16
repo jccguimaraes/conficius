@@ -238,6 +238,8 @@ enabled = true
 [profiles.work.managers.brew]
 enabled = false
 [profiles.work.managers.mise]
+[profiles.work.managers.go]
+enabled = true
 [[profiles.work.projects]]
 name = "web"
 path = "./web"
@@ -260,7 +262,10 @@ path = "./personal"
 		t.Fatalf("resolved = %#v", resolved)
 	}
 	managers := resolved.Profile.Managers
-	if len(managers) != 3 || managers["npm"].Enabled == nil || !*managers["npm"].Enabled || managers["brew"].Enabled == nil || *managers["brew"].Enabled || managers["mise"].Enabled != nil {
+	if managers["go"].Enabled == nil || !*managers["go"].Enabled {
+		t.Fatalf("go manager = %#v", managers["go"])
+	}
+	if len(managers) != 4 || managers["npm"].Enabled == nil || !*managers["npm"].Enabled || managers["brew"].Enabled == nil || *managers["brew"].Enabled || managers["mise"].Enabled != nil {
 		t.Fatalf("managers = %#v", managers)
 	}
 	if len(resolved.Profile.Projects) != 1 {

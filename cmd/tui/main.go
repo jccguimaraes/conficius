@@ -38,64 +38,72 @@ type vulnerabilityRow struct {
 }
 
 type model struct {
-	packageConfigPath string
-	packageConfigErr  error
-	dotfiles          *dotfileState
-	homeCards         []homeCard
-	wisdom            string
-	showWisdom        bool
-	localLoading      bool
-	localChecked      bool
-	localErr          error
-	installedCount    int
-	networkPending    bool
-	outdatedChecked   bool
-	outdatedErr       error
-	securityScanning  bool
-	securityChecked   bool
-	securityErr       error
-	securitySummary   security.Summary
-	securityCount     int
-	dotfileGeneration uint64
-	dotfileCancel     context.CancelFunc
-	profile           config.ResolvedProfile
-	profileOverride   string
-	profiles          []string
-	profileRows       []profileRow
-	scopes            []config.Scope
-	active            *config.Scope
-	packages          []packagemanager.Package
-	rows              []outdatedRow
-	query             packagemanager.QueryResult
-	selected          map[string]bool
-	failed            map[string]string
-	attempted         map[string]string
-	plans             []packagemanager.UpdatePlan
-	preview           string
-	commands          []commandRow
-	planSummary       string
-	packageDetailText string
-	packageFocus      func(func())
-	updateErrorLines  []string
-	updating          bool
-	runInteractive    bool
-	runCacheRefresh   bool
-	cacheExecutable   string
-	cacheArgs         []string
-	cachePreview      string
-	cacheReturnView   string
-	cacheRefreshDone  bool
-	cacheRefreshErr   string
-	findings          []vulnerabilityRow
-	detail            vulnerabilityRow
-	mappings          []config.VulnerabilityMapping
-	euvdMaps          []config.EUVDMapping
-	osvClient         vulnerability.Queryer
-	euvdClient        euvd.Queryer
-	status            string
-	loading           bool
-	cancel            context.CancelFunc
-	generation        uint64
+	packageConfigPath  string
+	packageConfigErr   error
+	dotfiles           *dotfileState
+	homeCards          []homeCard
+	wisdom             string
+	showWisdom         bool
+	localLoading       bool
+	localChecked       bool
+	localErr           error
+	installedCount     int
+	networkPending     bool
+	outdatedChecked    bool
+	outdatedErr        error
+	securityCancel     context.CancelFunc
+	securityGeneration uint64
+	securityScanning   bool
+	securityChecked    bool
+	securityErr        error
+	securitySummary    security.Summary
+	securityCount      int
+	dotfileGeneration  uint64
+	dotfileCancel      context.CancelFunc
+	profile            config.ResolvedProfile
+	profileOverride    string
+	profiles           []string
+	profileRows        []profileRow
+	scopes             []config.Scope
+	active             *config.Scope
+	packages           []packagemanager.Package
+	rows               []outdatedRow
+	query              packagemanager.QueryResult
+	selected           map[string]bool
+	failed             map[string]string
+	attempted          map[string]string
+	plans              []packagemanager.UpdatePlan
+	allowDirty         bool
+	dirtyWarning       string
+	preview            string
+	commands           []commandRow
+	planSummary        string
+	packageDetailText  string
+	packageFocus       func(func())
+	updateErrorLines   []string
+	updating           bool
+	runInteractive     bool
+	runCacheRefresh    bool
+	cacheExecutable    string
+	cacheArgs          []string
+	cachePreview       string
+	cacheReturnView    string
+	cacheRefreshDone   bool
+	cacheRefreshErr    string
+	allEvidence        []security.Evidence
+	includeGraphOnly   bool
+	includeIndirect    bool
+	inventory          []packagemanager.InstalledPackage
+	findings           []vulnerabilityRow
+	detail             vulnerabilityRow
+	mappings           []config.VulnerabilityMapping
+	euvdMaps           []config.EUVDMapping
+	osvClient          vulnerability.Queryer
+	euvdClient         euvd.Queryer
+	status             string
+	loading            bool
+	cancel             context.CancelFunc
+	generation         uint64
 }
 
 func main() {
@@ -154,6 +162,7 @@ func startupModel(configFlag, packageFlag string) (*model, error) {
 }
 
 func reloadPackageConfig(data *model) (err error) {
+	resetUpgradePlans(data)
 	defer func() { data.packageConfigErr = err }()
 	project, err := config.LoadPackages(data.packageConfigPath)
 	if err != nil {
@@ -235,42 +244,19 @@ func runSession(data *model, startView string) error {
 		Handle("<down>", scopeList.Down).
 		Handle("<up>", scopeList.Up).
 		Handle("r", func() { refresh(data, app) })
-	resultComponent, packageList := resultView(data)
-	app.View("results", resultComponent).
-		Handle("q", app.Stop).
-		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
-		Handle("p", func() { app.Go("profiles") }).
-		Handle("r", func() { refresh(data, app) }).
-		Handle("v", func() { app.Go("vulnerabilities") }).
-		Handle("<Enter>", func() {
-			if row := packageList.Selected(); row != nil {
-				data.packageDetailText = packageDetails(row)
-				app.Go("package-detail")
-			}
-		}).
-		Handle("<down>", packageList.Down).
-		Handle("<up>", packageList.Up).
-		Handle("j", packageList.Down).
-		Handle("k", packageList.Up).
-		Handle("<C-d>", packageList.HalfPageDown).
-		Handle("<C-u>", packageList.HalfPageUp).
-		Handle("<Space>", func() { toggleSelected(data, packageList.Selected()); app.RequestRender() }).
-		Handle("a", func() { toggleAll(data); app.RequestRender() }).
-		Handle("u", func() { prepareUpgrade(data, app, false) }).
-		Handle("U", func() { prepareUpgrade(data, app, true) })
+	packageList := registerResults(data, app)
 	errorComponent, errorList := updateErrorView(data)
 	app.View("update-error", errorComponent).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("<down>", errorList.Down).
 		Handle("<up>", errorList.Up)
-	app.View("confirm", confirmView(data)).
-		Handle("q", app.Stop).
-		Handle("y", func() { applyUpgrades(data, app) }).
-		Handle("n", func() { app.Go("results") }).
-		Handle("<Esc>", func() { app.Go("results") })
+	registerUpgradeConfirmations(data, app)
 	vulnerabilityComponent, vulnerabilityList := vulnerabilityView(data)
 	app.View("vulnerabilities", vulnerabilityComponent).
+		Handle("x", func() { cancelSecurity(data, app) }).
+		Handle("g", func() { toggleGraphOnly(data, func() { refreshSecurity(data, app) }) }).
+		Handle("i", func() { toggleIndirect(data, func() { refreshSecurity(data, app) }) }).
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("results") }).
 		Handle("o", func() { app.Go("results") }).
@@ -307,6 +293,9 @@ func runSession(data *model, startView string) error {
 	registerScreenHelp(app, data)
 	startView, _ = registerResizeView(app, data, startView)
 	defer func() {
+		if data.securityCancel != nil {
+			data.securityCancel()
+		}
 		if data.dotfileCancel != nil {
 			data.dotfileCancel()
 		}
@@ -336,14 +325,20 @@ func refreshLocal(data *model, app *glyph.App) {
 }
 
 func refreshPackages(data *model, app *glyph.App, full bool) {
+	if data.securityCancel != nil {
+		data.securityCancel()
+		data.securityCancel = nil
+	}
+	data.securityGeneration++
 	if data.cancel != nil {
 		data.cancel()
 	}
 	data.generation++
 	clear(data.selected)
-	data.plans, data.commands = nil, nil
-	data.preview, data.planSummary = "", ""
+	resetUpgradePlans(data)
 	data.packages, data.rows = nil, nil
+	data.allEvidence = nil
+	data.inventory = nil
 	data.findings, data.detail = nil, vulnerabilityRow{}
 	data.packageDetailText = ""
 	data.securitySummary, data.securityCount = security.Summary{}, 0
@@ -369,17 +364,21 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	data.cancel = cancel
+	securityCtx, securityCancel := context.WithCancel(ctx)
+	data.securityCancel = securityCancel
+	securityGeneration := data.securityGeneration
 	generation := data.generation
 	data.loading = true
 	data.localLoading, data.localChecked, data.localErr = true, false, nil
 	data.networkPending, data.outdatedChecked, data.outdatedErr = true, false, nil
 	data.securityScanning, data.securityChecked, data.securityErr = false, false, nil
-	data.status = "Local inventory loading; outdated unknown; security unknown (network pending)"
+	data.status = "Busy: loading dependency graph; versions and security pending"
 	updateHome(data)
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
 	euvdMaps := append([]config.EUVDMapping(nil), data.euvdMaps...)
+	scanOptions := security.Options{IncludeIndirect: data.includeIndirect, IncludeGraphOnly: data.includeGraphOnly, OSVMappings: mappings, EUVDMappings: euvdMaps, OSVClient: data.osvClient, EUVDClient: data.euvdClient}
 	app.RequestRender()
 	apply := func(update func()) {
 		app.Apply(func() {
@@ -433,10 +432,17 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			}
 			data.localLoading, data.localChecked, data.localErr = false, true, inventoryErr
 			data.installedCount = len(inventory.Packages)
+			data.inventory = inventory.Packages
 			if !full {
+				cancel()
+				data.securityCancel = nil
 				data.loading = false
 			}
-			data.status = appendCollisionStatus(appendManagerStatus(fmt.Sprintf("%d installed; outdated unknown; security unknown (network pending)", len(inventory.Packages)), inventory.Managers), inventory.Commands)
+			if full {
+				data.status = fmt.Sprintf("Busy: checking installed versions; %d installed; security pending", len(inventory.Packages))
+			} else {
+				data.status = fmt.Sprintf("%d installed; outdated and security pending network refresh", len(inventory.Packages))
+			}
 			if inventoryErr != nil {
 				data.status = queryStatus(inventoryErr) + "; outdated unknown; security unknown (network pending)"
 			}
@@ -454,7 +460,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		}
 		securityTargets := packagemanager.Records(result.Packages)
 		packages := append([]packagemanager.Package(nil), securityTargets...)
-		scanPackages := inventory.Packages
+		scanPackages := security.SelectInventory(inventory.Packages, scanOptions)
 		if ctx.Err() != nil {
 			return
 		}
@@ -463,8 +469,11 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
-			data.loading = false
+			data.loading = true
 			data.networkPending, data.outdatedChecked, data.outdatedErr = false, true, outdatedErr
+			if !isCurrentGeneration(data.securityGeneration, securityGeneration) || securityCtx.Err() != nil {
+				return
+			}
 			data.securityScanning = true
 			data.query = result
 			data.packages = packages
@@ -479,23 +488,29 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			if err != nil {
 				data.status = queryStatus(err)
 			}
-			data.status += "; security unknown (scanning)"
+			data.status = fmt.Sprintf("Busy: checking security; %d selected / %d installed; %d outdated", len(scanPackages), len(inventory.Packages), len(packages))
 			updateHome(data)
 		})
-		report, scanErr := security.Scan(ctx, scanPackages, security.Options{
-			Outdated: securityTargets, OSVMappings: mappings, EUVDMappings: euvdMaps,
-			OSVClient: data.osvClient, EUVDClient: data.euvdClient,
-		})
-		if ctx.Err() != nil {
+		scanOptions.Outdated = securityTargets
+		report, scanErr := security.Scan(securityCtx, scanPackages, scanOptions)
+		if securityCtx.Err() != nil {
+			cancel()
 			return
 		}
 		apply(func() {
+			defer cancel()
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
 				return
 			}
-			data.securityScanning, data.securityChecked, data.securityErr = false, true, scanErr
+			if securityCtx.Err() != nil || !isCurrentGeneration(data.securityGeneration, securityGeneration) {
+				return
+			}
+			data.securityCancel = nil
+			data.loading = false
+			data.securityScanning, data.securityChecked, data.securityErr = false, true, errors.Join(inventoryErr, scanErr)
 			data.securitySummary, data.securityCount = report.Summary, len(scanPackages)
-			data.findings = vulnerabilityRows(report.Evidence)
+			data.allEvidence = report.Evidence
+			data.findings = vulnerabilityRows(report.Evidence, data.includeGraphOnly)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), report.Summary, report.Evidence), err, scanErr)
 			if len(data.failed) > 0 {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
@@ -514,7 +529,7 @@ func vulnerabilitySummary(outdated int, summary security.Summary, evidence []sec
 		}
 	}
 	return fmt.Sprintf("%d outdated; %d vulnerable, %d unknown, %d security errors", outdated,
-		summary.Vulnerable, unknown, summary.Errors)
+		summary.Vulnerable, unknown, summary.Errors) + fmt.Sprintf("; %d tool, %d graph-only (g toggles)", summary.Tools, summary.GraphOnly)
 }
 
 func queryStatus(err error) string {
@@ -555,9 +570,96 @@ func appendCollisionStatus(summary string, commands []packagemanager.ExposedComm
 	return fmt.Sprintf("%s; %d command collisions: %s", summary, len(collisions), strings.Join(names, ", "))
 }
 
-func vulnerabilityRows(evidence []security.Evidence) []vulnerabilityRow {
+func toggleGraphOnly(data *model, rescan func()) {
+	data.includeGraphOnly = !data.includeGraphOnly
+	rescan()
+}
+
+func toggleIndirect(data *model, rescan func()) {
+	data.includeIndirect = !data.includeIndirect
+	rescan()
+}
+
+// Scope toggles reuse inventory and freshness results; only security work restarts.
+func refreshSecurity(data *model, app *glyph.App) {
+	if !data.localChecked || !data.outdatedChecked {
+		refresh(data, app)
+		return
+	}
+	if data.securityCancel != nil {
+		data.securityCancel()
+	}
+	data.securityGeneration++
+	generation := data.generation
+	securityGeneration := data.securityGeneration
+	ctx, cancel := context.WithCancel(context.Background())
+	data.securityCancel = cancel
+	options := security.Options{IncludeIndirect: data.includeIndirect, IncludeGraphOnly: data.includeGraphOnly,
+		Outdated: data.packages, OSVMappings: data.mappings, EUVDMappings: data.euvdMaps,
+		OSVClient: data.osvClient, EUVDClient: data.euvdClient}
+	inventory := security.SelectInventory(data.inventory, options)
+	data.loading, data.securityScanning, data.securityChecked = true, true, false
+	data.securityErr = nil
+	data.status = fmt.Sprintf("Busy: checking security; %d selected / %d installed; expanded scans take time", len(inventory), data.installedCount)
+	updateHome(data)
+	app.RequestRender()
+	go func() {
+		report, err := security.Scan(ctx, inventory, options)
+		app.Apply(func() {
+			defer cancel()
+			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
+				return
+			}
+			if !isCurrentGeneration(data.securityGeneration, securityGeneration) {
+				return
+			}
+			data.securityCancel = nil
+			data.loading, data.securityScanning, data.securityChecked = false, false, true
+			data.securityErr = errors.Join(data.localErr, err)
+			data.securitySummary, data.securityCount = report.Summary, len(inventory)
+			data.allEvidence = report.Evidence
+			data.findings = vulnerabilityRows(report.Evidence, options.IncludeGraphOnly)
+			data.status = vulnerabilityStatus(vulnerabilitySummary(len(data.packages), report.Summary, report.Evidence), errors.Join(data.localErr, data.outdatedErr), err)
+			updateHome(data)
+		})
+	}()
+}
+
+func cancelSecurity(data *model, app *glyph.App) {
+	if !data.securityScanning || data.securityCancel == nil {
+		if !errors.Is(data.securityErr, context.Canceled) {
+			data.status = "No vulnerability scan running"
+		}
+		app.RequestRender()
+		return
+	}
+	data.securityCancel()
+	data.securityCancel = nil
+	data.securityGeneration++
+	data.securityScanning, data.securityChecked = false, false
+	data.securityErr = context.Canceled
+	data.loading = data.localLoading || data.networkPending
+	data.status = "Vulnerability scan canceled; results incomplete"
+	updateHome(data)
+	app.RequestRender()
+}
+
+func vulnerabilityOrigin(item security.Evidence) string {
+	if item.DeclaredTool {
+		return "declared tool"
+	}
+	if item.Transitive {
+		return "indirect"
+	}
+	return "direct"
+}
+
+func vulnerabilityRows(evidence []security.Evidence, includeGraphOnly ...bool) []vulnerabilityRow {
 	rows := make([]vulnerabilityRow, 0, len(evidence))
 	for _, item := range evidence {
+		if item.DependencyClass == "graph-only" && (len(includeGraphOnly) == 0 || !includeGraphOnly[0]) {
+			continue
+		}
 		if item.Status == security.StatusClean || item.Advisory == "" || (item.Status == security.StatusUnknown && len(item.Rules) == 0) {
 			continue
 		}

@@ -120,6 +120,7 @@ func (imported GoToolImport) Validate() error {
 }
 
 type InstalledPackage struct {
+	DeclaredTool    bool        `json:"declared_tool,omitempty"`
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`
 	Version         string      `json:"version"`
@@ -130,6 +131,7 @@ type InstalledPackage struct {
 	Manifest        string      `json:"manifest,omitempty"`
 	Config          string      `json:"config,omitempty"`
 	DependencyClass string      `json:"dependency_class,omitempty"`
+	ScanScope       string      `json:"scan_scope,omitempty"`
 	OSVEcosystem    string      `json:"osv_ecosystem,omitempty"`
 	OSVName         string      `json:"osv_name,omitempty"`
 	Transitive      bool        `json:"transitive,omitempty"`
@@ -269,6 +271,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 			}
 		}
 	}
+	operations = resolveGoOperations(ctx, operations, result.Managers)
 	inventoryErrors := requiredManagerErrors(result.Managers)
 	for _, operationResult := range runReadOperations(ctx, operations) {
 		status := &result.Managers[operationResult.operation.managerIndex]
@@ -276,7 +279,9 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		if operationResult.err != nil {
 			status.Error = redactSensitive(operationResult.err.Error())
 			inventoryErrors = append(inventoryErrors, fmt.Errorf("%s (%s, %s): %w", operationResult.operation.manager, operationResult.operation.executable, operationResult.operation.scope.Kind, operationResult.err))
-			continue
+			if operationResult.operation.manager != PM_GO {
+				continue
+			}
 		}
 		for _, pkg := range operationResult.value {
 			classes := options.DependencyClasses[pkg.Path]

@@ -162,7 +162,7 @@ step "install_tools" {
 
   uses {
     action  = "jdx/mise-action"
-    version = "c2a87611a18de5b3828c5652fe268e992400cb5c" # v4.3.0
+    version = "08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8" # v5.1.2
   }
 
   with {

@@ -49,6 +49,48 @@ func TestPackageViewsResponsive(t *testing.T) {
 	updateScreenSize(80, 24)
 }
 
+func TestVulnerabilityScopePersistsAcrossTogglesAndScanStates(t *testing.T) {
+	defer updateScreenSize(80, 24)
+	for _, width := range []int{40, 80, 120} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			updateScreenSize(width, 12)
+			data := &model{}
+			view, _ := vulnerabilityView(data)
+			template := glyph.Build(view)
+			render := func(indirect, graph string) string {
+				t.Helper()
+				buffer := glyph.NewBuffer(width, 12)
+				template.Execute(buffer, int16(width), 12)
+				output := homeRenderOutput(buffer, 12)
+				for _, want := range []string{"Direct + tools", "Indirect " + indirect, "Graph " + graph} {
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing %q:\n%s", want, output)
+					}
+				}
+				return output
+			}
+			if output := render("off", "off"); !strings.Contains(output, "No findings yet in selected scope.") {
+				t.Fatal(output)
+			}
+			toggleIndirect(data, func() {})
+			data.loading, data.securityScanning, data.securityCount = true, true, 99
+			render("on", "off")
+			toggleGraphOnly(data, func() {})
+			render("on", "on")
+			toggleIndirect(data, func() {})
+			data.loading, data.securityScanning, data.securityChecked = false, false, true
+			if output := render("off", "on"); !strings.Contains(output, "No findings in selected scope.") {
+				t.Fatal(output)
+			}
+			toggleGraphOnly(data, func() {})
+			data.findings = []vulnerabilityRow{{Evidence: security.Evidence{Package: "lodash", Status: "vulnerable"}}}
+			if output := render("off", "off"); strings.Contains(output, "No findings") || !strings.Contains(output, "lodash") {
+				t.Fatal(output)
+			}
+		})
+	}
+}
+
 func TestPackageLoadingRetainsRows(t *testing.T) {
 	loading := true
 	template := glyph.Build(loadingContent(&loading, glyph.Text("existing-row")))
@@ -336,6 +378,8 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 		pairs := [][2]string{{"Tool", "lodash"}, {"Status", "vulnerable"}, {"CVSS", fmt.Sprint(score)}, {"Current", "4.17.20"}, {"Fix", "4.17.21"}, {"Source", "OSV"}, {"Advisory", "GHSA-29mw-wpgm-hmr9"}, {"Rules", "2"}}
 		if width < 120 {
 			pairs = pairs[:3]
+		} else if width < 140 {
+			pairs = pairs[:7]
 		}
 		for j, pair := range pairs {
 			x := -1
@@ -346,7 +390,11 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 				}
 			}
 			if width >= 120 {
-				x = []int{3, 26, 39, 46, 61, 76, 83, 108}[j]
+				columns := packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0]))
+				x = 3
+				for k := 0; k < j; k++ {
+					x += columns[k].width + 1
+				}
 			}
 			if x < 0 {
 				t.Fatalf("missing %s heading", pair[0])
@@ -365,9 +413,9 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 				t.Fatalf("stale severity at width %d", width)
 			}
 		}
-		if width >= 120 {
+		if width >= 140 {
 			for j, column := range packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0])) {
-				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5}[j] {
+				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5, 12, 13}[j] {
 					t.Fatalf("%dx30 column %s stretched to %d", width, column.heading, column.width)
 				}
 			}

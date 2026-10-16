@@ -11,7 +11,8 @@ Current adapters:
 - `mise`: global and project runtime inventory, outdated checks, and updates.
 - Homebrew: global formula and cask inventory, outdated checks, and updates.
 - npm: global, project, and workspace inventory, outdated checks, and updates.
-- `mas`, `uv`, `pipx`, and journal-backed Go tools: global inventory, outdated checks, and updates.
+- `mas`, `uv`, and `pipx`: global inventory, outdated checks, and updates.
+- Go: journal-backed global tool inventory, outdated checks, and updates; project and workspace module inventory and outdated checks through `go.mod`, plus pinned native `go get` project updates guarded by manifest permission and Git checks; project updates do not change the global tool journal or promise rollback.
 - Poetry and pnpm: project inventory, outdated checks, and updates.
 - Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
 - Yarn and Bun: project inventory; outdated checks and updates unsupported.
@@ -43,7 +44,7 @@ Normalized scope kinds are:
 
 Project and workspace scopes require paths. Global kinds reject paths. Query paths become absolute. Physical roots reached through symlinks are queried once. If same root is both project and workspace, workspace label wins.
 
-CLI presents machine-owned scopes as global where distinction does not affect behavior.
+CLI presents machine-owned scopes as global where distinction does not affect behavior. Without scope selectors, queries include global packages and configured profile projects. When no projects are configured, working-directory discovery recognizes five files: `package.json`, `Cargo.toml`, `go.mod`, `mise.toml`, and `.mise.toml`. Go module discovery is independent of mise runtime discovery; both managers can inspect the same root.
 
 ## Manager discovery
 
@@ -54,6 +55,7 @@ Manager status reports executable evidence separately from global profile-config
 | `mise.toml`, `.mise.toml` | mise |
 | `Brewfile` | Homebrew |
 | `package.json` | npm |
+| `go.mod` | Go |
 
 Manifest evidence makes manager required. Missing required manager is an error. Optional manager without an executable is an unavailable warning. A profile manager table provides global-config evidence; `enabled = true` also makes the manager required, `enabled = false` disables it, and omitted `enabled` leaves it optional. A disabled manager remains visible; a disabled manager required by a manifest is a configuration error.
 

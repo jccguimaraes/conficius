@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -93,9 +94,17 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 	security := "Security: unknown"
 	if data.securityScanning {
 		security = "Security: unknown (scanning)"
+	} else if errors.Is(data.securityErr, context.Canceled) {
+		security = "Security: canceled; results incomplete"
+		if color != glyph.Red {
+			color = glyph.Yellow
+		}
 	} else if data.securityChecked {
 		security = fmt.Sprintf("Security: %d checked; %d vulnerable; %d unknown; %d errors", data.securityCount, data.securitySummary.Vulnerable, data.securitySummary.Unknown, data.securitySummary.Errors)
-		if data.securitySummary.Vulnerable > 0 || data.securitySummary.Errors > 0 || data.securityErr != nil {
+		if data.securitySummary.Tools > 0 || data.securitySummary.GraphOnly > 0 {
+			security += fmt.Sprintf("; %d tool; %d graph-only", data.securitySummary.Tools, data.securitySummary.GraphOnly)
+		}
+		if data.securitySummary.Vulnerable > 0 || data.securitySummary.Tools > 0 || data.securitySummary.Errors > 0 || data.securityErr != nil {
 			color = glyph.Red
 		} else if data.securitySummary.Unknown > 0 && color != glyph.Red {
 			color = glyph.Yellow

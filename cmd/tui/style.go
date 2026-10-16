@@ -95,12 +95,20 @@ func screenFooter(help string) string {
 	return strings.Join(screenFooterActions(help), " · ")
 }
 
-func screenFooterView(help string) glyph.Component {
+func screenFooterView(help string, scanning ...*bool) glyph.Component {
+	fullHelp := help
+	if len(scanning) > 0 {
+		fullHelp = "x cancel scan  " + help
+	}
 	var parts []glyph.Component
 	// Slots keep the compiled layout stable; Text functions remeasure on resize.
-	for slot := range len(strings.Split(help, "  ")) + 3 {
+	for slot := range len(strings.Split(fullHelp, "  ")) + 3 {
 		action := func() string {
-			actions := screenFooterActions(help)
+			currentHelp := help
+			if len(scanning) > 0 && *scanning[0] {
+				currentHelp = fullHelp
+			}
+			actions := screenFooterActions(currentHelp)
 			if slot < len(actions) {
 				return actions[slot]
 			}
@@ -141,16 +149,16 @@ func resizeNotice() glyph.Component {
 	)
 }
 
-func screenFrame(title string, context any, status any, content glyph.Component, help string) glyph.Component {
+func screenFrame(title string, context any, status any, content glyph.Component, help string, scanning ...*bool) glyph.Component {
 	parts := []glyph.Component{glyph.Text("Conficius / " + title).FG(glyph.Cyan).Bold()}
 	if context != nil {
 		parts = append(parts, glyph.Text(func() string { return screenContext(context) }).Dim())
 	}
 	parts = append(parts, glyph.VBox.Grow(1)(content))
 	if status != nil {
-		parts = append(parts, glyph.Text(status))
+		parts = append(parts, glyph.HBox.Height(1)(glyph.Text(status)))
 	}
-	parts = append(parts, screenFooterView(help))
+	parts = append(parts, screenFooterView(help, scanning...))
 	return glyph.VBox.Grow(1)(glyph.If(&screenTooSmall).Then(resizeNotice()).Else(glyph.VBox.Border(glyph.BorderRounded).Grow(1)(parts...)))
 }
 
@@ -158,12 +166,13 @@ var screenHelp = map[string]string{
 	"profiles":                    "↑/↓ or j/k move\nEnter choose profile\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"home":                        "↑/↓ or j/k move\nEnter open area\np profiles\nr full refresh\nq / Ctrl-C quit",
 	"scopes":                      "↑/↓ or j/k move\nEnter open scope\np profiles\nc update cache (confirmation)\nr full refresh\nEsc Home\nq / Ctrl-C quit",
-	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark package\na toggle all\nu upgrade marked\nU upgrade all\np profiles\nv vulnerabilities\nc update cache (confirmation)\nr refresh\nEsc scopes\nq / Ctrl-C quit",
-	"vulnerabilities":             "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter evidence details\no outdated\nr refresh\nEsc outdated\nq / Ctrl-C quit",
+	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark package\na toggle all\nu upgrade marked\nU upgrade all\np profiles\nv vulnerabilities\nx cancel scan\nc update cache (confirmation)\nr refresh\nEsc scopes\nq / Ctrl-C quit",
+	"vulnerabilities":             "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter evidence details (read-only)\ni toggle indirect scan\ng toggle separate graph-only scan\nx cancel scan\no outdated\nr refresh\nEsc outdated\nq / Ctrl-C quit",
 	"vulnerability-detail":        "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nf then link label open CVE\nEsc vulnerabilities\nq / Ctrl-C quit",
 	"package-detail":              "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nEsc package list\nq / Ctrl-C quit",
 	"update-error":                "↑/↓ or j/k scroll\nEsc outdated\nq / Ctrl-C quit",
 	"cache-confirm":               "y refresh APT cache only\nn / Esc cancel",
+	"dirty-confirm":               "y continue to command preview\nn / Esc cancel",
 	"confirm":                     "y apply upgrades\nn / Esc cancel\nq / Ctrl-C quit",
 	"dotfiles":                    "↑/↓ or j/k move\nEnter open area\ne environment\nl links\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"dotfiles-links":              "↑/↓ or j/k move\nTab filter\nSpace mark\na toggle visible\nEnter details\nl preview\nr refresh\nEsc Dotfiles\nq / Ctrl-C quit",

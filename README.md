@@ -101,10 +101,10 @@ Package commands inspect global installations and project dependencies across 13
 | Cargo / `cargo` | Yes | Yes | No | No | No | No |
 | Yarn / `yarn` | No | Yes | No | No | No | No |
 | Bun / `bun` | No | Yes | No | No | No | No |
-| Go / `go` | Yes | No | Yes | No | Yes | No |
+| Go / `go` | Yes | Yes | Yes | Yes | Yes | Yes |
 | apt / `apt` | Yes | No | Yes | No | No | No |
 
-These are declared adapter capabilities, not all operations offered by the upstream tools.
+These are declared adapter capabilities, not all operations offered by the upstream tools. Existing `go.mod` files in the current working directory are auto-detected for project inspection. A project containing both `mise.toml` and `go.mod` is inspected by both mise (configured tools) and Go (module dependencies); neither replaces the other.
 
 ```sh
 conficius packages pms
@@ -117,6 +117,8 @@ conficius packages vulnerabilities --global --pm apt
 conficius packages outdated --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app --transitive
+conficius packages outdated --pm go --project ./my-go-app
+conficius packages vulnerabilities --pm go --project ./my-go-app
 conficius packages update
 conficius packages update --global --pm npm --include npm:typescript --apply
 conficius --config ~/.config/conficius/config.toml packages outdated --profile work
@@ -125,11 +127,21 @@ conficius packages update --profile work --profile-project app --pm npm
 
 Package-manager inspection reports unavailable and failed managers without hiding other results. Updates preview by default; `--apply` runs native manager commands and requires explicit scope intent. Command-line `--include`/`--exclude` select updates, not persistent profile rules. Conficius re-queries available updates before execution; refreshed plans can differ from the displayed preview. Non-interactive `--yes` requires exact `--accept-plan` hashes. Updates have no universal rollback; keep backups and review the [safeguards and current limits](https://jccguimaraes.github.io/conficius/cli.html#updates). Inspection commands support schema-versioned JSON with `--json`.
 
+Go inspects global installed tools through its explicit ownership journal at `$XDG_STATE_HOME/conficius/go-tools.json` (default: `~/.local/state/conficius/go-tools.json`), not by scanning all installed binaries. `packages go-tools import` records module/version/command ownership without installing tools; a missing journal means empty global inventory. Global outdated checks and updates cover those recorded tools only. Go project inventory uses native `go list -m -json -mod=readonly all`; project freshness uses `go list -m -u -json -mod=readonly all`. Both consume Go's JSON object stream. By default, project outdated results include direct dependencies and modules providing explicitly declared `tool` packages in the scope's `go.mod`, including indirect tool modules. Vulnerability inventory retains the full module graph; security queries use the explicit scan selection described below. Inspection does not mutate project manifests, but Go may query or download module metadata and populate caches: read-only is not offline. CLI and TUI project updates batch selected modules as `go get module@version ...` in the project directory, pinned to previewed versions; global tools still use one `go install module@version` per module. Project updates require configured `allow_manifest_changes = true` and Git safety checks. Native Go may change `go.mod`, `go.sum`, transitive dependencies, and Go/toolchain requirements while retaining existing `tool` directives; review the diff and run project tests. Plan hashes include both manifests (including a missing `go.sum`); changed files invalidate accepted previews. Project updates never change the global tool journal and offer no automatic rollback or recovery command; keep Git history or backups.
+
+Go security scans default to direct dependencies and explicitly declared tool modules. `--include-indirect` adds indirect modules used by applications, tests or tools, including nested tool dependencies. `--include-graph-only` independently adds modules not confirmed used by the current build; it does not mean indirect-but-used. Neither optional group is queried by default. JSON contains all evidence from the selected scan only, with independent `transitive`, `declared_tool`, `dependency_class` and `scan_scope` metadata. Skipped modules are not clean results.
+
+The TUI scope summary starts at `Direct + tools · Indirect off · Graph off`. Direct dependencies and declared tools stay included when either optional group is toggled. On narrow terminals, the summary uses two lines. An empty completed scan says “No findings in selected scope”; an incomplete scan says “No findings yet.” Neither message establishes coverage outside the selected scope.
+
+TUI vulnerability views are read-only: `i` toggles indirect scanning and `g` toggles separate graph-only scanning. Each restarts security work for the active scope using cached inventory, without repeating outdated checks; expanded scans can take time. Options persist for the TUI session. In vulnerabilities or outdated results, `x` cancels an active vulnerability scan without stopping inventory or outdated checks. Canceled scans remain incomplete, not clean; retained findings may be from the previous scan. Use `i`/`g` or `r` to restart. The cancel footer appears only while security scanning is active. Dim Origin labels describe direct/indirect/declared-tool membership, not marks. Enter explains installed version, advisory, fixed version and current-build usage; no update keys exist here. Busy phases show dependency graph loading, installed-version checking and security checking with known counts, never estimated percentages.
+
+Go replacements need care: local filesystem replacements have no registry identity, so they cannot establish registry vulnerability coverage. Versioned replacements use the actual replacement module path and version for security checks; freshness must not imply that updating the original module updates the replacement.
+
 Online Homebrew outdated queries run `brew update` before `brew outdated`, including queries made during previews. Offline inventory skips freshness checks; preview does not mean offline or read-only metadata.
 
 apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Installed inventory uses `dpkg-query`; outdated inspection uses an `apt-get` simulation against locally cached package lists, not live latest versions. `--offline` reads installed inventory only, with freshness unknown. Conficius never refreshes apt metadata automatically. To refresh it, explicitly run `sudo apt-get update` yourself before inspection, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results screens. The TUI previews the command: `y` approves; `n`/Esc cancels. It runs `sudo -- <apt-get> update --error-on=any` through the controlling TTY, with passwords handled by sudo; root runs apt-get directly. No shell is used. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a TUI notice and leaves local inventory only. apt has no project or update capability in Conficius: no automated apt upgrades, root invocation, or privilege escalation.
 
-Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. apt packages have no automatic Debian OSV mapping or coverage assurance; unmapped packages must be reported as unknown, not clean. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
+Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Versioned Go modules map to OSV's `Go` ecosystem using their module path and exact version, subject to the replacement limitations above. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. apt packages have no automatic Debian OSV mapping or coverage assurance; unmapped packages must be reported as unknown, not clean. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
 
 ## Configuration
 
@@ -234,6 +246,8 @@ The home screen opens package scopes or dotfile audits and linking. Package view
 - `u` previews marked upgrades; `U` previews all upgrades in the current scope.
 - In the command preview, `y` applies upgrades; `n` or `Esc` cancels.
 - `v` opens vulnerabilities; `o` returns to outdated packages.
+
+For dirty Git projects, the TUI first asks **Continue with uncommitted changes**, listing affected project paths and warning that updates have no automatic rollback. Press `y` to allow dirty Git state for that batch only, then review the normal command preview and press `y` again to apply; `n` or `Esc` cancels. Cancellation, a new preview, refresh, profile changes, and restart discard approval. Git safety is checked again before execution; a clean preview that becomes dirty requires confirmation. Manifest changes still require `allow_manifest_changes = true`; unversioned projects remain blocked. CLI users instead pass `--allow-dirty` or `--allow-unversioned` explicitly; neither bypasses manifest permission.
 
 Confirmed upgrades run in the terminal, then return to the TUI. Progress output depends on the package manager. Dotfile links also require a preview and explicit confirmation before changes are applied.
 
