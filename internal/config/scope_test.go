@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -51,6 +52,30 @@ func TestResolveScopesDetectsCurrentRustProject(t *testing.T) {
 	}
 	if len(scopes) != 2 || scopes[0].Kind != "global" || scopes[1].Kind != "project" || scopes[1].Path != resolvedRoot {
 		t.Fatalf("scopes = %#v", scopes)
+	}
+}
+
+func TestResolveScopesDetectsCurrentGoProject(t *testing.T) {
+	for _, withMise := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mise=%t", withMise), func(t *testing.T) {
+			root := t.TempDir()
+			withDirectory(t, root)
+			mustWrite(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.26\n")
+			if withMise {
+				mustWrite(t, filepath.Join(root, "mise.toml"), "[tools]\ngo = '1.26'\n")
+			}
+			scopes, err := ResolveScopes(nil, ResolvedProfile{Profile: defaultProfile()}, false, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolvedRoot, err := filepath.EvalSymlinks(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(scopes) != 2 || scopes[0].Kind != "global" || scopes[1].Kind != "project" || scopes[1].Path != resolvedRoot || len(scopes[1].Workspaces) != 0 {
+				t.Fatalf("scopes = %#v", scopes)
+			}
+		})
 	}
 }
 

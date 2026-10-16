@@ -63,7 +63,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_CARGO:  {CapabilityGlobalInventory, CapabilityProjectInventory},
 		PM_YARN:   {CapabilityProjectInventory},
 		PM_BUN:    {CapabilityProjectInventory},
-		PM_GO:     {CapabilityGlobalInventory, CapabilityGlobalOutdated, CapabilityGlobalUpdate},
+		PM_GO:     {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate},
 		PM_APT:    {CapabilityGlobalInventory, CapabilityGlobalOutdated},
 	}
 	for name, capabilities := range want {

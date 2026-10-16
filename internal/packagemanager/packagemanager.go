@@ -421,6 +421,8 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 		manifest = "package.json"
 	case PM_CARGO:
 		manifest = "Cargo.lock"
+	case PM_GO:
+		manifest = "go.mod"
 	default:
 		return true
 	}
@@ -437,7 +439,7 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions
 	manifests := []struct {
 		name    string
 		manager string
-	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}}
+	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}, {"go.mod", PM_GO}}
 	var conflicts []error
 	seen := make(map[string]struct{})
 	for _, scope := range scopes {
@@ -677,6 +679,9 @@ func Filter(packages Packages, keep func(Package) bool) Packages {
 }
 
 func packageManifest(manager string, scope Scope) string {
+	if manager == PM_GO && (scope.Kind == "project" || scope.Kind == "workspace") {
+		return filepath.Join(scope.Path, "go.mod")
+	}
 	if manager == PM_NPM && (scope.Kind == "project" || scope.Kind == "workspace") {
 		return filepath.Join(scope.Path, "package.json")
 	}

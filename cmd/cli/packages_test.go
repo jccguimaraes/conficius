@@ -145,6 +145,29 @@ func TestProjectIntegrityChecksSkipCargoOnlyProject(t *testing.T) {
 	}
 }
 
+func TestHasPackageManifestDetectsGoProject(t *testing.T) {
+	project := t.TempDir()
+	if hasPackageManifest(project) {
+		t.Fatal("empty directory has package manifest")
+	}
+	manifest := filepath.Join(project, "go.mod")
+	if err := os.Mkdir(manifest, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if hasPackageManifest(project) {
+		t.Fatal("go.mod directory treated as manifest")
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("module example.com/app\n\ngo 1.26\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !hasPackageManifest(project) {
+		t.Fatal("go.mod not detected")
+	}
+}
+
 func TestPackagesOutdatedJSONIncludesProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	project := t.TempDir()

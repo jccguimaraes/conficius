@@ -15,6 +15,9 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/fatih/color v1.19.0
 	github.com/kungfusheep/glyph v0.8.0
+	github.com/kungfusheep/riffkey v0.0.0-20260826171334-5e317f83ca32
+	golang.org/x/mod v0.36.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
@@ -34,7 +37,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/junegunn/fzf v0.67.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
-	github.com/kungfusheep/riffkey v0.0.0-20260826171334-5e317f83ca32 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.21 // indirect
@@ -51,11 +53,9 @@ require (
 	github.com/yldio/cinzel v0.5.0 // indirect
 	github.com/zclconf/go-cty v1.18.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect
-	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/net v0.54.1-0.20260508232935-23ee2efe81a3 // indirect
 	golang.org/x/pkgsite v0.0.0-20260529211409-b045357bb4e9 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect

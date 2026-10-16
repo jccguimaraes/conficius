@@ -491,8 +491,12 @@ func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectInteg
 }
 
 func hasPackageManifest(path string) bool {
-	info, err := os.Stat(filepath.Join(path, "package.json"))
-	return err == nil && !info.IsDir()
+	for _, name := range []string{"package.json", "go.mod"} {
+		if info, err := os.Stat(filepath.Join(path, name)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 func printProjectIntegrity(writer io.Writer, checks []packagemanager.ProjectIntegrity) error {
