@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Conficius: a terminal tool for dotfile links, package updates, and vulnerability checks on macOS and Linux. Commands, configuration, and installation notes.">
   <meta name="theme-color" content="#191a1b">
-  <title>conficius / a little order</title>
+  <title>conficius</title>
   <link rel="icon" href="assets/conficius-gopher.png" type="image/png">
   <script>
     try {
@@ -21,7 +21,7 @@
   <a class="skip" href="#main">Skip to content</a>
   <div class="sheet">
     <header class="masthead">
-      <p>conficius / a little order</p>
+      <p>conficius</p>
       <p>macOS + Linux · Go · <a href="https://github.com/jccguimaraes/conficius">source</a></p>
       <div class="theme-control" role="group" aria-label="Theme" hidden>
         <button type="button" data-theme="light" aria-label="Light theme" aria-pressed="false">
@@ -74,13 +74,18 @@
         </div>
         <section id="dotfiles" class="overview" aria-labelledby="dotfiles-title">
           <div class="section-head"><span>01 / DOTFILES</span><h2 id="dotfiles-title">Your setup.<br>In its place.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">理</span></div>
-          <p>Keep your configuration in one repository. Link individual files or whole folders to where your tools expect them.</p>
+          <p>Keep your dotfiles in one repository with <code>conficius.toml</code>. Link individual files or whole folders to where your tools expect them. Package settings live separately in a central <code>config.toml</code>.</p>
           <p class="small">Review changes before applying them. Existing files and folders stay protected. Generated history and caches belong in your dotfiles’ <code>.gitignore</code>.</p>
           <a class="reading-link" href="cli.html#dotfiles">Dotfile setup and options</a>
         </section>
         <section id="packages" class="overview" aria-labelledby="packages-title">
           <div class="section-head"><span>02 / PACKAGES</span><h2 id="packages-title">Know what’s<br>on your machine.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">察</span></div>
-          <p>See installed tools, find available updates, and choose what to upgrade. Use the command line or browse in the terminal interface.</p>
+          <p>See installed tools, find available updates, and choose what to upgrade. Profiles enable or disable managers and name project roots; native manifests and lockfiles remain the version authority.</p>
+          <p class="small">Browse compact package rows in the TUI. Press <code>p</code> to choose a profile for the session, or <code>r</code> to reload package settings and projects. Missing dotfiles are a neutral notice, not a package failure.</p>
+          <pre><code><span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--profile</span> work
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm
+<span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span></code></pre>
+          <p class="small">Updates preview by default; <code>--apply</code> runs native commands. Online Homebrew checks run <code>brew update</code> before checking outdated packages, so previews can refresh metadata. Package updates have no universal rollback.</p>
           <div class="table-scroll" role="region" aria-label="Supported package managers" tabindex="0">
             <table>
               <caption>Package manager support</caption>
@@ -98,6 +103,7 @@
                 <tr><th scope="row">Yarn</th><td>Projects</td><td>List only</td></tr>
                 <tr><th scope="row">Bun</th><td>Projects</td><td>List only</td></tr>
                 <tr><th scope="row">Go</th><td>Installed binaries</td><td>List, check updates, upgrade</td></tr>
+                <tr><th scope="row">apt</th><td>Machine (Linux)</td><td>List, check updates from cached lists only; Linux-only TUI Update package cache (<code>c</code>, currently APT); no upgrades</td></tr>
               </tbody>
             </table>
           </div>
@@ -118,7 +124,8 @@
         </section>
         <section id="documentation" class="overview" aria-labelledby="documentation-title">
           <div class="section-head"><span>05 / DOCUMENTATION</span><h2 id="documentation-title">The details,<br>when needed.</h2></div>
-          <p>Configuration examples, every CLI command and option, supported managers, and the safeguards around changes.</p>
+          <p>Independent dotfiles and package config, practical profiles, CLI and TUI examples, supported managers, and update safeguards with their current limits.</p>
+          <p class="small">Package config defaults to <code>$XDG_CONFIG_HOME/conficius/config.toml</code> (<code>~/.config/conficius/config.toml</code> when unset). macOS also supports <code>~/Library/Application Support/conficius/config.toml</code>; having both is a conflict. Use <code>conficius config layout --xdg</code> or <code>--os-native</code> to preview relocation, then <code>--apply</code> to write it with the old config retained as a backup.</p>
           <a class="reading-link" href="cli.html">Read the CLI documentation</a>
         </section>
       </main>

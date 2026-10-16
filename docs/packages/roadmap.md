@@ -19,6 +19,7 @@ Completed adapters:
 - Yarn: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Bun: project inventory, unsupported outdated/update outcomes, and failure fixtures.
 - Go tools: journal-backed global inventory, command ownership, structured freshness, exact install updates, recovery, and failure fixtures.
+- apt: global inventory via `dpkg-query` and cached-list outdated checks via `apt-get --simulate`; no project operations or automated updates. No automatic list refresh or privilege escalation during inspection; users explicitly run `sudo apt-get update` separately, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the cache-refresh command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline freshness and Debian security mapping remain unknown.
 
 Each adapter requires:
 
@@ -35,6 +36,7 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 ## Mutation gaps
 
+- Align TUI with CLI re-query/accepted-plan, tested-version, mutation-journal, and post-update verification safeguards; TUI preview/apply already exists.
 - Install command and planning.
 - Remove command, dependency impact, and explicit unknown safety state.
 - Constraint-preserving versus latest/major update modes.
@@ -47,18 +49,20 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 - Native Windows command execution and path handling.
 - Windows mise and npm adapter tests.
-- Linux system manager adapters such as apt, dnf, and pacman.
+- Additional Linux system manager adapters such as dnf and pacman; apt project operations, automated updates, and Debian security identity mapping remain unsupported.
 - Distinct `system`, `user`, and `global-config` ownership semantics.
 
 ## Product gaps
 
-- Minimal top-level `audit` command that combines outdated, drift, security, and collision findings.
+- Minimal top-level `audit` command that combines outdated, security, and collision findings.
 - Reconcile current `packages` subcommands with intended command surface.
 - Final product and executable naming checks.
 - Release readiness, changelogs, and first tagged releases.
 - External adapter protocol only after built-in boundary proves stable.
 
 ## Deferred by design
+
+- Duplicating native package manifests or version intent in central configuration. Profiles remain project groups and manager enablement, with manifest-change permission for updates.
 
 - Registry search.
 - Broad PATH or package-directory scanning.

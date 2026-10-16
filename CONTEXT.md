@@ -5,7 +5,7 @@ Conficius describes and inspects dotfiles, package installations, and package up
 ## Language
 
 **Profile**:
-A named policy that selects package managers, projects, packages, desired versions, and inspection behavior.
+A named group of projects and enabled package managers. Native project manifests define dependency versions.
 _Avoid_: Preset, environment
 
 **Global scope**:
@@ -17,12 +17,8 @@ Package installations and manifests associated with one canonical project path.
 _Avoid_: Local scope
 
 **Resolved profile**:
-The effective profile after defaults, global configuration, project configuration, environment selection, and CLI selection have been combined and validated.
+The profile selected from central package configuration by an explicit CLI or TUI choice, environment selection, configured default, or built-in default, then validated.
 _Avoid_: Merged config
-
-**Desired version**:
-The exact package version stated by a profile. It may be reported as unsupported when a manager cannot provide that exact version.
-_Avoid_: Fixed version, version range
 
 **Update plan**:
 An ordered, immutable description of package changes that Conficius can preview and re-check before execution.

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/kungfusheep/glyph"
@@ -15,18 +14,15 @@ import (
 func TestPackageViewsResponsive(t *testing.T) {
 	data := &model{
 		rows:     []outdatedRow{{Package: packagemanager.Package{Name: "typescript", Current: "5.8.2", Latest: "5.9.3", Manager: "npm", Scope: "project"}, Mark: "[x]"}},
-		drift:    []config.PackageState{{Name: "node", Status: config.DriftBehind, Installed: "20.19.0", DesiredVersion: "22.22.4", Manager: "mise", Scope: "global"}},
 		findings: []vulnerabilityRow{{Evidence: security.Evidence{Package: "lodash", Status: "vulnerable", Score: 8.1, UpgradeTo: "4.17.21", Advisory: "GHSA-29mw-wpgm-hmr9", Source: "OSV"}, Current: "4.17.20", RuleCount: "2"}},
 	}
 	outdated, _ := resultView(data)
-	drift, _ := driftView(data)
 	vuln, _ := vulnerabilityView(data)
 	for name, view := range map[string]struct {
 		component glyph.Component
 		want      []string
 	}{
 		"outdated":      {outdated, []string{"typescript", "[x]", "5.8.2", "5.9.3"}},
-		"drift":         {drift, []string{"node", config.DriftBehind}},
 		"vulnerability": {vuln, []string{"lodash", "vulnerable", "8.1"}},
 	} {
 		template := glyph.Build(view.component)
@@ -38,9 +34,6 @@ func TestPackageViewsResponsive(t *testing.T) {
 				output := homeRenderOutput(buffer, size[1])
 				wantValues := append([]string{}, view.want...)
 				if size[0] >= 80 {
-					if name == "drift" {
-						wantValues = append(wantValues, "20.19.0", "22.22.4")
-					}
 					if name == "vulnerability" {
 						wantValues = append(wantValues, "4.17.20", "4.17.21")
 					}
@@ -132,22 +125,17 @@ func TestPackageDetailRetainsSecondaryFields(t *testing.T) {
 			t.Fatalf("detail contains boilerplate %q: %s", unwanted, text)
 		}
 	}
-	drift := config.PackageState{Name: "node", Status: config.DriftBehind, Installed: "20", DesiredVersion: "22", Manager: "mise", Scope: "global", Path: "/repo", DependencyClass: "runtime"}
-	for _, want := range []string{drift.Name, drift.Status, drift.Installed, drift.DesiredVersion, drift.Manager, drift.Scope, drift.Path, drift.DependencyClass} {
-		if !strings.Contains(driftDetails(&drift), want) {
-			t.Fatalf("drift detail missing %q", want)
-		}
-	}
+
 }
 
 func TestPackageHeadingAlignmentAndPalette(t *testing.T) {
 	updateScreenSize(120, 30)
 	defer updateScreenSize(80, 24)
-	row := &config.PackageState{Name: "node", Status: config.DriftBehind, Installed: "20", DesiredVersion: "22", Manager: "mise", Scope: "global"}
-	columns := func() []packageColumn { return driftColumns(row) }
+	row := &outdatedRow{Package: packagemanager.Package{Name: "node", Current: "20", Latest: "22", Manager: "mise", Scope: "global"}}
+	columns := func() []packageColumn { return outdatedColumns(row) }
 	buffer := glyph.NewBuffer(120, 10)
-	glyph.Build(glyph.VBox(packageTableRow("drift", columns, true), glyph.HRule(), packageTableRow("drift", columns, false))).Execute(buffer, 120, 10)
-	for _, pair := range [][2]string{{"Tool", "node"}, {"State", config.DriftBehind}, {"Installed", "20"}, {"Desired", "22"}, {"Manager", "mise"}, {"Scope", "global"}} {
+	glyph.Build(glyph.VBox(packageTableRow("outdated", columns, true), glyph.HRule(), packageTableRow("outdated", columns, false))).Execute(buffer, 120, 10)
+	for _, pair := range [][2]string{{"Tool", "node"}, {"Current", "20"}, {"Latest", "22"}, {"Manager", "mise"}, {"Scope", "global"}} {
 		heading, value := strings.Index(buffer.GetLine(0), pair[0]), strings.Index(buffer.GetLine(2), pair[1])
 		if heading < 0 || heading != value {
 			t.Fatalf("column mismatch %v: %q / %q", pair, buffer.GetLine(0), buffer.GetLine(2))

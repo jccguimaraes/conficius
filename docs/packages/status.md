@@ -4,15 +4,15 @@
 
 ### Profiles and scopes
 
-- TOML schema version 2 with strict validation and version 1 migration.
-- CLI, environment, project config, selected profile, and default resolution.
+- Independent central package `config.toml` with strict schema version 2; dotfile configuration is separate.
+- XDG and OS-native layout discovery, conflict rejection, explicit `--config`, and preview/apply `config layout` moves.
+- CLI, `CONFICIUS_PROFILE`, central config selection, and default profile resolution.
+- Profiles group named project paths and manager `enabled` settings only, with per-project `allow_manifest_changes` update permission.
 - Global, project, Cargo, and npm workspace inspection.
 - npm project inventory, freshness, and doctor checks run only where `package.json` exists.
 - npm project inventory uses `npm ls --package-lock-only --json`; global inventory reads installed packages.
 - Absolute scope paths, symlink-aware deduplication, and workspace precedence.
-- Manager and package allowlist/denylist policy.
-- Exact desired-version drift.
-- npm dependency-class policy.
+- Native manifests and lockfiles own dependency intent and versions; no central package/version policy, drift, manager ordering, security-scope setting, executable overrides, or npm class filters.
 
 ### Managers
 
@@ -41,14 +41,15 @@
 - Go manager inspection uses `go version`; global outdated checks use structured `go list -m -json MODULE@latest` metadata.
 - Go updates run one exact `go install module@version` plan per tool, write verified versions to journal, and use fake-executable execution coverage.
 - Bun command and changed-output parser failure fixtures.
-- Bun command and changed-output parser failure fixtures.
+- Registered apt adapter for global system inventory via `dpkg-query` and outdated checks via `apt-get --simulate` against cached lists only on Debian/Ubuntu and other apt-based Linux systems. No project operations or automated package upgrades; inspection does not refresh metadata or escalate privileges. Users explicitly refresh lists separately with `sudo apt-get update`, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the command (`y` approves; `n`/Esc cancels). No shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline inventory has unknown freshness.
 - Explicit capability declarations.
 - Adapter and tested manager version reporting.
-- Configured executable overrides.
+- `PATH` executable discovery; no profile executable overrides.
 - Disabled, optional, required, and unavailable manager states.
 - Separate executable and global profile-config evidence in manager status.
 - Missing optional manager with global profile config remains unavailable and reports both facts.
-- Manifest evidence from mise config, Brewfile, and package.json.
+- Manifest evidence from mise config, Brewfile, and package.json; explicit `enabled = true` also requires a manager.
+- Homebrew refreshes metadata with `brew update` before `brew outdated --json=v2 --greedy`; refresh errors fail the outdated operation.
 
 ### Inspection
 
@@ -69,7 +70,7 @@
 - Offline CLI human and JSON collision reporting.
 - Package roles and owning manifest/config metadata.
 - Snapshot metadata and package audit check exit codes.
-- Active npm dependency-class filters in CLI JSON and human summaries.
+- npm classes remain inventory metadata, not profile selection filters.
 
 ### Doctor
 
@@ -87,14 +88,15 @@
 - EUVD integration.
 - EUVD product entries without an affected-version rule do not emit unknown or vulnerable findings.
 - Explicit mappings for package identities that cannot be inferred safely.
-- Configurable selected/all security scope.
-- Unknown mapping remains unknown.
+- Security scans installed inventory in resolved scopes, with no profile selected/all security-scope policy.
+- Unknown mapping remains unknown; apt has no Debian security identity mapping and is not reported clean.
 
 ### Updates
 
-- Preview-first plans with include/exclude selectors.
+- Preview-first plans with request-local CLI include/exclude selectors, not profile package policy.
+- Project mutation requires matching registered project `allow_manifest_changes = true`; Git overrides do not bypass permission.
 - Plan confidence, impact, recovery commands, and state hashes.
-- Dirty and unversioned project guards.
+- Whole-repository dirty and unversioned project guards; CLI overrides are explicit.
 - Tested manager version guard.
 - Interactive and accepted-hash unattended modes.
 - Sequential fail-fast execution and best-effort manager isolation.
@@ -104,7 +106,10 @@
 ### Frontends
 
 - CLI supports manager status, doctor checks, outdated, offline inventory, vulnerability checks, and updates.
-- TUI provides read-only profile, scope, outdated, drift, vulnerability, and command-collision summaries.
+- TUI provides installed/latest/security status, profile and scope selection, package/vulnerability details, and command-collision summaries.
+- TUI `p` selects a session profile; `r` reloads central package config and refreshes. Switching does not write config; reload errors or removed selected profiles block upgrades.
+- TUI previews and applies marked/all-package updates, rechecks manifest permission and Git safety, runs terminal commands sequentially, retains failures, and restarts to refresh results.
+- TUI does not use CLI accepted hashes, mutation journals, post-update verification, or manager-version override guards.
 - TUI concurrent inventory and outdated queries use isolated required-manager options.
 - TUI keeps inspection failure guidance after vulnerability scans, reports vulnerability scan failure, hides optional unavailable managers, and replaces raw multiline inspection errors with doctor guidance.
 - TUI primary status hides unmapped security count. CLI and report data retain it.
@@ -113,7 +118,7 @@
 
 ## Verification state
 
-Latest package slices passed:
+Repository verification commands (not a claim that they passed for the current working tree):
 
 ```sh
 go test -race ./... --cover

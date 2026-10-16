@@ -124,6 +124,9 @@ func (p Homebrew) ListOutdated(ctx context.Context, executable string, outdatedP
 }
 
 func (p Homebrew) listOutdated(ctx context.Context, dir, executable string, options ManagerOptions, outdatedPackages Packages) error {
+	if _, err := runOutputDir(ctx, dir, executable, "update"); err != nil {
+		return err
+	}
 	args := []string{HomebrewCommandOutdated, HomebrewFlagJSONv2}
 	args = append(args, HomebrewFlagGreedy)
 	output, err := runOutputDir(ctx, dir, executable, args...)

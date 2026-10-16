@@ -44,6 +44,15 @@ func TestMigratePreviewAndApply(t *testing.T) {
 	if err != nil || project.Version != 2 {
 		t.Fatalf("migrated project = %#v, %v", project, err)
 	}
+	resolved, err := project.ResolveProfile("default", false)
+	if err != nil || len(resolved.Profile.Managers) != 0 || len(resolved.Profile.Projects) != 0 {
+		t.Fatalf("migrated default profile = %#v, %v", resolved, err)
+	}
+	for _, field := range []string{"mode =", "manager_order", "security_scope", "desired_version"} {
+		if strings.Contains(string(preview), field) {
+			t.Fatalf("migration emitted removed field %q", field)
+		}
+	}
 }
 
 func TestMigrateUsesCollisionSafeBackup(t *testing.T) {

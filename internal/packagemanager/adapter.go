@@ -55,6 +55,7 @@ var adapters = []managerAdapter{
 	Yarn{},
 	Bun{},
 	Go{},
+	Apt{},
 }
 
 func hasCapability(adapter managerAdapter, capability Capability) bool {

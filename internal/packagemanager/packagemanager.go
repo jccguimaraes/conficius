@@ -130,22 +130,9 @@ type QueryOptions struct {
 
 func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 	options := QueryOptions{
-		Managers:          make(map[string]ManagerOptions, len(profile.Managers)),
-		Executables:       make(map[string]string),
-		GlobalConfig:      make(map[string]bool),
-		Disabled:          make(map[string]bool),
-		Required:          make(map[string]bool),
-		DependencyClasses: make(map[string]map[string]bool),
-	}
-	for _, project := range profile.Projects {
-		if len(project.NPMDependencyClasses) == 0 {
-			continue
-		}
-		classes := make(map[string]bool, len(project.NPMDependencyClasses))
-		for _, class := range project.NPMDependencyClasses {
-			classes[class] = true
-		}
-		options.DependencyClasses[project.ResolvedPath] = classes
+		GlobalConfig: make(map[string]bool),
+		Disabled:     make(map[string]bool),
+		Required:     make(map[string]bool),
 	}
 	for manager, settings := range profile.Managers {
 		options.GlobalConfig[manager] = true
@@ -155,14 +142,6 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 			} else {
 				options.Disabled[manager] = true
 			}
-		}
-		if settings.Executable != "" {
-			options.Executables[manager] = settings.Executable
-		}
-		options.Managers[manager] = ManagerOptions{
-			IncludeBumpCandidates: settings.IncludeBumpCandidates,
-			IncludeGreedy:         settings.IncludeGreedy,
-			ExpectedGlobalPrefix:  settings.ExpectedGlobalPrefix,
 		}
 	}
 	return options
@@ -268,11 +247,15 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		}
 
 		status := ManagerStatus{Name: pm, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: executables}
+		status.Warnings = managerInspectionWarnings(pm)
+		if len(executables) > 1 {
+			status.Warnings = append(status.Warnings, "multiple executables found on PATH: "+strings.Join(executables, ", "))
+		}
 		output, versionErr := runOutput(context.Background(), executables[0], managerVersionArgs(pm)...)
 		if versionErr != nil {
 			status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(versionErr.Error()))
 		} else {
-			status.ManagerVersion = firstVersion(string(output))
+			status.ManagerVersion = managerVersion(pm, output)
 			if status.ManagerVersion == "" {
 				status.Warnings = append(status.Warnings, "read manager version: no version in output")
 			} else {
@@ -603,6 +586,25 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 	return statuses, nil
 }
 
+func managerInspectionWarnings(manager string) []string {
+	if manager == PM_APT {
+		return []string{"apt outdated results use cached local package lists; lists are not refreshed", "apt major range 2-3 is a fixture contract, not live-manager validation"}
+	}
+	return nil
+}
+
+func managerVersion(manager string, output []byte) string {
+	if manager == PM_APT {
+		line, _, _ := strings.Cut(string(output), "\n")
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != PM_APT {
+			return ""
+		}
+		return firstVersion(fields[1])
+	}
+	return firstVersion(string(output))
+}
+
 func managerVersionArgs(manager string) []string {
 	if manager == PM_GO {
 		return []string{"version"}
@@ -612,6 +614,7 @@ func managerVersionArgs(manager string) []string {
 
 func inspectExecutable(manager, executable string, adapter managerAdapter) ManagerStatus {
 	status := ManagerStatus{Name: manager, Status: StatusAvailable, Evidence: ManagerEvidence{Executable: true}, AdapterVersion: adapterVersion, TestedVersions: adapter.testedVersions(), Capabilities: adapter.capabilities(), Executables: []string{executable}}
+	status.Warnings = managerInspectionWarnings(manager)
 	info, err := os.Stat(executable)
 	if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
 		status.Status = StatusUnavailable
@@ -624,7 +627,7 @@ func inspectExecutable(manager, executable string, adapter managerAdapter) Manag
 		status.Warnings = append(status.Warnings, "read manager version: "+redactSensitive(err.Error()))
 		return status
 	}
-	status.ManagerVersion = firstVersion(string(output))
+	status.ManagerVersion = managerVersion(manager, output)
 	if status.ManagerVersion == "" {
 		status.Warnings = append(status.Warnings, "read manager version: no version in output")
 		return status
@@ -801,6 +804,9 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 			return nil, err
 		}
 		scope := Scope{Kind: plan.Scope, Path: plan.Directory}
+		if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalUpdate, CapabilityProjectUpdate)) {
+			return nil, fmt.Errorf("%s updates are unsupported for %s scope", plan.Manager, plan.Scope)
+		}
 		plan.Impact = adapter.updateImpact(scope)
 		for _, args := range adapter.recoveryArgs(scope, plan.Packages) {
 			plan.Recovery = append(plan.Recovery, RecoveryCommand{Executable: plan.Executable, Args: args})
@@ -902,6 +908,46 @@ type UpdateOutcome struct {
 	Status       string   `json:"status"`
 	ChangedFiles []string `json:"changed_files,omitempty"`
 	Error        string   `json:"error,omitempty"`
+}
+
+// ValidateProjectMutations checks manifest permissions and Git safety before project updates.
+func ValidateProjectMutations(plans []UpdatePlan, profile config.Profile, allowDirty, allowUnversioned bool) error {
+	checked := map[string]struct{}{}
+	for _, plan := range plans {
+		if plan.Scope != "project" || plan.Directory == "" {
+			continue
+		}
+		if _, exists := checked[plan.Directory]; exists {
+			continue
+		}
+		checked[plan.Directory] = struct{}{}
+		manifestChangesAllowed := false
+		for _, project := range profile.Projects {
+			if (project.ResolvedPath == plan.Directory || project.Path == plan.Directory) && project.AllowManifestChanges {
+				manifestChangesAllowed = true
+				break
+			}
+		}
+		if !manifestChangesAllowed {
+			return fmt.Errorf("project %q does not allow manifest changes", plan.Directory)
+		}
+		command := exec.Command("git", "-C", plan.Directory, "rev-parse", "--show-toplevel")
+		root, err := command.Output()
+		if err != nil {
+			if allowUnversioned {
+				continue
+			}
+			return fmt.Errorf("project %q is not in a Git repository; use --allow-unversioned", plan.Directory)
+		}
+		status, err := exec.Command("git", "-C", strings.TrimSpace(string(root)), "status", "--porcelain").Output()
+		if err != nil {
+			return fmt.Errorf("inspect Git status for %q: %w", plan.Directory, err)
+		}
+		if len(status) > 0 && !allowDirty {
+			return fmt.Errorf("project %q has uncommitted changes; use --allow-dirty", plan.Directory)
+		}
+	}
+	return nil
 }
 
 func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdout, stderr io.Writer) error {

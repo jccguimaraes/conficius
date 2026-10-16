@@ -43,8 +43,15 @@
     p { margin: 0 0 1rem; }
     code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
     code { font-size: .9em; overflow-wrap: anywhere; }
+    :not(pre) > code { color: var(--ink); background: var(--wash); border: 1px solid var(--rule); border-radius: .2rem; padding: .08em .3em; }
     pre { background: var(--wash); padding: 1rem 1.2rem; margin: 1rem 0; font-size: .78rem; line-height: 1.9; overflow-x: auto; }
     pre code { font-size: inherit; overflow-wrap: normal; }
+    pre code .syntax-command, pre code .syntax-section { color: var(--accent); font-weight: 700; }
+    pre code .syntax-flag, pre code .syntax-key { color: var(--sun); }
+    pre code .syntax-string { color: var(--leaf); color: color-mix(in srgb, var(--leaf) 75%, var(--ink)); }
+    pre code .syntax-value { color: var(--accent); }
+    pre code .syntax-comment { color: var(--muted); }
+    :root[data-theme="light"] pre code .syntax-string { color: var(--muted); color: color-mix(in srgb, var(--leaf) 75%, var(--ink)); }
     .command { margin-block: 0; padding: .6rem 0; border: 0; background: none; font-size: .82rem; }
     .command::before { content: "$ "; color: var(--accent); }
     .entry { padding: 1rem 0; }

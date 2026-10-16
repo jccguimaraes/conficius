@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/audit"
-	"github.com/jccguimaraes/conficius/internal/config"
-	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/wisdom"
 	glyph "github.com/kungfusheep/glyph"
 )
@@ -23,29 +21,27 @@ type homeCard struct {
 }
 
 func parseStartupFlags(args []string, output io.Writer) (string, error) {
-	flags := flag.NewFlagSet("conficius-tui", flag.ContinueOnError)
-	flags.SetOutput(output)
-	path := flags.String("config", "", "configuration path")
-	if err := flags.Parse(args); err != nil {
-		return "", err
-	}
-	if flags.NArg() != 0 {
-		return "", fmt.Errorf("unexpected argument: %s", flags.Arg(0))
-	}
-	return *path, nil
+	dotfiles, _, err := parseConfigFlags(args, output)
+	return dotfiles, err
 }
 
-func evaluateInventory(profile config.Profile, packages []packagemanager.InstalledPackage) ([]config.InstalledVersion, []config.PackageState) {
-	installed := make([]config.InstalledVersion, len(packages))
-	for i, pkg := range packages {
-		installed[i] = config.InstalledVersion{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: pkg.Version}
+func parseConfigFlags(args []string, output io.Writer) (string, string, error) {
+	flags := flag.NewFlagSet("conficius-tui", flag.ContinueOnError)
+	flags.SetOutput(output)
+	path := flags.String("config", "", "dotfiles configuration path")
+	packages := flags.String("package-config", "", "package configuration path")
+	if err := flags.Parse(args); err != nil {
+		return "", "", err
 	}
-	return config.EvaluatePackages(profile, installed)
+	if flags.NArg() != 0 {
+		return "", "", fmt.Errorf("unexpected argument: %s", flags.Arg(0))
+	}
+	return *path, *packages, nil
 }
 
 func dotfileHomeSummary(state *dotfileState) (string, glyph.Color) {
-	if state == nil {
-		return "Configuration unavailable", glyph.Red
+	if state == nil || (state.project == nil && state.configErr == nil) || state.missingConfig() {
+		return "Add your dotfiles when you're ready.\nRun conficius init in your dotfiles repo.", glyph.DefaultColor()
 	}
 	color := glyph.Green
 	if state.configErr != nil || state.project == nil {
@@ -73,14 +69,11 @@ func dotfileHomeSummary(state *dotfileState) (string, glyph.Color) {
 }
 
 func packageHomeSummary(data *model) (string, glyph.Color) {
-	local := "Local: loading; drift unknown"
+	local := "Local: loading"
 	color := glyph.Cyan
 	if data.localChecked && !data.localLoading {
-		local = fmt.Sprintf("Local: %d installed; %d drift", data.installedCount, len(data.drift))
+		local = fmt.Sprintf("Local: %d installed", data.installedCount)
 		color = glyph.Green
-		if len(data.drift) > 0 {
-			color = glyph.Yellow
-		}
 		if data.localErr != nil {
 			local += " (partial; failed)"
 			color = glyph.Red
@@ -111,18 +104,27 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 			security += " (partial; failed)"
 		}
 	}
-	return strings.Join([]string{local, outdated, security}, "\n"), color
+	parts := []string{local, outdated, security}
+	if data.cacheRefreshErr != "" {
+		parts = append(parts, data.cacheRefreshErr)
+		color = glyph.Red
+	}
+	if data.packageConfigErr != nil {
+		parts = append(parts, "Package configuration error: "+strings.SplitN(data.packageConfigErr.Error(), "\n", 2)[0])
+		color = glyph.Red
+	}
+	return strings.Join(parts, "\n"), color
 }
 
 func updateHome(data *model) {
 	data.showWisdom = terminalWidth() >= 80 && screenSize.Height >= 16
-	if len(data.homeCards) != 2 {
-		return
-	}
-	data.homeCards[0].summary, data.homeCards[0].color = dotfileHomeSummary(data.dotfiles)
-	data.homeCards[1].summary, data.homeCards[1].color = packageHomeSummary(data)
 	for i := range data.homeCards {
 		card := &data.homeCards[i]
+		if card.view == "scopes" {
+			card.summary, card.color = packageHomeSummary(data)
+		} else {
+			card.summary, card.color = dotfileHomeSummary(data.dotfiles)
+		}
 		switch card.color {
 		case glyph.Green:
 			card.label = "Healthy"
@@ -132,6 +134,9 @@ func updateHome(data *model) {
 			card.label = "Error"
 		default:
 			card.label = "Loading"
+			if card.view == "dotfiles" {
+				card.label = "Optional"
+			}
 		}
 	}
 }
@@ -140,7 +145,11 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 	if data.wisdom == "" {
 		data.wisdom = wisdom.Random()
 	}
-	data.homeCards = []homeCard{{name: "Dotfiles", view: "dotfiles", nameColor: glyph.Cyan, gap: true}, {name: "Packages", view: "scopes"}}
+	data.homeCards = []homeCard{{name: "Packages", view: "scopes", nameColor: glyph.Cyan}}
+	if data.dotfiles != nil {
+		data.homeCards[0].gap = true
+		data.homeCards = append(data.homeCards, homeCard{name: "Dotfiles", view: "dotfiles"})
+	}
 	updateHome(data)
 	cards := styleList(glyph.List(&data.homeCards)).MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
 		return glyph.VBox(
@@ -160,8 +169,8 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		app.Go(card.view)
 	})
 	context := func() string {
-		if data.dotfiles == nil {
-			return "Config: unavailable"
+		if data.dotfiles == nil || data.dotfiles.configPath == "" {
+			return "Config: none"
 		}
 		return "Config: " + glyph.TruncateWidthEllipsis(filepath.Base(data.dotfiles.configPath), max(1, terminalWidth()-12))
 	}
@@ -171,7 +180,7 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		}).Dim(), glyph.Text(""))),
 		cards,
 	)
-	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  r/q  ? help"), cards
+	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  p profiles  r refresh  ? help"), cards
 }
 
 func registerHome(data *model, app *glyph.App) {
@@ -179,6 +188,7 @@ func registerHome(data *model, app *glyph.App) {
 	app.OnBeforeRender(func() { updateHome(data) })
 	app.View("home", view).Handle("<down>", cards.Down).Handle("<up>", cards.Up).
 		Handle("<Esc>", func() {}).Handle("q", app.Stop).
+		Handle("p", func() { app.Go("profiles") }).
 		Handle("r", func() {
 			data.active = nil
 			refresh(data, app)

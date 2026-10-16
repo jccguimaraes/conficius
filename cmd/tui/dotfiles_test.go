@@ -14,6 +14,7 @@ import (
 	"github.com/jccguimaraes/conficius/internal/dotfiles"
 	"github.com/jccguimaraes/conficius/internal/layout"
 	"github.com/kungfusheep/glyph"
+	"github.com/kungfusheep/riffkey"
 )
 
 func dotfileTestState(t *testing.T) *dotfileState {
@@ -386,7 +387,7 @@ func TestDotfileRefreshDiscoversConfig(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	state := newDotfileState(nil, config.ErrNotFound, "")
+	state := newDotfileState(nil, nil, "")
 	state.refresh(nil)
 	if !errors.Is(state.configErr, config.ErrNotFound) {
 		t.Fatal(state.configErr)
@@ -636,5 +637,69 @@ func TestDotfilePublishKeepsFocusFilterClearsMarks(t *testing.T) {
 	state.publish(work)
 	if state.filter != 1 || state.selection != 2 || state.menuSelection != 1 || state.visible[state.selection].entry.Name != "c" || len(state.marks) != 0 {
 		t.Fatalf("publication lost focus/filter or kept marks: %+v", state)
+	}
+}
+
+func TestLayoutPreviewRejectsExplicitPackageConfig(t *testing.T) {
+	state := newDotfileState(nil, config.ErrNotFound, "")
+	state.packageConfigPath = "custom-packages.toml"
+	app := glyph.NewApp()
+	registerDotfiles(state, app)
+	state.refreshing = false
+	state.layoutPlan = &config.PackageLayoutPlan{}
+	app.Go("dotfiles-environment")
+	app.Input().Dispatch(riffkey.Key{Rune: 'l'})
+	if app.CurrentView() != "dotfiles-environment" || state.layoutPlan != nil {
+		t.Fatalf("explicit config allowed layout preview: %s, %+v", app.CurrentView(), state.layoutPlan)
+	}
+	if !strings.Contains(state.status, "--package-config") || !strings.Contains(state.status, state.packageConfigPath) || !strings.Contains(state.status, "restart without --package-config") {
+		t.Fatalf("status = %q", state.status)
+	}
+}
+
+func TestLayoutPreviewWithoutDotfiles(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	state := newDotfileState(nil, config.ErrNotFound, "")
+	state.refresh(nil)
+	if !state.missingConfig() || state.status != "Dotfiles not detected" || len(state.reports) != 2 {
+		t.Fatalf("missing config: %+v", state)
+	}
+	app := glyph.NewApp()
+	registerDotfiles(state, app)
+	state.refreshing = false
+	app.Go("dotfiles-environment")
+	for _, cancel := range []riffkey.Key{{Rune: 'n'}, {Special: riffkey.SpecialEscape}} {
+		app.Input().Dispatch(riffkey.Key{Rune: 'l'})
+		if app.CurrentView() != "dotfiles-layout-preview" || state.layoutPlan == nil {
+			t.Fatalf("preview: %s, %s", app.CurrentView(), state.status)
+		}
+		destination := state.layoutPlan.Destination
+		if !strings.Contains(state.layoutPreview, destination) {
+			t.Fatal(state.layoutPreview)
+		}
+		if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("preview wrote config: %v", err)
+		}
+		app.Input().Dispatch(cancel)
+		if app.CurrentView() != "dotfiles-environment" || state.layoutPlan != nil {
+			t.Fatal("cancel retained plan")
+		}
+		if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cancel wrote config: %v", err)
+		}
+	}
+	app.Input().Dispatch(riffkey.Key{Rune: 'l'})
+	destination := state.layoutPlan.Destination
+	app.Input().Dispatch(riffkey.Key{Rune: 'y'})
+	if app.CurrentView() != "dotfiles-environment" || state.layoutPlan != nil {
+		t.Fatal("apply retained plan")
+	}
+	if _, err := os.Stat(destination); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(state.status, "layout applied") {
+		t.Fatal(state.status)
 	}
 }

@@ -47,6 +47,7 @@ type dotfileState struct {
 	project                                 *config.Project
 	configErr                               error
 	configPath                              string
+	packageConfigPath                       string
 	options                                 dotfiles.Options
 	rows, visible                           []dotfileRow
 	marks                                   map[string]bool
@@ -64,6 +65,8 @@ type dotfileState struct {
 	pending, quitPending                    bool
 	generation                              uint64
 	refreshing                              bool
+	layoutPlan                              *config.PackageLayoutPlan
+	layoutPreview                           string
 }
 
 func newDotfileState(project *config.Project, configErr error, configPath string) *dotfileState {
@@ -79,6 +82,10 @@ func newDotfileState(project *config.Project, configErr error, configPath string
 		state.options.ConfigDir = project.Root
 	}
 	return state
+}
+
+func (state *dotfileState) missingConfig() bool {
+	return state != nil && state.project == nil && state.configPath == "" && errors.Is(state.configErr, config.ErrNotFound)
 }
 
 func dotfileKey(entry dotfiles.Entry) string {
@@ -207,7 +214,9 @@ func (state *dotfileState) load() {
 	if state.configErr != nil || state.project == nil {
 		state.links = "Links: read-only; configuration unavailable"
 		state.status = "Run conficius init to create conficius.toml."
-		if state.configErr != nil {
+		if state.missingConfig() {
+			state.links, state.status = "Dotfiles not detected", "Dotfiles not detected"
+		} else if state.configErr != nil {
 			state.status = state.configErr.Error() + "\n" + state.status
 		}
 	} else {
@@ -565,6 +574,20 @@ func dotfilePreviewContent(state *dotfileState, preview *glyph.ListC[string]) gl
 	return glyph.VBox.Grow(1)(glyph.Text(&state.previewSummary).Bold(), preview)
 }
 
+func (state *dotfileState) prepareLayoutPreview() error {
+	state.layoutPlan = nil
+	if state.packageConfigPath != "" {
+		return fmt.Errorf("package layout changes unavailable while --package-config is set (%s); restart without --package-config to change layout", state.packageConfigPath)
+	}
+	plan, err := config.PlanPackageLayout(string(state.mode))
+	if err != nil {
+		return err
+	}
+	state.layoutPlan = plan
+	state.layoutPreview = fmt.Sprintf("Package configuration layout: %s\n\nSource: %s\nDestination: %s\n\nOnly package configuration is relocated. Dotfiles and shell files remain unchanged.\n\nApply this layout?", state.mode, plan.Source, plan.Destination)
+	return nil
+}
+
 func registerDotfiles(state *dotfileState, app *glyph.App) {
 	state.refresh(app)
 	stop := func() {
@@ -619,7 +642,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 	updateEnvironment := state.environmentSummary
 	updateEnvironment()
 	environmentList := dotfileEnvironmentList(state)
-	app.View("dotfiles-environment", frame("Dotfiles / Environment", glyph.VBox.Grow(1)(glyph.Text(&state.environment), environmentList), "Enter details  m mode  Esc back  q quit")).
+	app.View("dotfiles-environment", frame("Dotfiles / Environment", glyph.VBox.Grow(1)(glyph.Text(&state.environment), environmentList), "Enter details  m mode  l layout preview  Esc back  q quit")).
 		Handle("<down>", environmentList.Down).Handle("<up>", environmentList.Up).Handle("j", environmentList.Down).Handle("k", environmentList.Up).
 		Handle("m", func() {
 			if state.mode == layout.ModeXDG {
@@ -628,6 +651,17 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 				state.mode = layout.ModeXDG
 			}
 			updateEnvironment()
+		}).
+		Handle("l", func() {
+			if state.pending || state.refreshing {
+				return
+			}
+			if err := state.prepareLayoutPreview(); err != nil {
+				state.status = err.Error()
+				return
+			}
+			state.status = ""
+			app.Go("dotfiles-layout-preview")
 		}).
 		Handle("r", func() { state.refresh(app); updateEnvironment() }).
 		Handle("<Enter>", func() {
@@ -688,6 +722,22 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 					}
 				})
 			}()
+		})
+	layoutCancel := func() { state.layoutPlan = nil; app.Go("dotfiles-environment") }
+	layoutDetails := glyph.TextView(&state.layoutPreview).WordWrap().Grow(1).BindNav("j", "k").BindNav("<down>", "<up>")
+	app.View("dotfiles-layout-preview", frame("Environment / Package configuration / Confirm", layoutDetails, "y apply  n/Esc cancel  q quit")).
+		Handle("n", layoutCancel).Handle("<Esc>", layoutCancel).Handle("q", stop).Handle("<C-c>", stop).
+		Handle("y", func() {
+			if state.layoutPlan == nil || state.pending {
+				return
+			}
+			if err := state.layoutPlan.Apply(); err != nil {
+				state.status = "Package configuration relocation failed: " + err.Error()
+			} else {
+				state.status = "Package configuration layout applied: " + string(state.mode)
+			}
+			state.layoutPlan = nil
+			app.Go("dotfiles-environment")
 		})
 	app.View("dotfiles-pending", frame("Dotfiles / Links / Applying", glyph.VBox(glyph.Text("Applying marked links").Bold(), glyph.Text("Quit waits for completion.")), "q quit when done")).Handle("q", stop).Handle("<C-c>", stop)
 }

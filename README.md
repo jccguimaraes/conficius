@@ -34,7 +34,20 @@ With mise installed, `mise install` installs the pinned development tools. `mise
 
 ## CLI
 
-`conficius init` creates `conficius.toml` in the current directory and refuses to overwrite an existing file. Optional link, npm-prefix, and vulnerability-mapping examples are commented out; edit and uncomment them before use. `--config FILE` selects an explicit config, including the path written by `init`; otherwise Conficius searches the current directory and its parents, then `$XDG_CONFIG_HOME/conficius/conficius.toml` (default: `~/.config/conficius/conficius.toml`).
+`conficius init` creates a dotfiles `conficius.toml` in the current directory and refuses to overwrite an existing file. Edit its commented link examples before use. Dotfiles discovery searches the current directory and its parents, then `$XDG_CONFIG_HOME/conficius/conficius.toml` (default: `~/.config/conficius/conficius.toml`).
+
+Package settings are independent: `$XDG_CONFIG_HOME/conficius/config.toml` (default: `~/.config/conficius/config.toml`) or, on macOS, `~/Library/Application Support/conficius/config.toml`. Discovery fails if both package locations exist. Missing package config uses defaults; package commands never read repository `conficius.toml`.
+
+CLI `--config FILE` is command-specific: dotfiles commands, `init`, and `config migrate` use a dotfiles config; package inspection/update commands and `config resolve` use a package config. Put the flag before the command. `config layout` rejects it and works only with the central package locations:
+
+```sh
+conficius config layout --xdg             # preview creation or relocation
+conficius config layout --xdg --apply
+conficius config layout --os-native      # preview native layout
+conficius config layout --os-native --apply
+```
+
+Layout application retains existing config as `.conficius-layout-backup-*` beside its original path. Without a layout flag it uses the stored `layout`, defaulting to `xdg`. On Linux, XDG and native package locations coincide.
 
 Audit current shell and config-directory state against either XDG or OS-native conventions:
 
@@ -73,70 +86,154 @@ Adjust paths to match your layout and history settings. `.gitignore` affects Git
 
 Existing regular files and directories are never overwritten. Forced replacement is limited to symlinks whose destination remains inside the current config repository. All links are validated before mutation, and failed batches are rolled back.
 
-Package commands inspect global installations and project dependencies. Manager capabilities vary; `conficius packages pms --json` reports which inventory, outdated, and update operations each manager supports.
+Package commands inspect global installations and project dependencies across 13 managers. Manager capabilities vary; `conficius packages pms --json` reports which inventory, outdated, and update operations each manager supports.
+
+| Manager / `--pm` | Global inventory | Project inventory | Global outdated | Project outdated | Global update | Project update |
+| --- | --- | --- | --- | --- | --- | --- |
+| mise / `mise` | Yes | Yes | Yes | Yes | Yes | Yes |
+| Homebrew / `brew` | Yes | No | Yes | No | Yes | No |
+| npm / `npm` | Yes | Yes | Yes | Yes | Yes | Yes |
+| Mac App Store / `mas` | Yes | No | Yes | No | Yes | No |
+| uv / `uv` | Yes | No | Yes | No | Yes | No |
+| pipx / `pipx` | Yes | No | Yes | No | Yes | No |
+| Poetry / `poetry` | No | Yes | No | Yes | No | Yes |
+| pnpm / `pnpm` | No | Yes | No | Yes | No | Yes |
+| Cargo / `cargo` | Yes | Yes | No | No | No | No |
+| Yarn / `yarn` | No | Yes | No | No | No | No |
+| Bun / `bun` | No | Yes | No | No | No | No |
+| Go / `go` | Yes | No | Yes | No | Yes | No |
+| apt / `apt` | Yes | No | Yes | No | No | No |
+
+These are declared adapter capabilities, not all operations offered by the upstream tools.
 
 ```sh
 conficius packages pms
 conficius packages pms --json
 conficius packages outdated
 conficius packages outdated --pm mise --pm npm
+conficius packages outdated --global --pm apt --offline
+conficius packages outdated --global --pm apt
+conficius packages vulnerabilities --global --pm apt
 conficius packages outdated --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app
 conficius packages vulnerabilities --pm npm --project ./my-app --transitive
 conficius packages update
-conficius packages update --apply --include npm:typescript
+conficius packages update --global --pm npm --include npm:typescript --apply
+conficius --config ~/.config/conficius/config.toml packages outdated --profile work
+conficius packages update --profile work --profile-project app --pm npm
 ```
 
-Package-manager inspection reports unavailable and failed managers without hiding other results. Updates preview by default; `--apply` runs them. Include/exclude filters select tools, and Conficius re-checks available updates immediately before execution. Inspection commands support schema-versioned JSON with `--json`.
+Package-manager inspection reports unavailable and failed managers without hiding other results. Updates preview by default; `--apply` runs native manager commands and requires explicit scope intent. Command-line `--include`/`--exclude` select updates, not persistent profile rules. Conficius re-queries available updates before execution; refreshed plans can differ from the displayed preview. Non-interactive `--yes` requires exact `--accept-plan` hashes. Updates have no universal rollback; keep backups and review the [safeguards and current limits](https://jccguimaraes.github.io/conficius/cli.html#updates). Inspection commands support schema-versioned JSON with `--json`.
 
-Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
+Online Homebrew outdated queries run `brew update` before `brew outdated`, including queries made during previews. Offline inventory skips freshness checks; preview does not mean offline or read-only metadata.
+
+apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Installed inventory uses `dpkg-query`; outdated inspection uses an `apt-get` simulation against locally cached package lists, not live latest versions. `--offline` reads installed inventory only, with freshness unknown. Conficius never refreshes apt metadata automatically. To refresh it, explicitly run `sudo apt-get update` yourself before inspection, or on Linux, press `c` (Update package cache, currently APT) on TUI package scopes/results screens. The TUI previews the command: `y` approves; `n`/Esc cancels. It runs `sudo -- <apt-get> update --error-on=any` through the controlling TTY, with passwords handled by sudo; root runs apt-get directly. No shell is used. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a TUI notice and leaves local inventory only. apt has no project or update capability in Conficius: no automated apt upgrades, root invocation, or privilege escalation.
+
+Vulnerability checks query OSV with exact installed versions. Global and project npm packages map directly to OSV's `npm` ecosystem. Homebrew and mise packages require explicit mappings because names alone do not prove package identity. apt packages have no automatic Debian OSV mapping or coverage assurance; unmapped packages must be reported as unknown, not clean. Missing mappings are not evidence that a package is clean. Vulnerability findings do not change exit status; inventory or query failures do.
 
 ## Configuration
 
-Configuration uses TOML schema version `2`. Link sources are existing files or folders within the configuration file's directory, with relative paths resolved from that directory. Targets use plain environment-variable references; Conficius expands them when loading config.
+Both files require TOML schema `version = 2`, but serve separate purposes: repository `conficius.toml` defines dotfile links; central `config.toml` defines package profiles, layout, and optional vulnerability mappings.
+
+### Manage Conficius from your dotfiles repository
+
+This macOS example keeps Conficius's own package config in `~/dotfiles` and links its directory into `~/.config`. macOS uses the Go platform name `darwin`; the package config still uses the supported `xdg` layout, not `os-native`.
+
+```text
+~/dotfiles/
+├── conficius.toml
+└── .config/
+    └── conficius/
+        └── config.toml
+```
+
+Create the source directory and files first. Replace `/path/project-x` and `/path/project-y` with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or `sudo` are needed for these user-owned config files and links.
+
+Save this complete link config as `~/dotfiles/conficius.toml`:
 
 ```toml
 version = 2
 
-[profiles.default]
-mode = "denylist"
-manager_order = ["mise", "brew", "npm"]
-
-# Keep global npm packages outside version-managed Node directories:
-# npm config set prefix "$HOME/.npm-global"
-# Add "$HOME/.npm-global/bin" to PATH.
-[profiles.default.managers.npm]
-expected_global_prefix = "${HOME}/.npm-global"
-
-[[tools.zsh.links]]
-source = "zsh/.zshrc"
-target = "$HOME/.zshrc"
-platforms = ["darwin", "linux"]
-
-[[tools.nvim.links]]
-source = "nvim"
-target = "${XDG_CONFIG_HOME}/nvim"
-
-# Optional: map mise/Homebrew package identity to an OSV ecosystem.
-[[vulnerabilities.mappings]]
-manager = "mise"
-package = "node"
-ecosystem = "npm"
-name = "node"
+[[tools.conficius.links]]
+source = ".config/conficius"
+target = "$HOME/.config/conficius"
+platforms = ["darwin"]
 ```
+
+Save this complete package config as `~/dotfiles/.config/conficius/config.toml`:
+
+```toml
+version = 2
+layout = "xdg"
+profile = "default"
+
+[[profiles.default.projects]]
+name = "project-x"
+path = "/path/project-x"
+
+[[profiles.work.projects]]
+name = "project-y"
+path = "/path/project-y"
+```
+
+If `~/.config/conficius` already exists as a regular directory, linking will not overwrite or merge it, even with `--force`. Back it up, copy any settings you need into the repository source, then manually relocate the existing directory outside the target path before applying. Preserve the backup until you verify the new setup. Other conflicting real files or unrelated symlinks also require manual resolution.
+
+Preview first, inspect the target, then apply:
+
+```sh
+conficius --config ~/dotfiles/conficius.toml dotfiles link conficius
+conficius --config ~/dotfiles/conficius.toml dotfiles link conficius --apply
+```
+
+Add `"linux"` to `platforms` to use this link on Linux too; omit `platforms` to allow every platform. The target above is fixed at `~/.config/conficius` and ignores a custom `XDG_CONFIG_HOME`. For that setup, use `target = "${XDG_CONFIG_HOME}/conficius"` instead; the resolved target must remain inside your home directory.
+
+After linking, edit `~/dotfiles/.config/conficius/config.toml`; reads through the central path see the same file. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
+
+Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; `.gitignore` does not protect secrets or remove already tracked files.
+
+Repository linking and `config layout` migration are separate workflows. Choose repository linking for this self-managed setup; changing `layout` does not move files automatically. Layout relocation requires a regular source config file and refuses a symlink source. A directory symlink does not itself make the contained `config.toml` a symlink; do not treat migration as a way to manage or relocate repository links.
+
+### Package config fields
+
+| Field | Required / default | Meaning |
+| --- | --- | --- |
+| `version` | Required: `2` | Package config schema version. |
+| `layout` | Optional: `"xdg"` | `"xdg"` or `"os-native"`; chooses the default for an explicit `config layout` action, not automatic relocation. |
+| `profile` | Optional: `"default"` fallback | Selection priority: `--profile NAME`, `CONFICIUS_PROFILE`, this field, then `default`. |
+| `profiles.<name>.managers.<manager>.enabled` | Optional: `true` | Managers stay enabled unless explicitly disabled. Enabling one does not disable others. |
+| `profiles.<name>.projects[].name` | Required per project | Unique project name within the profile, used by `--profile-project`. |
+| `profiles.<name>.projects[].path` | Required per project | Absolute path or path relative to the package config file's directory, not the repository root. Supports `$HOME`, `${HOME}`, and other set environment variables via `$VAR` or `${VAR}`; HOME/XDG variables have defaults. Unset variables without defaults fail; `~` is not expanded. |
+| `profiles.<name>.projects[].allow_manifest_changes` | Optional: `false` | Set `true` explicitly to permit native project updates that may change manifests or lockfiles. Git overrides do not bypass this guard. |
+| `vulnerabilities.mappings` / `vulnerabilities.euvd` | Optional | Explicit vulnerability identities; see [vulnerability checks and security caveats](docs/cli.html#vulnerabilities). |
+
+For example, disable a manager with `[profiles.work.managers.brew]` and `enabled = false`. Native manifests and lockfiles remain the authority for versions and dependency declarations; Conficius does not store a second version policy or executable overrides.
+
+```sh
+conficius config resolve --profile work --verbose
+conficius packages outdated --profile work --profile-project project-y --pm npm
+```
+
+The example leaves project mutation disabled. Set `allow_manifest_changes = true` in the matching project entry only when you intend to permit updates, then preview before using `--apply`.
 
 ## TUI
 
-Run `conficius-tui`, or `./bin/conficius-tui` after building from source. Use `-config FILE` to select a configuration explicitly.
+Run `conficius-tui`, or `./bin/conficius-tui` after building from source. Select either config independently:
 
-The home screen opens package scopes or dotfile audits and linking. Package views show outdated versions, drift from configured desired versions, and vulnerability findings.
+```sh
+conficius-tui --config ~/dotfiles/conficius.toml
+conficius-tui --package-config ~/.config/conficius/config.toml
+conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conficius/config.toml
+```
+
+The home screen opens package scopes or dotfile audits and linking. Package views use compact rows for outdated versions and vulnerability findings. Missing dotfiles show optional onboarding: “Add your dotfiles when you're ready.” Run `conficius init` in your dotfiles repo when needed; package use does not require dotfiles.
 
 - Arrows or `j`/`k`: move; `Enter`: open scope or details.
-- `Esc`: go back; `r`: refresh; `q`: quit; `?`: screen help.
+- `Esc`: go back; `r`: reload configuration and project scopes, then refresh; `q`: quit; `?`: screen help.
+- `p`: open profile picker from Home, scopes, or outdated packages; `Enter` selects. Selection overrides the profile for this session only; it is not saved to disk.
 - In outdated packages, `Space` marks a package and `a` toggles all.
 - `u` previews marked upgrades; `U` previews all upgrades in the current scope.
 - In the command preview, `y` applies upgrades; `n` or `Esc` cancels.
-- `v` opens vulnerabilities; `d` opens drift; `o` returns to outdated packages.
+- `v` opens vulnerabilities; `o` returns to outdated packages.
 
 Confirmed upgrades run in the terminal, then return to the TUI. Progress output depends on the package manager. Dotfile links also require a preview and explicit confirmation before changes are applied.
 

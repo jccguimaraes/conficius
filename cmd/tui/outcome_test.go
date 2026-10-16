@@ -45,7 +45,7 @@ func TestVulnerabilityStatusKeepsInspectionFailure(t *testing.T) {
 }
 
 func TestRefreshStatusIncludesUpgradeOutcome(t *testing.T) {
-	got := refreshStatus(2, 1, 3, 1, 1)
+	got := refreshStatus(2, 3, 1, 1)
 	want := "3 upgraded, 1 unchanged, 1 failed; 2 outdated; scanning vulnerabilities..."
 	if got != want {
 		t.Fatalf("status = %q", got)
