@@ -38,7 +38,7 @@ func (PNPM) listOutdatedScope(ctx context.Context, executable string, scope Scop
 	cmd := commandContext(ctx, executable, "outdated", "--format", "json")
 	cmd.Dir = scope.Path
 	cmd.Env = managerEnvironment(scope.Path)
-	output, err := cmd.Output()
+	output, err := managerCommandOutput(cmd)
 	var exitErr *exec.ExitError
 	if err != nil && (!errors.As(err, &exitErr) || exitErr.ExitCode() != 1 || len(output) == 0) {
 		stderr := ""

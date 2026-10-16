@@ -566,3 +566,21 @@ func TestSecurityCancelFooterTracksActiveScan(t *testing.T) {
 	assertRenderedContains(t, results, "Space mark")
 	assertRenderedContains(t, vulnerabilities, "i indirect")
 }
+
+func TestRunAsRefreshStopsBeforeWorkers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "packages.toml")
+	if err := os.WriteFile(path, []byte("version = 2\n[profiles.default.managers.npm]\nrun_as = 'builder'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	data := &model{packageConfigPath: path, selected: map[string]bool{}, failed: map[string]string{}, attempted: map[string]string{}}
+	refreshPackages(data, glyph.NewApp(), true)
+	if !data.runManagerRefresh || data.cancel != nil || data.loading {
+		t.Fatalf("refresh did not stop before worker: %#v", data)
+	}
+}
+func TestRunAsPreviewShowsIdentity(t *testing.T) {
+	preview := formatPlan(packagemanager.UpdatePlan{RunAs: "builder", Executable: "/target/npm", Args: []string{"update", "-g"}})
+	if !strings.Contains(preview, "run_as=builder") {
+		t.Fatal(preview)
+	}
+}

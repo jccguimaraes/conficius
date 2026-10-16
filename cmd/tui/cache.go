@@ -17,6 +17,9 @@ func cacheRefreshCommand(data *model) (string, []string, error) {
 	if data.packageConfigErr != nil {
 		return "", nil, fmt.Errorf("package configuration error: %w", data.packageConfigErr)
 	}
+	if packagemanager.QueryOptionsFromProfile(data.profile.Profile).RunAs[packagemanager.PM_APT] != "" {
+		return "", nil, fmt.Errorf("APT cache refresh with run_as is unsupported; use target account terminal")
+	}
 	if packagemanager.QueryOptionsFromProfile(data.profile.Profile).Disabled[packagemanager.PM_APT] {
 		return "", nil, fmt.Errorf("APT disabled by profile")
 	}

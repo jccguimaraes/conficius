@@ -179,6 +179,9 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 		command[i] = shellQuote(command[i])
 	}
 	line := strings.Join(command, " ")
+	if plan.RunAs != "" {
+		line = "[run_as=" + plan.RunAs + "] " + line
+	}
 	if plan.Directory != "" {
 		line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)
 	}

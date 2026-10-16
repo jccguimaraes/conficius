@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	glyph "github.com/kungfusheep/glyph"
@@ -41,6 +42,119 @@ func styledTextView(text *string) *glyph.TextViewC {
 		lastText, lastWidth = *text, width
 	}
 	return viewer
+}
+
+func detailTextView(text *string, title bool) *glyph.TextViewC {
+	viewer := styledTextView(text)
+	layer := viewer.Layer()
+	render := layer.Render
+	var lastText string
+	var lastWidth int
+	layer.Render = func() {
+		render()
+		width := layer.ViewportWidth()
+		if width <= 0 || (*text == lastText && width == lastWidth) {
+			return
+		}
+		lastText, lastWidth = *text, width
+		buffer := layer.Buffer()
+		x, y := 0, 0
+		paint := func(value string, style glyph.Style) {
+			for _, r := range value {
+				if r == '\n' {
+					x, y = 0, y+1
+					continue
+				}
+				n := 1
+				if r == '\t' {
+					n = 4 - x%4
+				}
+				for range n {
+					if x >= width {
+						x, y = 0, y+1
+					}
+					buffer.SetStyle(x, y, style)
+					x++
+				}
+			}
+		}
+		for i, section := range strings.Split(*text, "\n\n") {
+			if i > 0 {
+				paint("\n\n", glyph.Style{})
+			}
+			label, value, field := strings.Cut(section, "\n")
+			if field && strings.Contains("|Origin|Package|Class|Scan scope|Manager|Scope|Path|Status|Current|Source|CVE/advisory|Source ID|CVSS|Unsupported rules|Aliases|Upgrade target|Upgrade note|Description|Reference|CVE URL|Reason/error|Error|Failure|Affected paths:|", "|"+label+"|") {
+				paint(label, glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold})
+				paint("\n"+value, detailValueStyle(label, value))
+			} else if i == 0 && title {
+				paint(section, glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold})
+			} else {
+				for j, line := range strings.Split(section, "\n") {
+					if j > 0 {
+						paint("\n", glyph.Style{})
+					}
+					for k, part := range strings.Split(line, "   ") {
+						if k > 0 {
+							paint("   ", glyph.Style{})
+						}
+						key, val, ok := strings.Cut(part, ": ")
+						if ok {
+							style := glyph.Style{Attr: glyph.AttrDim}
+							if i == 0 && key == "Tool" {
+								style = glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}
+							}
+							paint(key+": ", style)
+							paint(val, detailValueStyle(key, val))
+						} else {
+							paint(part, glyph.Style{})
+						}
+					}
+				}
+			}
+		}
+	}
+	return viewer
+}
+
+func detailValueStyle(label, value string) glyph.Style {
+	switch label {
+	case "Path", "Manifest", "Config", "Executable", "Config root", "Target", "Affected paths":
+		return glyph.Style{Attr: glyph.AttrDim}
+	case "Source", "Current":
+		if strings.HasPrefix(value, "/") || strings.HasPrefix(value, "~") {
+			return glyph.Style{Attr: glyph.AttrDim}
+		}
+	case "Affected paths:":
+		return glyph.Style{Attr: glyph.AttrDim}
+	case "Error", "Reason/error", "Failure", "Rollback incomplete":
+		if value != "" {
+			return glyph.Style{FG: glyph.Red}
+		}
+	case "Upgrade note":
+		return glyph.Style{FG: glyph.Yellow}
+	case "Status", "State":
+		switch strings.ToLower(value) {
+		case "vulnerable", "error", "blocked", "regular conflict · blocked", "unsafe link · blocked":
+			return glyph.Style{FG: glyph.Red}
+		case "unknown", "unmapped", "warning", "missing", "wrong link · safe":
+			return glyph.Style{FG: glyph.Yellow}
+		case "clean", "healthy", "ok":
+			return glyph.Style{FG: glyph.Green}
+		case "not applicable":
+			return glyph.Style{Attr: glyph.AttrDim}
+		}
+	case "CVSS":
+		score, _ := strconv.ParseFloat(value, 64)
+		switch {
+		case score >= 9:
+			return glyph.Style{FG: glyph.Red}
+		case score >= 4:
+			return glyph.Style{FG: glyph.Yellow}
+		case score > 0:
+			return glyph.Style{FG: glyph.Blue}
+		}
+	}
+	return glyph.Style{}
 }
 
 func screenContext(context any) string {

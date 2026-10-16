@@ -323,6 +323,111 @@ func TestStyledTextViewPreservesScroll(t *testing.T) {
 	}
 }
 
+func TestDetailTextViewHierarchy(t *testing.T) {
+	for _, test := range []struct {
+		name, text, heading, label, value, warning, failure, path string
+		title                                                     bool
+	}{
+		{"package", "tool\n\nCurrent: 1.0   Latest: 2.0\n\nPath: /project/tool\n\nError\nupdate failed", "tool", "Current:", "1.0", "", "update failed", "/project/tool", true},
+		{"evidence", "Package\nnode\n\nSource\nEUVD\n\nStatus\nvulnerable\n\nCVSS\n8.1\n\nDescription\nplain prose\n\nPath\n/project/node\n\nCVE/advisory\nCVE-2026-1", "Package", "", "plain prose", "8.1", "vulnerable", "/project/node", false},
+		{"link", "Tool: shell\n\nSource: /repo/shell\n\nState: Missing\n\nTarget: /home/shell", "Tool:", "Source:", "shell", "Missing", "", "/repo/shell", false},
+		{"environment", "Mode: xdg\n\nConfig root: /home/config\n\nState: warning\n\nFinding: config missing", "", "Mode:", "xdg", "warning", "", "/home/config", false},
+		{"failure", "Failure\nlink failed\n\nAction: replace\n\nPath: /home/shell\n\nRollback incomplete: permission denied\n\nAffected paths:\n/home/other", "Failure", "Action:", "replace", "", "link failed", "/home/other", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			viewer := detailTextView(&test.text, test.title)
+			buffer := glyph.NewBuffer(80, 80)
+			glyph.Build(glyph.VBox.Grow(1)(viewer)).Execute(buffer, 80, 80)
+			style := func(text string) glyph.Style {
+				t.Helper()
+				for y := range buffer.Height() {
+					if x := strings.Index(buffer.GetLine(y), text); x >= 0 {
+						return buffer.Get(x, y).Style
+					}
+				}
+				t.Fatalf("missing %q", text)
+				return glyph.Style{}
+			}
+			if test.heading != "" {
+				if got := style(test.heading); !got.FG.Equal(glyph.Cyan) || got.Attr&glyph.AttrBold == 0 {
+					t.Fatalf("heading style = %#v", got)
+				}
+			}
+			if test.label != "" && style(test.label).Attr&glyph.AttrDim == 0 {
+				t.Fatal("label not dim")
+			}
+			if got := style(test.value); got.Attr != 0 || !got.FG.Equal(glyph.Color{}) {
+				t.Fatalf("value style = %#v", got)
+			}
+			if test.warning != "" && !style(test.warning).FG.Equal(glyph.Yellow) {
+				t.Fatal("warning not yellow")
+			}
+			if test.failure != "" && !style(test.failure).FG.Equal(glyph.Red) {
+				t.Fatal("failure not red")
+			}
+			if style(test.path).Attr&glyph.AttrDim == 0 {
+				t.Fatal("path not dim")
+			}
+			for y := range buffer.Height() {
+				for x := range buffer.Width() {
+					cell := buffer.Get(x, y)
+					if cell.Style.FG.Mode == glyph.ColorRGB || !cell.Style.BG.Equal(glyph.Color{}) {
+						t.Fatal("non-native palette")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDetailTextViewResizeAndNavigation(t *testing.T) {
+	text := "Package\nnode\n\nPath\n/" + strings.Repeat("long/path/", 100) + "tail\n\nSource ID\nEUVD-1"
+	viewer := detailTextView(&text, false)
+	app := glyph.NewApp()
+	content := glyph.VBox.Grow(1)(viewer)
+	app.View("detail", content)
+	app.Go("detail")
+	template := glyph.Build(content)
+	render := func(width int16) {
+		template.Execute(glyph.NewBuffer(int(width), 8), width, 8)
+	}
+	render(40)
+	for _, key := range []string{"j", "<down>", "<C-d>"} {
+		before := viewer.Layer().ScrollY()
+		app.Input().Dispatch(riffkey.ParsePattern(key)[0])
+		render(40)
+		if viewer.Layer().ScrollY() <= before {
+			t.Fatalf("%s did not scroll", key)
+		}
+	}
+	for _, width := range []int16{20, 60, 40} {
+		before := viewer.Layer().ScrollY()
+		render(width)
+		if viewer.Layer().ScrollY() != before {
+			t.Fatalf("width %d reset scroll", width)
+		}
+		buffer := viewer.Layer().Buffer()
+		var path strings.Builder
+		for y := 4; y < buffer.Height()-3; y++ {
+			path.WriteString(strings.TrimRight(buffer.GetLine(y), " "))
+			if buffer.Get(0, y).Style.Attr&glyph.AttrDim == 0 {
+				t.Fatalf("width %d path row %d not dim", width, y)
+			}
+		}
+		if !strings.Contains(path.String(), strings.Repeat("long/path/", 100)+"tail") {
+			t.Fatalf("width %d lost path", width)
+		}
+	}
+	for _, key := range []string{"k", "<up>", "<C-u>"} {
+		before := viewer.Layer().ScrollY()
+		app.Input().Dispatch(riffkey.ParsePattern(key)[0])
+		render(40)
+		if viewer.Layer().ScrollY() >= before {
+			t.Fatalf("%s did not scroll", key)
+		}
+	}
+}
+
 func TestStyleListKeepsList(t *testing.T) {
 	items := []string{"row"}
 	list := glyph.List(&items)
