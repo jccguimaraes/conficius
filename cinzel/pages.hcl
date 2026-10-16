@@ -66,7 +66,7 @@ step "configure_pages" {
 
   uses {
     action  = "actions/configure-pages"
-    version = "983d7736d9b0ae728b81ab479565c72886d7745b" # v5
+    version = "45bfe0192ca1faeb007ade9deae92b16b8254a0d" # v6.0.0
   }
 }
 
@@ -76,7 +76,7 @@ step "upload_site" {
 
   uses {
     action  = "actions/upload-pages-artifact"
-    version = "7b1f4a764d45c48632c6b24a0339c27f5614fb0b" # v4
+    version = "fc324d3547104276b827a68afc52ff2a11cc49c9" # v5.0.0
   }
 
   with {
@@ -90,6 +90,6 @@ step "deploy_pages" {
 
   uses {
     action  = "actions/deploy-pages"
-    version = "d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e" # v4
+    version = "368f82528645a54fb793d4d04e342629a3f51346" # v5.0.1
   }
 }
