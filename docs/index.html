@@ -82,9 +82,9 @@
           <div class="section-head"><span>02 / PACKAGES</span><h2 id="packages-title">Know what’s<br>on your machine.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">察</span></div>
           <p>See installed tools, find available updates, and choose what to upgrade. Profiles enable or disable managers and name project roots; native manifests and lockfiles remain the version authority.</p>
           <p class="small">Browse compact package rows in the TUI. Press <code>p</code> to choose a profile for the session, or <code>r</code> to reload package settings and projects. Missing dotfiles are a neutral notice, not a package failure.</p>
-          <pre><code>conficius packages outdated --profile work
-conficius packages update --global --pm npm
-conficius-tui --package-config ~/.config/conficius/config.toml</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--profile</span> work
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm
+<span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span></code></pre>
           <p class="small">Updates preview by default; <code>--apply</code> runs native commands. Online Homebrew checks run <code>brew update</code> before checking outdated packages, so previews can refresh metadata. Package updates have no universal rollback.</p>
           <div class="table-scroll" role="region" aria-label="Supported package managers" tabindex="0">
             <table>

@@ -133,46 +133,87 @@ Vulnerability checks query OSV with exact installed versions. Global and project
 
 ## Configuration
 
-Both files use TOML schema version `2`, but serve separate purposes. Dotfiles `conficius.toml` defines links. Link sources must exist inside its directory; relative sources resolve from there. Targets expand environment variables:
+Both files require TOML schema `version = 2`, but serve separate purposes: repository `conficius.toml` defines dotfile links; central `config.toml` defines package profiles, layout, and optional vulnerability mappings.
+
+### Manage Conficius from your dotfiles repository
+
+This macOS example keeps Conficius's own package config in `~/dotfiles` and links its directory into `~/.config`. macOS uses the Go platform name `darwin`; the package config still uses the supported `xdg` layout, not `os-native`.
+
+```text
+~/dotfiles/
+├── conficius.toml
+└── .config/
+    └── conficius/
+        └── config.toml
+```
+
+Create the source directory and files first. Replace `/path/project-x` and `/path/project-y` with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or `sudo` are needed for these user-owned config files and links.
+
+Save this complete link config as `~/dotfiles/conficius.toml`:
 
 ```toml
 version = 2
 
-[[tools.zsh.links]]
-source = "zsh/.zshrc"
-target = "$HOME/.zshrc"
-platforms = ["darwin", "linux"]
-
-[[tools.nvim.links]]
-source = "nvim"
-target = "${XDG_CONFIG_HOME}/nvim"
-
+[[tools.conficius.links]]
+source = ".config/conficius"
+target = "$HOME/.config/conficius"
+platforms = ["darwin"]
 ```
 
-Package `config.toml` holds profiles, layout, and optional vulnerability mappings. Practical profile example:
+Save this complete package config as `~/dotfiles/.config/conficius/config.toml`:
 
 ```toml
 version = 2
 layout = "xdg"
-profile = "work"
+profile = "default"
 
-[profiles.default]
-
-[profiles.work.managers.npm]
-enabled = true
-
-[profiles.work.managers.brew]
-enabled = false
+[[profiles.default.projects]]
+name = "project-x"
+path = "/path/project-x"
 
 [[profiles.work.projects]]
-name = "app"
-path = "${HOME}/src/my-app"
-allow_manifest_changes = true
+name = "project-y"
+path = "/path/project-y"
 ```
 
-Managers remain enabled unless explicitly disabled; enabling npm does not disable other managers. Profiles contain only manager `enabled` settings and project `name`, `path`, and `allow_manifest_changes`. Relative project paths resolve from the package config directory. `allow_manifest_changes` defaults to false and guards project mutation; Git overrides do not replace it. Native manifests and lockfiles remain version authority, not Conficius policy.
+If `~/.config/conficius` already exists as a regular directory, linking will not overwrite or merge it, even with `--force`. Back it up, copy any settings you need into the repository source, then manually relocate the existing directory outside the target path before applying. Preserve the backup until you verify the new setup. Other conflicting real files or unrelated symlinks also require manual resolution.
 
-Select a profile with `--profile NAME`, then `CONFICIUS_PROFILE`, then top-level `profile`, falling back to `default`. `conficius config resolve --profile work --verbose` shows resolved settings.
+Preview first, inspect the target, then apply:
+
+```sh
+conficius --config ~/dotfiles/conficius.toml dotfiles link conficius
+conficius --config ~/dotfiles/conficius.toml dotfiles link conficius --apply
+```
+
+Add `"linux"` to `platforms` to use this link on Linux too; omit `platforms` to allow every platform. The target above is fixed at `~/.config/conficius` and ignores a custom `XDG_CONFIG_HOME`. For that setup, use `target = "${XDG_CONFIG_HOME}/conficius"` instead; the resolved target must remain inside your home directory.
+
+After linking, edit `~/dotfiles/.config/conficius/config.toml`; reads through the central path see the same file. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
+
+Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; `.gitignore` does not protect secrets or remove already tracked files.
+
+Repository linking and `config layout` migration are separate workflows. Choose repository linking for this self-managed setup; changing `layout` does not move files automatically. Layout relocation requires a regular source config file and refuses a symlink source. A directory symlink does not itself make the contained `config.toml` a symlink; do not treat migration as a way to manage or relocate repository links.
+
+### Package config fields
+
+| Field | Required / default | Meaning |
+| --- | --- | --- |
+| `version` | Required: `2` | Package config schema version. |
+| `layout` | Optional: `"xdg"` | `"xdg"` or `"os-native"`; chooses the default for an explicit `config layout` action, not automatic relocation. |
+| `profile` | Optional: `"default"` fallback | Selection priority: `--profile NAME`, `CONFICIUS_PROFILE`, this field, then `default`. |
+| `profiles.<name>.managers.<manager>.enabled` | Optional: `true` | Managers stay enabled unless explicitly disabled. Enabling one does not disable others. |
+| `profiles.<name>.projects[].name` | Required per project | Unique project name within the profile, used by `--profile-project`. |
+| `profiles.<name>.projects[].path` | Required per project | Absolute path or path relative to the package config file's directory, not the repository root. Supports `$HOME`, `${HOME}`, and other set environment variables via `$VAR` or `${VAR}`; HOME/XDG variables have defaults. Unset variables without defaults fail; `~` is not expanded. |
+| `profiles.<name>.projects[].allow_manifest_changes` | Optional: `false` | Set `true` explicitly to permit native project updates that may change manifests or lockfiles. Git overrides do not bypass this guard. |
+| `vulnerabilities.mappings` / `vulnerabilities.euvd` | Optional | Explicit vulnerability identities; see [vulnerability checks and security caveats](docs/cli.html#vulnerabilities). |
+
+For example, disable a manager with `[profiles.work.managers.brew]` and `enabled = false`. Native manifests and lockfiles remain the authority for versions and dependency declarations; Conficius does not store a second version policy or executable overrides.
+
+```sh
+conficius config resolve --profile work --verbose
+conficius packages outdated --profile work --profile-project project-y --pm npm
+```
+
+The example leaves project mutation disabled. Set `allow_manifest_changes = true` in the matching project entry only when you intend to permit updates, then preview before using `--apply`.
 
 ## TUI
 
@@ -184,7 +225,7 @@ conficius-tui --package-config ~/.config/conficius/config.toml
 conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conficius/config.toml
 ```
 
-The home screen opens package scopes or dotfile audits and linking. Package views use compact rows for outdated versions and vulnerability findings. Missing dotfiles show a neutral “Dotfiles not detected” notice, not a package error.
+The home screen opens package scopes or dotfile audits and linking. Package views use compact rows for outdated versions and vulnerability findings. Missing dotfiles show optional onboarding: “Add your dotfiles when you're ready.” Run `conficius init` in your dotfiles repo when needed; package use does not require dotfiles.
 
 - Arrows or `j`/`k`: move; `Enter`: open scope or details.
 - `Esc`: go back; `r`: reload configuration and project scopes, then refresh; `q`: quit; `?`: screen help.

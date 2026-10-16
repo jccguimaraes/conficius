@@ -52,22 +52,22 @@
         <section id="overview" aria-labelledby="overview-title">
           <div class="section-head"><h1 id="overview-title">CLI reference</h1></div>
           <p>Conficius manages configured dotfile links and inspects installed package tools. Package updates and dotfile linking are previews unless you pass <code>--apply</code>. Preview commands can still run package-manager queries and contact network services; a dry run is not an offline mode.</p>
-          <pre><code>conficius [global options] command [command options]
-conficius --help
-conficius packages update --help
-conficius help packages</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> [global options] command [command options]
+<span class="syntax-command">conficius</span> <span class="syntax-flag">--help</span>
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--help</span>
+<span class="syntax-command">conficius</span> help packages</code></pre>
           <h2>Install and start</h2>
           <p>Download a CLI or TUI archive from <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>. Choose <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code>. Verify against the release’s <code>checksums.txt</code>, extract, and put the binary on your <code>PATH</code>.</p>
           <p>CLI archives use <code>conficius_VERSION_OS_ARCH.tar.gz</code>; TUI archives use <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code>. Either binary runs independently.</p>
-          <pre><code>conficius init
-conficius dotfiles link
-conficius packages pms
-conficius packages outdated</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> init
+<span class="syntax-command">conficius</span> dotfiles link
+<span class="syntax-command">conficius</span> packages pms
+<span class="syntax-command">conficius</span> packages outdated</code></pre>
           <p>Edit the commented examples in <code>conficius.toml</code> before linking. To build from source, use Go 1.26.8 or newer:</p>
-          <pre><code>git clone https://github.com/jccguimaraes/conficius.git
-cd conficius
-go build -o ./bin/conficius ./cmd/cli
-go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
+          <pre><code><span class="syntax-command">git</span> clone <span class="syntax-string">https://github.com/jccguimaraes/conficius.git</span>
+<span class="syntax-command">cd</span> conficius
+<span class="syntax-command">go</span> build <span class="syntax-flag">-o</span> <span class="syntax-string">./bin/conficius</span> <span class="syntax-string">./cmd/cli</span>
+<span class="syntax-command">go</span> build <span class="syntax-flag">-o</span> <span class="syntax-string">./bin/conficius-tui</span> <span class="syntax-string">./cmd/tui</span></code></pre>
           <h2>Global options</h2>
           <dl>
             <dt><code>--config FILE</code></dt><dd>Use an explicit file for the command’s config domain: dotfiles for <code>init</code>, <code>dotfiles</code>, and <code>config migrate</code>; packages for profile-aware package commands and <code>config resolve</code>. <code>packages pms</code> does not load config. Put this before the command; supply it only once. <code>config layout</code> rejects this flag.</dd>
@@ -93,9 +93,9 @@ go build -o ./bin/conficius-tui ./cmd/tui</code></pre>
           </p><p>Package discovery uses <code>$XDG_CONFIG_HOME/conficius/config.toml</code>, defaulting to <code>~/.config/conficius/config.toml</code>, or the native macOS path <code>~/Library/Application Support/conficius/config.toml</code>. If both exist, discovery fails rather than choosing one. Linux uses the same location for both layouts. An explicit package <code>--config FILE</code> bypasses discovery. Package commands never discover repository <code>conficius.toml</code>; missing central config uses defaults, while invalid config fails.</p>
           <h3><code>init</code></h3>
           <p>Create a commented version-2 <code>conficius.toml</code> in the working directory, or at <code>--config FILE</code>. This writes immediately; it has no <code>--apply</code> option and refuses to overwrite an existing file.</p>
-          <pre><code>conficius init
-conficius --config ~/dotfiles/conficius.toml init
-conficius --config ~/.config/conficius/config.toml config resolve --profile work --verbose</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> init
+<span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> init
+<span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/.config/conficius/config.toml</span> config resolve <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--verbose</span></code></pre>
           <h3><code>config resolve</code></h3>
           <dl>
             <dt><code>--profile NAME</code></dt><dd>Select a package profile. Selection order: command flag, <code>CONFICIUS_PROFILE</code>, top-level <code>profile</code> in the configuration, then <code>default</code>. Package config requires version 2.</dd>
@@ -104,57 +104,84 @@ conficius --config ~/.config/conficius/config.toml config resolve --profile work
           </dl>
           <h3><code>config layout</code></h3>
           <p>Preview creation or relocation of the central package config. Choose <code>--xdg</code> or <code>--os-native</code>, never both. Without either flag, use the stored <code>layout</code>, defaulting to <code>xdg</code>. <code>--apply</code> writes the change and retains the old config beside its original path as <code>.conficius-layout-backup-*</code>. This command rejects <code>--config</code>; it does not relocate dotfiles. Conflicting central package configs must be resolved first.</p>
-          <pre><code>conficius config layout --xdg
-conficius config layout --xdg --apply
-conficius config layout --os-native
-conficius config layout --os-native --apply</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--xdg</span>
+<span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--xdg</span> <span class="syntax-flag">--apply</span>
+<span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--os-native</span>
+<span class="syntax-command">conficius</span> config layout <span class="syntax-flag">--os-native</span> <span class="syntax-flag">--apply</span></code></pre>
           <h3><code>config migrate</code></h3>
           <p>Print a dotfiles version-2 migration preview by default. <code>--apply</code> creates a backup and replaces the configuration atomically.</p>
-          <pre><code>conficius config migrate
-conficius config migrate --apply</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> config migrate
+<span class="syntax-command">conficius</span> config migrate <span class="syntax-flag">--apply</span></code></pre>
           <h3>Minimal link configuration</h3>
           <p>Create the source files or directories before linking. Tool names are free-form; one tool can have several links.</p>
-          <pre><code>version = 2
+          <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 
-[tools.zsh]
-links = [
-  { source = "dotfiles/zsh/.zshrc", target = "$HOME/.zshrc", platforms = ["linux", "darwin"] },
+<span class="syntax-section">[tools.zsh]</span>
+<span class="syntax-key">links</span> = [
+  { <span class="syntax-key">source</span> = <span class="syntax-string">"dotfiles/zsh/.zshrc"</span>, <span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.zshrc"</span>, <span class="syntax-key">platforms</span> = [<span class="syntax-string">"linux"</span>, <span class="syntax-string">"darwin"</span>] },
 ]
 
-[tools.nvim]
-links = [
-  { source = "dotfiles/nvim", target = "$XDG_CONFIG_HOME/nvim" },
+<span class="syntax-section">[tools.nvim]</span>
+<span class="syntax-key">links</span> = [
+  { <span class="syntax-key">source</span> = <span class="syntax-string">"dotfiles/nvim"</span>, <span class="syntax-key">target</span> = <span class="syntax-string">"$XDG_CONFIG_HOME/nvim"</span> },
 ]</code></pre>
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
           <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
-          <h3>Profiles and project updates</h3>
-          <p>Package <code>config.toml</code> profiles contain only manager <code>enabled</code> settings and projects with <code>name</code>, <code>path</code>, and <code>allow_manifest_changes</code>. Managers are enabled unless explicitly disabled; enabling one does not disable the others. Native manifests and lockfiles remain the authority for versions and dependency declarations. Conficius does not store a second version policy or executable overrides. Example package config:</p>
-          <pre><code>version = 2
-layout = "xdg"
-profile = "work"
+          <h3 id="self-managed-config">Manage Conficius from your dotfiles repository</h3>
+          <p>This macOS example keeps Conficius's own package config in <code>~/dotfiles</code> and links its directory into <code>~/.config</code>. macOS uses the Go platform name <code>darwin</code>; the package config still uses the supported <code>xdg</code> layout, not <code>os-native</code>.</p>
+          <pre><code>~/dotfiles/
+├── conficius.toml
+└── .config/
+    └── conficius/
+        └── config.toml</code></pre>
+          <p>Create the source directory and files first. Replace <code>/path/project-x</code> and <code>/path/project-y</code> with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or <code>sudo</code> are needed for these user-owned config files and links.</p>
+          <p>Save this complete link config as <code>~/dotfiles/conficius.toml</code>:</p>
+          <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 
-[profiles.default]
+<span class="syntax-section">[[tools.conficius.links]]</span>
+<span class="syntax-key">source</span> = <span class="syntax-string">".config/conficius"</span>
+<span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.config/conficius"</span>
+<span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]</code></pre>
+          <p>Save this complete package config as <code>~/dotfiles/.config/conficius/config.toml</code>:</p>
+          <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
+<span class="syntax-key">layout</span> = <span class="syntax-string">"xdg"</span>
+<span class="syntax-key">profile</span> = <span class="syntax-string">"default"</span>
 
-[profiles.work.managers.npm]
-enabled = true
+<span class="syntax-section">[[profiles.default.projects]]</span>
+<span class="syntax-key">name</span> = <span class="syntax-string">"project-x"</span>
+<span class="syntax-key">path</span> = <span class="syntax-string">"/path/project-x"</span>
 
-[profiles.work.managers.brew]
-enabled = false
-
-[[profiles.work.projects]]
-name = "app"
-path = "${HOME}/src/my-app"
-allow_manifest_changes = true</code></pre>
-          <p>Relative project paths resolve from the package config directory, not the dotfiles repository. <code>allow_manifest_changes</code> defaults to false. Project mutation requires it to be true for the matching configured project; command-line Git overrides do not replace this security guard.</p>
-          <pre><code>conficius config resolve --profile work --verbose
-conficius packages outdated --profile work --profile-project app --pm npm
-conficius packages update --profile work --profile-project app --pm npm
-conficius packages update --profile work --profile-project app --pm npm --apply</code></pre>
+<span class="syntax-section">[[profiles.work.projects]]</span>
+<span class="syntax-key">name</span> = <span class="syntax-string">"project-y"</span>
+<span class="syntax-key">path</span> = <span class="syntax-string">"/path/project-y"</span></code></pre>
+          <p>If <code>~/.config/conficius</code> already exists as a regular directory, linking will not overwrite or merge it, even with <code>--force</code>. Back it up, copy any settings you need into the repository source, then manually relocate the existing directory outside the target path before applying. Preserve the backup until you verify the new setup. Other conflicting real files or unrelated symlinks also require manual resolution.</p>
+          <p>Preview first, inspect the target, then apply:</p>
+          <pre><code><span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> dotfiles link conficius
+<span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> dotfiles link conficius <span class="syntax-flag">--apply</span></code></pre>
+          <p>Add <code>"linux"</code> to <code>platforms</code> to use this link on Linux too; omit <code>platforms</code> to allow every platform. The target above is fixed at <code>~/.config/conficius</code> and ignores a custom <code>XDG_CONFIG_HOME</code>. For that setup, use <code>target = "${XDG_CONFIG_HOME}/conficius"</code> instead; the resolved target must remain inside your home directory.</p>
+          <p>After linking, edit <code>~/dotfiles/.config/conficius/config.toml</code>; reads through the central path see the same file. In TUI package views, <code>r</code> reloads settings and project scopes. Press <code>p</code>, then <code>Enter</code>, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: <code>default</code> adds <code>project-x</code>, while <code>work</code> adds <code>project-y</code>. Profiles are independent; <code>work</code> does not inherit <code>default</code> projects or manager settings.</p>
+          <p>Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; <code>.gitignore</code> does not protect secrets or remove already tracked files.</p>
+          <p>Repository linking and <code>config layout</code> migration are separate workflows. Choose repository linking for this self-managed setup; changing <code>layout</code> does not move files automatically. Layout relocation requires a regular source config file and refuses a symlink source. A directory symlink does not itself make the contained <code>config.toml</code> a symlink; do not treat migration as a way to manage or relocate repository links.</p>
+          <h3 id="package-config-fields">Package config fields</h3>
+          <dl>
+            <dt><code>version</code></dt><dd>Required: <code>2</code>. Package config schema version.</dd>
+            <dt><code>layout</code></dt><dd>Optional: <code>"xdg"</code>. <code>"xdg"</code> or <code>"os-native"</code>; chooses the default for an explicit <code>config layout</code> action, not automatic relocation.</dd>
+            <dt><code>profile</code></dt><dd>Optional: <code>"default"</code> fallback. Selection priority: <code>--profile NAME</code>, <code>CONFICIUS_PROFILE</code>, this field, then <code>default</code>.</dd>
+            <dt><code>profiles.&lt;name&gt;.managers.&lt;manager&gt;.enabled</code></dt><dd>Optional: <code>true</code>. Managers stay enabled unless explicitly disabled. Enabling one does not disable others.</dd>
+            <dt><code>profiles.&lt;name&gt;.projects[].name</code></dt><dd>Required per project. Unique project name within the profile, used by <code>--profile-project</code>.</dd>
+            <dt><code>profiles.&lt;name&gt;.projects[].path</code></dt><dd>Required per project. Absolute path or path relative to the package config file's directory, not the repository root. Supports <code>$HOME</code>, <code>${HOME}</code>, and other set environment variables via <code>$VAR</code> or <code>${VAR}</code>; HOME/XDG variables have defaults. Unset variables without defaults fail; <code>~</code> is not expanded.</dd>
+            <dt><code>profiles.&lt;name&gt;.projects[].allow_manifest_changes</code></dt><dd>Optional: <code>false</code>. Set <code>true</code> explicitly to permit native project updates that may change manifests or lockfiles. Git overrides do not bypass this guard.</dd>
+            <dt><code>vulnerabilities.mappings</code> / <code>vulnerabilities.euvd</code></dt><dd>Optional. Explicit vulnerability identities; see <a href="#vulnerabilities">vulnerability checks and security caveats</a>.</dd>
+          </dl>
+          <p>For example, disable a manager with <code>[profiles.work.managers.brew]</code> and <code>enabled = false</code>. Native manifests and lockfiles remain the authority for versions and dependency declarations; Conficius does not store a second version policy or executable overrides.</p>
+          <pre><code><span class="syntax-command">conficius</span> config resolve <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--verbose</span>
+<span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--profile</span> work <span class="syntax-flag">--profile-project</span> project-y <span class="syntax-flag">--pm</span> npm</code></pre>
+          <p>The example leaves project mutation disabled. Set <code>allow_manifest_changes = true</code> in the matching project entry only when you intend to permit updates, then preview before using <code>--apply</code>.</p>
           <h3>TUI configuration and profiles</h3>
-          <pre><code>conficius-tui --config ~/dotfiles/conficius.toml
-conficius-tui --package-config ~/.config/conficius/config.toml
-conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conficius/config.toml</code></pre>
-          <p>The TUI’s <code>--config</code> selects dotfiles only; <code>--package-config</code> selects packages. From Home, scopes, or outdated packages, press <code>p</code> for the profile picker and <code>Enter</code> to select. Selection is a session override, not a disk write. Press <code>r</code> in package views to reload package settings and project scopes before refreshing. Package lists use compact rows; <code>Enter</code> opens details. Missing dotfiles show a neutral “Dotfiles not detected” notice and do not block package inspection.</p>
+          <pre><code><span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span>
+<span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span>
+<span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/dotfiles/conficius.toml</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span></code></pre>
+          <p>The TUI’s <code>--config</code> selects dotfiles only; <code>--package-config</code> selects packages. From Home, scopes, or outdated packages, press <code>p</code> for the profile picker and <code>Enter</code> to select. Selection is a session override, not a disk write. Press <code>r</code> in package views to reload package settings and project scopes before refreshing. Package lists use compact rows; <code>Enter</code> opens details. Missing dotfiles show optional onboarding: “Add your dotfiles when you’re ready.” Run <code>conficius init</code> in your dotfiles repo when needed; package use does not require dotfiles.</p>
           <p>In outdated packages, <code>Space</code> marks a row, <code>a</code> toggles all, <code>u</code> previews marked upgrades, and <code>U</code> previews all. In the preview, <code>y</code> applies and <code>n</code> or <code>Esc</code> cancels. <code>v</code> opens vulnerabilities; <code>o</code> returns to outdated packages. Confirmed upgrades run in the terminal, then restart the TUI. TUI execution does not use the CLI’s fresh-query, accepted-hash, durable-log, or outcome-verification workflow.</p>
         </section>
 
@@ -167,8 +194,8 @@ conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conf
             <dt><code>--strict</code></dt><dd>Return nonzero when the audit contains warnings or errors.</dd>
             <dt><code>--json</code></dt><dd>Write an audit report with <code>schema_version: 1</code>.</dd>
           </dl>
-          <pre><code>conficius dotfiles audit --xdg
-conficius dotfiles audit --os-native --strict --json</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> dotfiles audit <span class="syntax-flag">--xdg</span>
+<span class="syntax-command">conficius</span> dotfiles audit <span class="syntax-flag">--os-native</span> <span class="syntax-flag">--strict</span> <span class="syntax-flag">--json</span></code></pre>
           <h3><code>dotfiles link [tools...]</code></h3>
           <p>Preview links for all configured tools by default. Positional tool names select a subset; platform filters still apply.</p>
           <dl>
@@ -177,9 +204,9 @@ conficius dotfiles audit --os-native --strict --json</code></pre>
             <dt><code>--force</code></dt><dd>Allow replacement of a conflicting symlink only when its destination resolves inside this configuration repository. Does not authorize replacing real files, real directories, or unrelated external symlinks.</dd>
             <dt><code>--json</code></dt><dd>Write link results in a <code>schema_version: 1</code> envelope with <code>data</code>.</dd>
           </dl>
-          <pre><code>conficius dotfiles link
-conficius dotfiles link zsh nvim --exclude nvim
-conficius dotfiles link zsh --apply</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> dotfiles link
+<span class="syntax-command">conficius</span> dotfiles link zsh nvim <span class="syntax-flag">--exclude</span> nvim
+<span class="syntax-command">conficius</span> dotfiles link zsh <span class="syntax-flag">--apply</span></code></pre>
           <p class="note">Sources must exist and resolve inside the configuration directory. Targets must remain inside the home directory, including existing parent symlinks. Duplicate targets and unsafe paths are rejected. Existing correct links are left alone; move conflicting real files yourself after backing them up. Link application revalidates state and attempts rollback on failure; inspect any reported rollback error before retrying.</p>
         </section>
 
@@ -206,11 +233,11 @@ conficius dotfiles link zsh --apply</code></pre>
             <dt><code>--offline</code></dt><dd>Read installed inventory without network freshness checks. Reports freshness as <code>unknown</code>, not up-to-date. Offline output can include command collision candidates and PATH resolution. It does not establish update availability.</dd>
             <dt><code>--check</code></dt><dd>For online queries: exit 0 when no updates are found, 1 when updates exist, and 2 on query failure. Without this flag, finding updates is not itself an error.</dd>
           </dl>
-          <pre><code>conficius packages pms --json
-conficius packages doctor --pm npm --global
-conficius packages outdated --project ./app --pm npm
-conficius packages outdated --global --check
-conficius packages outdated --offline --json</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> packages pms <span class="syntax-flag">--json</span>
+<span class="syntax-command">conficius</span> packages doctor <span class="syntax-flag">--pm</span> npm <span class="syntax-flag">--global</span>
+<span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--project</span> <span class="syntax-string">./app</span> <span class="syntax-flag">--pm</span> npm
+<span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--global</span> <span class="syntax-flag">--check</span>
+<span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--offline</span> <span class="syntax-flag">--json</span></code></pre>
           <p class="small">Offline <code>--check</code> cannot detect updates: successful inventory exits normally. The offline text branch maps query failures to exit 2 with <code>--check</code>; the offline JSON branch returns the query error directly. Do not treat either offline success as a freshness assertion.</p>
           <p>apt inspects global system packages on Debian, Ubuntu, and other apt-based Linux systems only. Inventory uses <code>dpkg-query</code>; outdated checks use <code>apt-get --simulate</code> against locally cached package lists, not live latest versions. Inspection never refreshes apt lists or escalates privileges. To refresh lists, explicitly run <code>sudo apt-get update</code> yourself as a separate step before inspection, or on Linux, press <code>c</code> (Update package cache, currently APT) on TUI package scopes/results. The TUI previews the command: <code>y</code> approves; <code>n</code>/Esc cancels. It runs <code>sudo -- &lt;apt-get&gt; update --error-on=any</code> without a shell through the controlling TTY; sudo handles passwords, while root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only. Offline mode reads inventory only, with freshness unknown. Project operations and automated package updates are unsupported. Debian security identity mapping is not implemented; coverage remains unknown, not clean.</p>
           <p>Online Homebrew queries run <code>brew update</code> before <code>brew outdated</code>. This refreshes local Homebrew metadata even during update previews or vulnerability checks that query outdated packages. Offline inventory skips freshness queries.</p>
@@ -220,8 +247,8 @@ conficius packages outdated --offline --json</code></pre>
           <div class="section-head"><h2 id="vulnerabilities-title">Vulnerability checks</h2></div>
           <h3><code>packages vulnerabilities</code></h3>
           <p>Check exact installed versions using OSV and EUVD evidence. Accepts the shared package options plus <code>--transitive</code>, which requests transitive inventory where the adapter supports it. The command also queries available updates to annotate findings. It has no offline mode and does not install fixes.</p>
-          <pre><code>conficius packages vulnerabilities --global --pm npm
-conficius packages vulnerabilities --project ./app --transitive --json</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> packages vulnerabilities <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm
+<span class="syntax-command">conficius</span> packages vulnerabilities <span class="syntax-flag">--project</span> <span class="syntax-string">./app</span> <span class="syntax-flag">--transitive</span> <span class="syntax-flag">--json</span></code></pre>
           <ul>
             <li><strong>OSV requires reliable ecosystem identity.</strong> Built-in inventory metadata supplies identities where available; npm has a direct mapping. Other packages may require explicit <code>[[vulnerabilities.mappings]]</code> entries. Never map an OS runtime or distribution package to an unrelated same-named registry package merely to obtain results.</li>
             <li><strong>EUVD requires product and vendor identity.</strong> Built-in identities or <code>[[vulnerabilities.euvd]]</code> mappings identify the product. Results are checked against vendor, product, and installed version; unsupported version rules produce unknown evidence, not a clean result.</li>
@@ -231,18 +258,18 @@ conficius packages vulnerabilities --project ./app --transitive --json</code></p
             <li>An available upgrade is not necessarily a security fix. Review advisory ranges and upgrade notes; the latest available version can still be affected.</li>
             <li>Findings alone do not provide a dedicated CI failure threshold. Inventory, freshness, or scan errors can return nonzero even when JSON evidence was emitted; inspect both the exit status and report.</li>
           </ul>
-          <pre><code># Add only after verifying identity against the advisory source.
-[[vulnerabilities.mappings]]
-manager = "mise"
-package = "example"
-ecosystem = "Go"
-name = "example.org/module"
+          <pre><code><span class="syntax-comment"># Add only after verifying identity against the advisory source.</span>
+<span class="syntax-section">[[vulnerabilities.mappings]]</span>
+<span class="syntax-key">manager</span> = <span class="syntax-string">"mise"</span>
+<span class="syntax-key">package</span> = <span class="syntax-string">"example"</span>
+<span class="syntax-key">ecosystem</span> = <span class="syntax-string">"Go"</span>
+<span class="syntax-key">name</span> = <span class="syntax-string">"example.org/module"</span>
 
-[[vulnerabilities.euvd]]
-manager = "mise"
-package = "node"
-product = "Node"
-vendor = "nodejs"</code></pre>
+<span class="syntax-section">[[vulnerabilities.euvd]]</span>
+<span class="syntax-key">manager</span> = <span class="syntax-string">"mise"</span>
+<span class="syntax-key">package</span> = <span class="syntax-string">"node"</span>
+<span class="syntax-key">product</span> = <span class="syntax-string">"Node"</span>
+<span class="syntax-key">vendor</span> = <span class="syntax-string">"nodejs"</span></code></pre>
           <p class="note"><code>CONFICIUS_OSV_URL</code> and <code>CONFICIUS_EUVD_URL</code> override service endpoints. These services receive package identity and version-related queries. Use trusted endpoints; endpoint overrides are not CLI flags.</p>
         </section>
 
@@ -261,16 +288,16 @@ vendor = "nodejs"</code></pre>
             <dt><code>--allow-unversioned</code></dt><dd>Permit project mutation outside a Git repository.</dd>
             <dt><code>--allow-untested-manager</code></dt><dd>Allow application with manager versions outside declared tested ranges. Does not add missing adapter capabilities.</dd>
           </dl>
-          <pre><code># Preview first; no package updates are executed.
-conficius packages update --global --pm npm --include npm:typescript
-conficius packages update --global --pm npm --include npm:typescript --json
+          <pre><code><span class="syntax-comment"># Preview first; no package updates are executed.</span>
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm <span class="syntax-flag">--include</span> npm:typescript
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm <span class="syntax-flag">--include</span> npm:typescript <span class="syntax-flag">--json</span>
 
-# Apply the reviewed selection interactively.
-conficius packages update --global --pm npm --include npm:typescript --apply
+<span class="syntax-comment"># Apply the reviewed selection interactively.</span>
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm <span class="syntax-flag">--include</span> npm:typescript <span class="syntax-flag">--apply</span>
 
-# For automation, replace HASH_FROM_PREVIEW with each reviewed plan hash.
-conficius packages update --global --pm npm --include npm:typescript \
-  --apply --yes --accept-plan HASH_FROM_PREVIEW</code></pre>
+<span class="syntax-comment"># For automation, replace HASH_FROM_PREVIEW with each reviewed plan hash.</span>
+<span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm <span class="syntax-flag">--include</span> npm:typescript \
+  <span class="syntax-flag">--apply</span> <span class="syntax-flag">--yes</span> <span class="syntax-flag">--accept-plan</span> HASH_FROM_PREVIEW</code></pre>
           <ol>
             <li>Inspect manager status and preview the exact intended scope. <code>--json</code> works for previews but is rejected with <code>--apply</code>.</li>
             <li>For project mutation, explicitly allow manifest changes in the matching profile project. By default its containing Git repository must be clean. <code>--allow-dirty</code> and <code>--allow-unversioned</code> bypass only their respective Git checks.</li>
@@ -290,7 +317,7 @@ conficius packages update --global --pm npm --include npm:typescript \
           <p>The newest 30 JSON logs are retained. New log directories use mode <code>0700</code>; log files use <code>0600</code>. Home-directory prefixes in plan directories and package paths become <code>${HOME}</code>. Error redaction replaces home paths and common <code>token=</code>, <code>password=</code>, <code>passwd=</code>, <code>secret=</code>, and API-key assignments. Redaction is limited; review logs before sharing. Logs are not a full transcript or automatic restore point.</p>
           <h3><code>packages go-tools import MODULE VERSION COMMAND [COMMAND...]</code></h3>
           <p>Immediately append an ownership record to <code>go-tools.json</code> in the state directory. Supply a module, version, and at least one command. No command-specific flags; no <code>--apply</code> needed. This records ownership only: it neither installs tools nor changes installed binaries.</p>
-          <pre><code>conficius packages go-tools import golang.org/x/tools v0.30.0 stringer</code></pre>
+          <pre><code><span class="syntax-command">conficius</span> packages go-tools import golang.org/x/tools v0.30.0 stringer</code></pre>
           <p>The Go adapter uses ownership and installed build metadata to reason about tools. An import record is not proof that the recorded binary/version is installed. Verify module, version, and command ownership before recording them.</p>
         </section>
 
