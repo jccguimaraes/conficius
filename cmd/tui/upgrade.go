@@ -157,7 +157,7 @@ func validateUpgradePlans(data *model, plans []packagemanager.UpdatePlan) error 
 		for _, pkg := range plan.Packages {
 			key := packageKey(plan.Scope, plan.Directory, plan.Manager, pkg.Name)
 			if executable, exists := seen[key]; exists && executable != plan.Executable {
-				return fmt.Errorf("Ambiguous %s update for %s (%s %s): executables %q and %q; disable duplicate manager installations in package configuration or repair PATH, then refresh", plan.Manager, pkg.Name, plan.Scope, plan.Directory, executable, plan.Executable)
+				return fmt.Errorf("ambiguous %s update for %s (%s %s): executables %q and %q; disable duplicate manager installations in package configuration or repair PATH, then refresh", plan.Manager, pkg.Name, plan.Scope, plan.Directory, executable, plan.Executable)
 			}
 			seen[key] = plan.Executable
 		}
@@ -185,8 +185,8 @@ func applyUpgrades(data *model, app *glyph.App) {
 
 func runInteractiveUpgrades(data *model) error {
 	if data.packageConfigErr != nil {
-		err := fmt.Errorf("Package upgrades blocked: %w", data.packageConfigErr)
-		data.status = err.Error()
+		err := fmt.Errorf("package upgrades blocked: %w", data.packageConfigErr)
+		data.status = fmt.Sprintf("Package upgrades blocked: %v", data.packageConfigErr)
 		return err
 	}
 	if err := validateUpgradePlans(data, data.plans); err != nil {

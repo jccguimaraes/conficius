@@ -577,7 +577,7 @@ func dotfilePreviewContent(state *dotfileState, preview *glyph.ListC[string]) gl
 func (state *dotfileState) prepareLayoutPreview() error {
 	state.layoutPlan = nil
 	if state.packageConfigPath != "" {
-		return fmt.Errorf("Package layout changes unavailable while --package-config is set (%s); restart without --package-config to change layout", state.packageConfigPath)
+		return fmt.Errorf("package layout changes unavailable while --package-config is set (%s); restart without --package-config to change layout", state.packageConfigPath)
 	}
 	plan, err := config.PlanPackageLayout(string(state.mode))
 	if err != nil {

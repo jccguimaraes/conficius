@@ -196,7 +196,7 @@ func TestCacheRefreshExecutionAndRestart(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer terminal.Close()
+				defer func() { _ = terminal.Close() }()
 				executeCacheRefresh(data, terminal)
 				calls, err := os.ReadFile(log)
 				if err != nil {
