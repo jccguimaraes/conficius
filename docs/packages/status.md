@@ -112,6 +112,7 @@
 
 - CLI supports manager status, doctor checks, outdated, offline inventory, vulnerability checks, and updates.
 - TUI provides installed/latest/security status, profile and scope selection, package/vulnerability details, and command-collision summaries.
+- `Enter` opens package/vulnerability details; dotfile link and environment details share the same styling: bold cyan headings, dim labels/paths, default-color ordinary values, yellow warnings, and red errors. CVSS uses blue for scores above 0 and below 4, yellow from 4 to below 9, and red at 9 or higher. Details support `↑`/`↓` or `k`/`j` scrolling, `Ctrl-u`/`Ctrl-d` paging up/down, and `Esc` back to the originating list; resizing rewraps text and preserves scroll position within content bounds.
 - TUI `p` selects a session profile; `r` reloads central package config and refreshes. Switching does not write config; reload errors or removed selected profiles block upgrades.
 - TUI previews and applies marked/all-package updates, rechecks manifest permission and Git safety, runs terminal commands sequentially, retains failures, and restarts to refresh results.
 - TUI does not use CLI accepted hashes, mutation journals, post-update verification, or manager-version override guards.

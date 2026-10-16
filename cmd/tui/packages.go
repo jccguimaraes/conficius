@@ -265,7 +265,7 @@ func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerability
 
 func vulnerabilityDetailContent(row *vulnerabilityRow) (glyph.Component, *glyph.TextViewC) {
 	var text string
-	viewer := glyph.TextView(&text).Grow(1).BindNav("j", "k").BindNav("<down>", "<up>").BindPageNav("<C-d>", "<C-u>")
+	viewer := detailTextView(&text, false)
 	// TextBlock funcs are not evaluated by glyph v0.8.0; Text evaluates before the layer sync.
 	binding := glyph.HBox.Height(0)(glyph.Text(func() string {
 		formatted := fmt.Sprintf("Package\n%s\n\nClass\n%s\n\nScan scope\n%s\n\nManager\n%s\n\nScope\n%s\n\nPath\n%s\n\nStatus\n%s\n\nCurrent\n%s\n\nSource\n%s\n\nCVE/advisory\n%s\n\nSource ID\n%s\n\nCVSS\n%g\n\nUnsupported rules\n%s\n\nAliases\n%s\n\nUpgrade target\n%s\n\nUpgrade note\n%s\n\nDescription\n%s\n\nReference\n%s\n\nCVE URL\n%s\n\nReason/error\n%s", row.Package, row.DependencyClass, row.ScanScope, row.Manager, row.Scope, row.Path, row.Status, row.Current, row.Source, row.Advisory, row.SourceID, row.Score, strings.Join(row.Rules, ", "), strings.Join(row.Aliases, ", "), row.UpgradeTo, row.UpgradeNote, row.Description, row.Reference, row.CVELink, row.Reason)

@@ -302,7 +302,7 @@ func runSession(data *model, startView string) error {
 		Handle("q", app.Stop).
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
 	for name, back := range map[string]string{"package-detail": "results"} {
-		details := glyph.TextView(&data.packageDetailText).WordWrap().Grow(1).BindNav("j", "k").BindNav("<down>", "<up>").BindPageNav("<C-d>", "<C-u>")
+		details := detailTextView(&data.packageDetailText, true)
 		app.View(name, screenFrame("Packages / Details", "Profile: "+data.profile.Name, &data.status, details, "↑/↓ scroll  Esc back  q quit")).
 			Handle("<Esc>", func() { app.Go(back) }).Handle("q", app.Stop)
 	}

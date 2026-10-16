@@ -674,7 +674,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 		}).
 		Handle("<Esc>", func() { app.Go("dotfiles") }).Handle("q", stop).Handle("<C-c>", stop)
 	for name, back := range map[string]string{"dotfiles-detail": "dotfiles-links", "dotfiles-environment-detail": "dotfiles-environment", "dotfiles-failure": "dotfiles-links"} {
-		lines := glyph.TextView(&state.detailText).Grow(1).BindNav("<down>", "<up>").BindNav("j", "k").BindPageNav("<C-d>", "<C-u>")
+		lines := detailTextView(&state.detailText, false)
 		title := "Dotfiles / Links / Details"
 		if back == "dotfiles-environment" {
 			title = "Dotfiles / Environment / Details"
@@ -743,7 +743,7 @@ func registerDotfiles(state *dotfileState, app *glyph.App) {
 }
 
 func dotfileFailureDetails(err error) string {
-	lines := []string{err.Error()}
+	lines := []string{"Failure\n" + err.Error()}
 	var failure *dotfiles.ApplyError
 	if errors.As(err, &failure) {
 		lines = append(lines, "Action: "+failure.Action, "Path: "+failure.Path, fmt.Sprintf("Rollback attempted: %t", failure.RollbackAttempted))

@@ -244,7 +244,10 @@ conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conf
 
 The home screen opens package scopes or dotfile audits and linking. Package views use compact rows for outdated versions and vulnerability findings. Missing dotfiles show optional onboarding: “Add your dotfiles when you're ready.” Run `conficius init` in your dotfiles repo when needed; package use does not require dotfiles.
 
+`Enter` on a package, vulnerability, dotfile link, or environment finding opens details with clear sections: bold cyan headings, dim labels and paths, and ordinary values in the terminal’s default color. Warnings use yellow, errors red; CVSS scores use blue for scores above 0 and below 4, yellow from 4 to below 9, and red for 9 or higher. Detail text wraps when resized and preserves scrolling, clamped to the available content.
+
 - Arrows or `j`/`k`: move; `Enter`: open scope or details.
+- In details, `↑`/`↓` or `k`/`j` scroll; `Ctrl-u`/`Ctrl-d` page up/down; `Esc` returns to the originating list.
 - `Esc`: go back; `r`: reload configuration and project scopes, then refresh; `q`: quit; `?`: screen help.
 - `p`: open profile picker from Home, scopes, or outdated packages; `Enter` selects. Selection overrides the profile for this session only; it is not saved to disk.
 - In outdated packages, `Space` marks a package and `a` toggles all.
