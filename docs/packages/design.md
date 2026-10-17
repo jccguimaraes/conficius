@@ -15,7 +15,8 @@ Current adapters:
 - Go: journal-backed global tool inventory, outdated checks, and updates; project and workspace module inventory and outdated checks through `go.mod`, plus pinned native `go get` project updates guarded by manifest permission and Git checks; project updates do not change the global tool journal or promise rollback.
 - Poetry and pnpm: project inventory, outdated checks, and updates.
 - Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
-- Yarn and Bun: project inventory; outdated checks and updates unsupported.
+- Yarn: project inventory, registry latest-tag checks, and selected-package upgrades with manifest/Git guards; workspace outdated/update operations are rejected. Local and alias resolutions are skipped.
+- Bun: project inventory, actionable range-compatible outdated checks, and selected-package updates with manifest/Git guards.
 - apt: global system inventory and cached-list outdated checks on apt-based Linux; project operations and updates unsupported.
 
 Current frontends:

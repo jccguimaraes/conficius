@@ -33,9 +33,9 @@
 - pnpm authentication, network, rate-limit, and changed-output parser failure fixtures.
 - Registered Cargo adapter for global `cargo install` inventory and project `Cargo.lock` registry dependency inventory with native `crates.io` OSV identities; outdated checks and updates report unsupported.
 - Cargo command and changed-output parser failure fixtures.
-- Registered Yarn adapter for project inventory; outdated checks and updates report unsupported.
+- Registered Yarn 4 adapter for project inventory, registry latest-tag checks, and selected-package `yarn up` plans. Workspace outdated/update operations are rejected; local and alias resolutions are skipped. Updates require manifest permission and Git guards.
 - Yarn command and changed-output parser failure fixtures.
-- Registered Bun adapter for project inventory; outdated checks and updates report unsupported.
+- Registered Bun adapter for project inventory, actionable range-compatible outdated checks, and selected-package `bun update` plans. Updates require manifest permission and Git guards.
 - Validated Go tool import records with canonical module path, semantic version, and command ownership.
 - Read-only Go tool journal parser rejects unsupported schemas and ambiguous command ownership.
 - `packages go-tools import` records explicit Go module/version/command ownership without running `go install`.

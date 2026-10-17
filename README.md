@@ -99,10 +99,12 @@ Package commands inspect global installations and project dependencies across 13
 | Poetry / `poetry` | No | Yes | No | Yes | No | Yes |
 | pnpm / `pnpm` | No | Yes | No | Yes | No | Yes |
 | Cargo / `cargo` | Yes | Yes | No | No | No | No |
-| Yarn / `yarn` | No | Yes | No | No | No | No |
-| Bun / `bun` | No | Yes | No | No | No | No |
+| Yarn / `yarn` | No | Yes | No | Yes | No | Yes |
+| Bun / `bun` | No | Yes | No | Yes | No | Yes |
 | Go / `go` | Yes | Yes | Yes | Yes | Yes | Yes |
 | apt / `apt` | Yes | No | Yes | No | No | No |
+
+Bun and pnpm use native range-respecting `update` commands for selected project packages. Bun reports actionable updates only; packages already at their range-compatible target are omitted even when a newer major exists. Yarn 4 checks registry `latest` tags and uses `yarn up` for selected names, which can cross declared ranges. Yarn updates and outdated checks currently reject workspace projects to prevent changes outside the approved project. Yarn local, workspace, and alias resolutions are skipped. Bun and Yarn updates require manifest-change permission and project Git safeguards; neither has global support.
 
 These are declared adapter capabilities, not all operations offered by the upstream tools. Existing `go.mod` files in the current working directory are auto-detected for project inspection. A project containing both `mise.toml` and `go.mod` is inspected by both mise (configured tools) and Go (module dependencies); neither replaces the other.
 
