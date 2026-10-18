@@ -370,7 +370,12 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 				continue
 			}
 			for _, tool := range tools {
-				result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope, dependencyClass: dependencyClass})
+				if record, ok := tool.(recordTool); ok {
+					record.Scope, record.Path = operationResult.operation.scope.Kind, operationResult.operation.scope.Path
+					result.Packages[name] = append(result.Packages[name], record)
+				} else {
+					result.Packages[name] = append(result.Packages[name], scopedTool{Tool: tool, scope: operationResult.operation.scope, dependencyClass: dependencyClass})
+				}
 			}
 		}
 	}
@@ -805,8 +810,11 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 	var keys []planKey
 	for _, record := range selected {
 		key := planKey{manager: record.Manager, executable: record.Executable, scope: record.Scope, directory: record.Path}
-		if record.Manager == PM_GO && record.Scope != "project" && record.Scope != "workspace" {
+		if record.Manager == PM_CARGO || (record.Manager == PM_GO && record.Scope != "project" && record.Scope != "workspace") {
 			key.packageName = record.Name
+			if record.Manager == PM_CARGO {
+				key.packageName += "@" + record.Current
+			}
 		}
 		plan := plansByKey[key]
 		if plan == nil {
@@ -837,7 +845,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if !hasCapability(adapter, scopeCapability(scope, CapabilityGlobalUpdate, CapabilityProjectUpdate)) {
 			return nil, fmt.Errorf("%s updates are unsupported for %s scope", plan.Manager, plan.Scope)
 		}
-		if plan.Manager == PM_GO && len(plan.Args) < 2 {
+		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && len(plan.Args) < 2 {
 			return nil, fmt.Errorf("%s update has invalid or empty targets", plan.Manager)
 		}
 		plan.Impact = adapter.updateImpact(scope)
@@ -870,17 +878,25 @@ func updatePlanHash(plan UpdatePlan) string {
 		}
 	}
 	for _, pkg := range plan.Packages {
-		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path} {
+		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path, pkg.Config} {
 			writeHashValue(value)
 		}
 	}
-	if plan.Manager == PM_GO && (plan.Scope == "project" || plan.Scope == "workspace") {
+	if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && (plan.Scope == "project" || plan.Scope == "workspace") {
 		files := snapshotProjectFiles(plan)
-		for _, name := range (Go{}).projectFiles() {
+		adapter, _ := adapterFor(plan.Manager)
+		for _, name := range adapter.projectFiles() {
 			contents, exists := files[name]
 			writeHashValue(name)
 			writeHashValue(strconv.FormatBool(exists))
 			writeHashValue(string(contents))
+		}
+	}
+	if plan.Manager == PM_CARGO && (plan.Scope == "project" || plan.Scope == "workspace") {
+		state, err := cargoProjectState(plan.Directory)
+		writeHashValue(state)
+		if err != nil {
+			writeHashValue(err.Error())
 		}
 	}
 	return hex.EncodeToString(hash.Sum(nil))
@@ -1027,8 +1043,19 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
 	for _, plan := range plans {
-		if plan.Manager == PM_GO && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
-			return nil, fmt.Errorf("Go project update plan is stale; refresh preview before applying")
+		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
+			return nil, fmt.Errorf("%s project update plan is stale; refresh preview before applying", plan.Manager)
+		}
+		if plan.Manager == PM_CARGO && plan.RunAs == "" {
+			var err error
+			if plan.Scope == "global" {
+				err = cargoValidateGlobalPlan(plan)
+			} else {
+				err = cargoValidateProjectPlan(ctx, plan)
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	failedManagers := make(map[string]error)
@@ -1076,7 +1103,21 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 		if stderr != nil {
 			cmd.Stderr = io.MultiWriter(stderr, &errorOutput)
 		}
-		err := cmd.Run()
+		var err error
+		if plan.Manager == PM_CARGO {
+			if plan.Scope == "global" {
+				err = cargoValidateGlobalPlan(plan)
+			} else {
+				err = cargoValidateProjectPlan(planContext, plan)
+				// ponytail: keep approved hashes immutable; later plans need a new preview after earlier changes.
+				if err == nil && plan.StateHash != updatePlanHash(plan) {
+					err = fmt.Errorf("cargo project update plan is stale; refresh preview after prior changes before applying; earlier updates may already be applied")
+				}
+			}
+		}
+		if err == nil {
+			err = cmd.Run()
+		}
 		var classified error
 		if err != nil {
 			message := strings.TrimSpace(errorOutput.String() + "\n" + standardOutput.String())
@@ -1178,7 +1219,9 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 			}
 		}
 		remaining := make(Packages)
-		if err == nil {
+		if plan.Manager == PM_CARGO {
+			err = cargoVerifyUpdate(plan)
+		} else if err == nil {
 			err = listOutdatedScope(ctx, plan.Manager, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory}, options.Managers[plan.Manager], remaining)
 		}
 		if err == nil {

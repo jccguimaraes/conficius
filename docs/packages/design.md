@@ -14,7 +14,7 @@ Current adapters:
 - `mas`, `uv`, and `pipx`: global inventory, outdated checks, and updates.
 - Go: journal-backed global tool inventory, outdated checks, and updates; project and workspace module inventory and outdated checks through `go.mod`, plus pinned native `go get` project updates guarded by manifest permission and Git checks; project updates do not change the global tool journal or promise rollback.
 - Poetry and pnpm: project inventory, outdated checks, and updates.
-- Cargo: global installed-crate and project lockfile inventory; outdated checks and updates unsupported.
+- Cargo: global installed-crate and project lockfile inventory, outdated checks, and crates.io updates using native Cargo; no plugin. Project checks/updates require standalone projects with `Cargo.toml` and `Cargo.lock`; workspace and path-dependency projects are rejected.
 - Yarn: project inventory, registry latest-tag checks, and selected-package upgrades with manifest/Git guards; workspace outdated/update operations are rejected. Local and alias resolutions are skipped.
 - Bun: project inventory, actionable range-compatible outdated checks, and selected-package updates with manifest/Git guards.
 - apt: global system inventory and cached-list outdated checks on apt-based Linux; project operations and updates unsupported.
@@ -124,6 +124,8 @@ Successful manager results survive failures from other managers or scopes. Statu
 Freshness and vulnerability are separate:
 
 - normal outdated check uses manager-native network behavior
+- Cargo: Global checks use `cargo info`’s compiler-compatible selected version, not its `latest` annotation. `.crates.toml` is authoritative for owned binaries, reconciled with `.crates2.json` install settings. No actual installs is an empty success; nonempty installs with missing/incomplete options fail closed. Versioned `cargo install` preserves root, owned binaries, features, default-feature setting, profile, and target. Registry/source overrides fail closed; Git, path, and alternate-registry installs are not update candidates. Text parsing targets Cargo 1.99 and fails closed on unfamiliar output.
+- Cargo project checks probe `cargo update name@current --dry-run` for a native range-compatible target. Duplicate consolidation reported only as `Removing` is skipped when no target can be established. Inspection may access the network and write index/cache metadata; dry runs do not write `Cargo.lock`
 - Homebrew runs `brew update` before `brew outdated --json=v2 --greedy` so latest metadata is refreshed; refresh failure fails that operation without using stale results
 - apt uses `dpkg-query` for inventory and `apt-get --simulate` for outdated checks against locally cached lists, not live latest versions; no automatic list refresh or privilege escalation during inspection unless explicitly configured via `run_as`. Users explicitly run `sudo apt-get update` separately before inspection when needed, or on Linux without APT `run_as`, press `c` (Update package cache, currently APT) on TUI package scopes/results to preview the cache-refresh command (`y` approves; `n`/Esc cancels). Execution uses no shell; sudo handles passwords through the controlling TTY, or root runs apt-get directly. Success restarts the TUI and refreshes outdated/security results; failure or cancellation shows a notice and leaves local inventory only
 - apt has no Debian security identity mapping; coverage remains unknown, not clean
@@ -155,6 +157,8 @@ Plans include:
 Unattended update also requires `--yes` and accepted plan hashes. Stale or unselected hashes fail.
 
 Project mutation requires a matching registered project with `allow_manifest_changes = true` (`AllowManifestChanges`), default false. CLI `--allow-dirty` and `--allow-unversioned` do not bypass this permission. Current Git guard checks the whole repository: any uncommitted changes block mutation without `--allow-dirty`, and non-Git projects need `--allow-unversioned`. TUI grants neither override.
+
+Cargo project updates run one crate per `cargo update name@current --precise target`, binding the native dry-run target. Preflight rejects stale manifests, lockfiles, Cargo configuration/environment, and changed global install settings or binary ownership. Project updates leave `Cargo.toml` unchanged but may change `Cargo.lock` and transitive dependencies; manifest permission and Git guards still apply. Global updates use versioned `cargo install` with preserved install settings and authoritative owned binaries.
 
 CLI mutations run sequentially and fail fast by default. `--best-effort` continues independent manager groups. Cancellation stops new commands. Journal records per-plan outcomes, changed files, interruption, verification failures, and recovery commands. Secrets and machine identifiers are redacted.
 
