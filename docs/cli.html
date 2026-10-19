@@ -216,13 +216,15 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
           <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
           <h3 id="self-managed-config">Config file locations</h3>
-          <p>Use separate files for dotfile links and Conficius’s package settings:</p>
+          <p>If you have a dotfiles repository, keep its link definitions there. Example repository layout:</p>
+          <pre><code>/path/to/repo/dotfiles/
+└── conficius.toml</code></pre>
+          <p>Save dotfile link definitions, such as the Zsh example above, in that repository’s <code>conficius.toml</code>. Relative sources resolve from the repository directory and must remain inside it. Run dotfiles commands from the repository to discover this file, or set <code>CONFICIUS_DOTFILES_CONFIG="/path/to/repo/dotfiles/conficius.toml"</code> using your actual repository path.</p>
+          <p>Conficius’s own package settings live separately:</p>
           <pre><code>~/.config/
-├── conficius.toml
 └── conficius/
     └── config.toml</code></pre>
-          <p>Set <code>CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"</code> to select the dotfiles file at this location; it is not the default dotfiles discovery path. Package discovery uses <code>~/.config/conficius/config.toml</code> when <code>XDG_CONFIG_HOME</code> is unset. These files do not need to be linked to each other.</p>
-          <p>Save dotfile link definitions, such as the Zsh example above, in <code>~/.config/conficius.toml</code>. Relative sources resolve from that file’s directory and must remain inside it.</p>
+          <p>Package discovery uses <code>~/.config/conficius/config.toml</code> when <code>XDG_CONFIG_HOME</code> is unset. The package config does not need to be linked to the repository’s dotfiles config.</p>
           <p>Save this package config directly as <code>~/.config/conficius/config.toml</code>. Replace <code>/path/project-x</code> and <code>/path/project-y</code> with existing project directories before using their scopes:</p>
           <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 <span class="syntax-key">layout</span> = <span class="syntax-string">"xdg"</span>

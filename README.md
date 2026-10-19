@@ -189,18 +189,24 @@ Both files require TOML schema `version = 2`, but serve separate purposes: repos
 
 ### Config file locations
 
-Use separate files for dotfile links and Conficius’s package settings:
+If you have a dotfiles repository, keep its link definitions there. Example repository layout:
+
+```text
+/path/to/repo/dotfiles/
+└── conficius.toml
+```
+
+Save dotfile link definitions, such as the Zsh example above, in that repository’s `conficius.toml`. Relative sources resolve from the repository directory and must remain inside it. Run dotfiles commands from the repository to discover this file, or set `CONFICIUS_DOTFILES_CONFIG="/path/to/repo/dotfiles/conficius.toml"` using your actual repository path.
+
+Conficius’s own package settings live separately:
 
 ```text
 ~/.config/
-├── conficius.toml
 └── conficius/
     └── config.toml
 ```
 
-Set `CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"` to select the dotfiles file at this location; it is not the default dotfiles discovery path. Package discovery uses `~/.config/conficius/config.toml` when `XDG_CONFIG_HOME` is unset. These files do not need to be linked to each other.
-
-Save dotfile link definitions, such as the Zsh example above, in `~/.config/conficius.toml`. Relative sources resolve from that file’s directory and must remain inside it.
+Package discovery uses `~/.config/conficius/config.toml` when `XDG_CONFIG_HOME` is unset. The package config does not need to be linked to the repository’s dotfiles config.
 
 Save this package config directly as `~/.config/conficius/config.toml`. Replace `/path/project-x` and `/path/project-y` with existing project directories before using their scopes:
 
