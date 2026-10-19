@@ -10,6 +10,21 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+## [0.0.6]
+
+CLI `0.0.6` and TUI `2026.10.6` share this release.
+
+### Distribution
+
+- Publish CLI and TUI Homebrew casks to `jccguimaraes/homebrew-tap` with release-specific archives and checksums.
+- Add local mise tasks for release validation, snapshots, and tag-based publishing through GitHub Actions.
+
+### Documentation
+
+- Separate dotfiles repository examples from Conficius's central package config.
+- Add Homebrew installation instructions and shorten the README.
+- Unify website body typography and improve safety guidance formatting.
+
 ## [0.0.5]
 
 CLI `0.0.5` and TUI `2026.10.5` share this release.
