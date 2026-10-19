@@ -42,7 +42,7 @@ Package settings are independent: `$XDG_CONFIG_HOME/conficius/config.toml` (defa
 
 ```sh
 export CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"
-export CONFICIUS_PACKAGES_CONFIG="$HOME/dotfiles/.config/conficius/config.toml"
+export CONFICIUS_PACKAGES_CONFIG="$HOME/.config/conficius/config.toml"
 ```
 
 The file selected by `CONFICIUS_PACKAGES_CONFIG` configures Conficius itself: package profiles, manager settings, layout, and optional vulnerability mappings. A minimal file contains only `version = 2`. Dotfile links belong in the separate file selected by `CONFICIUS_DOTFILES_CONFIG`. Create both files before using these exports.
@@ -78,17 +78,42 @@ conficius dotfiles link --apply
 conficius dotfiles link --apply --force
 ```
 
+A macOS Zsh example links its config directory and home startup files separately. Sources are relative to the dotfiles config file’s directory and must stay inside it. Create them before linking:
+
+```toml
+version = 2
+
+[[tools.zsh.links]]
+source = ".config/zsh"
+target = "$HOME/.config/zsh"
+platforms = ["darwin"]
+
+[[tools.zsh.links]]
+source = "home/.config/zsh/.zprofile"
+target = "$HOME/.zprofile"
+platforms = ["darwin"]
+
+[[tools.zsh.links]]
+source = "home/.config/zsh/.zshenv"
+target = "$HOME/.zshenv"
+platforms = ["darwin"]
+```
+
+`home/zsh/.zshenv` can itself be a symlink inside your dotfiles directory, for example to `../../.config/zsh/.zshenv`. Conficius preserves that source symlink and creates `~/.zshenv` pointing to it, rather than replacing it with the resolved file. The source symlink must resolve to an existing file inside the dotfiles config file’s directory; broken links and links escaping that directory are rejected.
+
+Set `ZDOTDIR="$HOME/.config/zsh"` in the linked `~/.zshenv` so Zsh reads startup files from that directory. With `ZDOTDIR` set, Zsh reads `.zprofile` from `$ZDOTDIR`; source `~/.zprofile` there if keeping the separate home file.
+
 Link sources can be files or folders. A folder link points to the entire source directory; it does not copy files or merge directories. Writes through the link, including files and folders generated later by tooling, land in the source directory in your dotfiles repository.
 
-Add generated files and folders that should not be tracked to your dotfiles repository's `.gitignore`. For example, if Zsh stores runtime data under the linked `zsh/` folder:
+Add generated files and folders that should not be tracked to your dotfiles repository's `.gitignore`. For example, if Zsh stores runtime data under the linked `.config/.config/zsh/` folder:
 
 ```gitignore
-/zsh/.zsh_sessions/
-/zsh/.zsh_history
-/zsh/.zsh_history.*
-/zsh/.zcompdump*
-/zsh/*.zwc
-/zsh/*.zwc.old
+/.config/zsh/.zsh_sessions/
+/.config/zsh/.zsh_history
+/.config/zsh/.zsh_history.*
+/.config/zsh/.zcompdump*
+/.config/zsh/*.zwc
+/.config/zsh/*.zwc.old
 ```
 
 Adjust paths to match your layout and history settings. `.gitignore` affects Git tracking, not file creation or linking; already-tracked files must be untracked separately. Link individual config files instead if runtime data must stay outside the repository.
@@ -187,7 +212,7 @@ target = "$HOME/.config/conficius"
 platforms = ["darwin"]
 ```
 
-Save this complete package config as `~/dotfiles/.config/conficius/config.toml`:
+The active package config is `~/.config/conficius/config.toml`, inside `~/.config/conficius`. For this optional symlink setup, save its source as `~/dotfiles/.config/conficius/config.toml`:
 
 ```toml
 version = 2

@@ -164,7 +164,7 @@
           <h3 id="config-environment">Config file environment variables</h3>
           <p><code>CONFICIUS_DOTFILES_CONFIG</code> and <code>CONFICIUS_PACKAGES_CONFIG</code> hold file paths, not TOML contents or directory paths. Both CLI and TUI use them. Create the files before setting these variables:</p>
           <pre><code>export CONFICIUS_DOTFILES_CONFIG=<span class="syntax-string">"$HOME/.config/conficius.toml"</span>
-export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/dotfiles/.config/conficius/config.toml"</span></code></pre>
+export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conficius/config.toml"</span></code></pre>
           <p>The package file configures Conficius itself: package profiles, manager settings, layout, and optional vulnerability mappings. Its minimal contents are <code>version = 2</code>. Dotfile links belong in the separate dotfiles file.</p>
           <p>Explicit config flags take precedence over environment variables, which take precedence over discovery. Empty variables keep normal discovery. A missing or invalid file selected by a variable returns an error. <code>init</code> and <code>config layout</code> ignore both variables.</p>
           <h3 id="init"><code>init</code></h3>
@@ -189,18 +189,30 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/dotfiles/.co
           <pre><code><span class="syntax-command">conficius</span> config migrate
 <span class="syntax-command">conficius</span> config migrate <span class="syntax-flag">--apply</span></code></pre>
           <h3 id="minimal-link-configuration">Minimal link configuration</h3>
-          <p>Create the source files or directories before linking. Tool names are free-form; one tool can have several links.</p>
+          <p>Create the source files or directories before linking. Source paths are relative to the dotfiles config file’s directory and must stay inside it. Tool names are free-form; one tool can have several links. For Zsh to read startup files from <code>~/.config/zsh</code>, set <code>ZDOTDIR="$HOME/.config/zsh"</code> in the linked <code>~/.zshenv</code>.</p>
           <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 
-<span class="syntax-section">[tools.zsh]</span>
-<span class="syntax-key">links</span> = [
-  { <span class="syntax-key">source</span> = <span class="syntax-string">"dotfiles/zsh/.zshrc"</span>, <span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.zshrc"</span>, <span class="syntax-key">platforms</span> = [<span class="syntax-string">"linux"</span>, <span class="syntax-string">"darwin"</span>] },
-]
+<span class="syntax-section">[[tools.zsh.links]]</span>
+<span class="syntax-key">source</span> = <span class="syntax-string">".config/zsh"</span>
+<span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.config/zsh"</span>
+<span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]
+
+<span class="syntax-section">[[tools.zsh.links]]</span>
+<span class="syntax-key">source</span> = <span class="syntax-string">"home/zsh/.zprofile"</span>
+<span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.zprofile"</span>
+<span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]
+
+<span class="syntax-section">[[tools.zsh.links]]</span>
+<span class="syntax-key">source</span> = <span class="syntax-string">"home/zsh/.zshenv"</span>
+<span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.zshenv"</span>
+<span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]
 
 <span class="syntax-section">[tools.nvim]</span>
 <span class="syntax-key">links</span> = [
   { <span class="syntax-key">source</span> = <span class="syntax-string">"dotfiles/nvim"</span>, <span class="syntax-key">target</span> = <span class="syntax-string">"$XDG_CONFIG_HOME/nvim"</span> },
 ]</code></pre>
+          <p><code>home/zsh/.zshenv</code> can itself be a symlink inside your dotfiles directory, for example to <code>../../.config/zsh/.zshenv</code>. Conficius preserves that source symlink and creates <code>~/.zshenv</code> pointing to it, rather than replacing it with the resolved file. The source symlink must resolve to an existing file inside the dotfiles config file’s directory; broken links and links escaping that directory are rejected.</p>
+          <p>With <code>ZDOTDIR</code> set, Zsh reads <code>.zprofile</code> from <code>$ZDOTDIR</code>; source <code>~/.zprofile</code> there if keeping the separate home file.</p>
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
           <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
           <h3 id="self-managed-config">Manage Conficius from your dotfiles repository</h3>
@@ -218,7 +230,7 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/dotfiles/.co
 <span class="syntax-key">source</span> = <span class="syntax-string">".config/conficius"</span>
 <span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.config/conficius"</span>
 <span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]</code></pre>
-          <p>Save this complete package config as <code>~/dotfiles/.config/conficius/config.toml</code>:</p>
+          <p>The active package config is <code>~/.config/conficius/config.toml</code>, inside <code>~/.config/conficius</code>. For this optional symlink setup, save its source as <code>~/dotfiles/.config/conficius/config.toml</code>:</p>
           <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 <span class="syntax-key">layout</span> = <span class="syntax-string">"xdg"</span>
 <span class="syntax-key">profile</span> = <span class="syntax-string">"default"</span>
