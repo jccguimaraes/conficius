@@ -80,6 +80,9 @@ type VulnerabilityMapping struct {
 
 // Discover applies config precedence: explicit path, cwd and its parents, then XDG.
 func Discover(explicit string) (string, error) {
+	if explicit == "" {
+		explicit = os.Getenv("CONFICIUS_DOTFILES_CONFIG")
+	}
 	if explicit != "" {
 		return absolutePath(explicit)
 	}

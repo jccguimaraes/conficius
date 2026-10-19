@@ -47,6 +47,59 @@ func TestLoadPackagesDefaultsAndIsolation(t *testing.T) {
 	}
 }
 
+func TestConfigEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		name, env, otherEnv, content string
+		load                         func(string) (*Project, error)
+	}{
+		{"dotfiles", "CONFICIUS_DOTFILES_CONFIG", "CONFICIUS_PACKAGES_CONFIG", "version = 2\n", LoadDiscovered},
+		{"packages", "CONFICIUS_PACKAGES_CONFIG", "CONFICIUS_DOTFILES_CONFIG", PackageExample, LoadPackages},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			packageTestHome(t)
+			root := t.TempDir()
+			selected := filepath.Join(root, "selected.toml")
+			explicit := filepath.Join(root, "explicit.toml")
+			missing := filepath.Join(root, "missing.toml")
+			writePackageTest(t, selected, tc.content)
+			writePackageTest(t, explicit, tc.content)
+			t.Setenv(tc.env, selected)
+			t.Setenv(tc.otherEnv, missing)
+			project, err := tc.load("")
+			if err != nil || project.Path != selected {
+				t.Fatalf("environment config = %#v, %v", project, err)
+			}
+			t.Setenv(tc.env, missing)
+			project, err = tc.load(explicit)
+			if err != nil || project.Path != explicit {
+				t.Fatalf("explicit config = %#v, %v", project, err)
+			}
+			if _, err := tc.load(""); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("missing environment config = %v", err)
+			}
+			writePackageTest(t, selected, "not valid TOML")
+			t.Setenv(tc.env, selected)
+			if _, err := tc.load(""); err == nil {
+				t.Fatal("accepted invalid environment config")
+			}
+			t.Setenv(tc.env, "")
+			if tc.name == "packages" {
+				project, err = tc.load("")
+				if err != nil || project.Path != "" {
+					t.Fatalf("empty environment config = %#v, %v", project, err)
+				}
+			} else {
+				t.Chdir(root)
+				writePackageTest(t, filepath.Join(root, FileName), tc.content)
+				project, err = tc.load("")
+				if err != nil || project.Path != filepath.Join(root, FileName) {
+					t.Fatalf("empty environment config = %#v, %v", project, err)
+				}
+			}
+		})
+	}
+}
+
 func TestPackageLocations(t *testing.T) {
 	home := t.TempDir()
 	for _, goos := range []string{"linux", "darwin", "windows"} {
