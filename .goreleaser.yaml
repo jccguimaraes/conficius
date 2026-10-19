@@ -26,6 +26,23 @@ archives:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Env.CONFICIUS_VERSION }}_{{ .Os }}_{{ .Arch }}"
 
+homebrew_casks:
+  - name: conficius
+    ids:
+      - conficius
+    binaries:
+      - conficius
+    repository:
+      owner: jccguimaraes
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/jccguimaraes/conficius"
+    description: "Manage dotfiles and inspect installed packages"
+    skip_upload: "false"
+    caveats: |
+      This binary is not signed or notarized by Apple. macOS Gatekeeper may block execution.
+      Install only if you trust this project's release artifacts.
+
 checksum:
   name_template: checksums.txt
 

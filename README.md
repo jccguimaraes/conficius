@@ -302,6 +302,20 @@ CI runs race-enabled tests, vet, builds, and CLI smoke tests on Linux and macOS.
 
 CLI releases use `cli-vX.Y.Z`; TUI releases use calendar tags shaped `tui-vYYYY.MM.revision`. Tags must point to commits included in `main`; CLI versions also need a matching changelog heading. Tag pushes verify release state without publishing. To publish, manually run the matching release workflow against its tag with `confirm` set to `publish`. Both products currently publish as prereleases.
 
+Publishing also updates `conficius` and `conficius-tui` casks in `jccguimaraes/homebrew-tap`. Set the repository Actions secret `HOMEBREW_TAP_TOKEN` to a token with Contents read/write access to that tap. The normal `GITHUB_TOKEN` still publishes release assets; the tap token is used only for tap updates. Cask uploads are explicitly enabled for the current prerelease policy. Binaries are not Apple-signed or notarized; no automatic Gatekeeper bypass is configured.
+
+Local release tasks use the pinned GoReleaser from mise:
+
+```sh
+mise run release-check
+mise run release-snapshot-cli
+mise run release-snapshot-tui
+TAG=cli-vX.Y.Z mise run release-cli
+TAG=tui-vYYYY.MM.revision mise run release-tui
+```
+
+Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch GitHub Actions against an existing remote tag, so the tap token stays in Actions secrets. They do not create tags. Merge publishing configuration before creating the next release tags; existing tags retain their original workflows and will not gain tap publishing by rerunning them.
+
 Workflow sources live in `cinzel/`. After editing HCL, regenerate GitHub Actions YAML:
 
 ```sh
