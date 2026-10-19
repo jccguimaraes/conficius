@@ -34,11 +34,11 @@ func cargoProjectState(scopePath string) (string, error) {
 		return "", err
 	}
 	hash := sha256.New()
-	fmt.Fprintf(hash, "root:%q\n", root)
+	_, _ = fmt.Fprintf(hash, "root:%q\n", root)
 	add := func(path string, required bool) error {
 		info, err := os.Lstat(path)
 		if os.IsNotExist(err) && !required {
-			fmt.Fprintf(hash, "absent:%q\n", path)
+			_, _ = fmt.Fprintf(hash, "absent:%q\n", path)
 			return nil
 		}
 		if err != nil {
@@ -78,7 +78,7 @@ func cargoProjectState(scopePath string) (string, error) {
 				}
 			}
 		}
-		fmt.Fprintf(hash, "file:%q:%q:%v:%x\n", path, canonical, info.Mode(), data)
+		_, _ = fmt.Fprintf(hash, "file:%q:%q:%v:%x\n", path, canonical, info.Mode(), data)
 		return nil
 	}
 	for _, name := range []string{"Cargo.toml", "Cargo.lock"} {
@@ -127,7 +127,7 @@ func cargoProjectState(scopePath string) (string, error) {
 	}
 	sort.Strings(environment)
 	for _, entry := range environment {
-		fmt.Fprintf(hash, "env:%q\n", entry)
+		_, _ = fmt.Fprintf(hash, "env:%q\n", entry)
 	}
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
@@ -202,7 +202,7 @@ func cargoProjectOutdated(ctx context.Context, executable string, scope Scope, p
 		return fmt.Errorf("read Cargo.lock: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return parserError(fmt.Errorf("Cargo.lock must be a regular, non-symlink file"))
+		return parserError(fmt.Errorf("cargo lockfile must be a regular, non-symlink file"))
 	}
 	lockbytes, err := os.ReadFile(lockpath)
 	if err != nil {

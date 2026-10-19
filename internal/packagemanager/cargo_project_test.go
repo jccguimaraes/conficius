@@ -127,7 +127,9 @@ func TestCargoProjectRejectsUnsafeScopeAndSources(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = f.WriteString(cargoProjectEntry("serde", "1.0.0", "registry+https://example.test/index"))
-				f.Close()
+				if closeErr := f.Close(); closeErr != nil {
+					t.Fatal(closeErr)
+				}
 				if err != nil {
 					t.Fatal(err)
 				}

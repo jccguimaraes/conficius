@@ -48,7 +48,7 @@ func cargoVerifyUpdate(plan UpdatePlan) error {
 		return fmt.Errorf("read Cargo.lock: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("Cargo.lock must be a regular, non-symlink file")
+		return fmt.Errorf("cargo lockfile must be a regular, non-symlink file")
 	}
 	contents, err := os.ReadFile(path)
 	if err != nil {

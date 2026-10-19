@@ -246,7 +246,7 @@ func cargoGlobalOutdated(ctx context.Context, executable string, scope Scope, pa
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	names := make([]string, 0, len(installed))
 	for name := range installed {
 		names = append(names, name)
