@@ -36,7 +36,7 @@ homebrew_casks:
       owner: jccguimaraes
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: "https://github.com/jccguimaraes/conficius"
+    homepage: "https://jccguimaraes.github.io/conficius"
     description: "Manage dotfiles and inspect installed packages"
     skip_upload: "false"
     caveats: |

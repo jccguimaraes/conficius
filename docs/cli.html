@@ -127,6 +127,12 @@
 <span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--help</span>
 <span class="syntax-command">conficius</span> help packages</code></pre>
           <h2 id="install-and-start">Install and start</h2>
+          <h3>Homebrew (macOS)</h3>
+          <p>Install either binary or both:</p>
+          <pre><code><span class="syntax-command">brew</span> install <span class="syntax-flag">--cask</span> jccguimaraes/tap/conficius
+<span class="syntax-command">brew</span> install <span class="syntax-flag">--cask</span> jccguimaraes/tap/conficius-tui</code></pre>
+          <p>macOS binaries are not signed or notarized by Apple and may be blocked by Gatekeeper. Install only if you trust the release artifacts; no automatic Gatekeeper bypass is included.</p>
+          <h3>Release binaries (macOS and Linux)</h3>
           <p>Download a CLI or TUI archive from <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>. Choose <code>darwin</code> for macOS or <code>linux</code>, then <code>arm64</code> or <code>amd64</code>. Verify against the release’s <code>checksums.txt</code>, extract, and put the binary on your <code>PATH</code>.</p>
           <p>CLI archives use <code>conficius_VERSION_OS_ARCH.tar.gz</code>; TUI archives use <code>conficius-tui_VERSION_OS_ARCH.tar.gz</code>. Either binary runs independently.</p>
           <pre><code><span class="syntax-command">conficius</span> init
