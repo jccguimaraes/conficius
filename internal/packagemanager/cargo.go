@@ -18,12 +18,19 @@ type Cargo struct{}
 func (Cargo) name() string                 { return PM_CARGO }
 func (Cargo) testedVersions() VersionRange { return VersionRange{MinimumMajor: 1, MaximumMajor: 1} }
 func (Cargo) capabilities() []Capability {
-	return []Capability{CapabilityGlobalInventory, CapabilityProjectInventory}
+	return []Capability{CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate}
 }
-func (Cargo) updateImpact(Scope) MutationImpact        { return MutationImpact{} }
+func (Cargo) updateImpact(scope Scope) MutationImpact {
+	return MutationImpact{MayChangeManifests: scope.Kind == "project" || scope.Kind == "workspace"}
+}
 func (Cargo) recoveryArgs(Scope, []Package) [][]string { return nil }
-func (Cargo) projectFiles() []string                   { return []string{"Cargo.lock"} }
-func (Cargo) updateArgs([]Package) []string            { return nil }
+func (Cargo) projectFiles() []string                   { return []string{"Cargo.toml", "Cargo.lock"} }
+func (Cargo) updateArgs(packages []Package) []string {
+	if len(packages) > 0 && (packages[0].Scope == "project" || packages[0].Scope == "workspace") {
+		return cargoProjectUpdateArgs(packages)
+	}
+	return cargoGlobalUpdateArgs(packages)
+}
 func (Cargo) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
 	if scope.Kind == "project" || scope.Kind == "workspace" {
 		return cargoLockfileInventory(filepath.Join(scope.Path, "Cargo.lock"))
@@ -34,8 +41,11 @@ func (Cargo) listInstalled(ctx context.Context, executable string, scope Scope) 
 	}
 	return parseCargoInstalled(output)
 }
-func (Cargo) listOutdatedScope(context.Context, string, Scope, ManagerOptions, Packages) error {
-	return nil
+func (Cargo) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
+	if scope.Kind == "project" || scope.Kind == "workspace" {
+		return cargoProjectOutdated(ctx, executable, scope, packages)
+	}
+	return cargoGlobalOutdated(ctx, executable, scope, packages)
 }
 
 var cargoInstallHeader = regexp.MustCompile(`^([^ ]+) v([^ ]+):$`)

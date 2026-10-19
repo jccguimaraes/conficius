@@ -98,13 +98,17 @@ Package commands inspect global installations and project dependencies across 13
 | pipx / `pipx` | Yes | No | Yes | No | Yes | No |
 | Poetry / `poetry` | No | Yes | No | Yes | No | Yes |
 | pnpm / `pnpm` | No | Yes | No | Yes | No | Yes |
-| Cargo / `cargo` | Yes | Yes | No | No | No | No |
+| Cargo / `cargo` | Yes | Yes | Yes | Yes | Yes | Yes |
 | Yarn / `yarn` | No | Yes | No | Yes | No | Yes |
 | Bun / `bun` | No | Yes | No | Yes | No | Yes |
 | Go / `go` | Yes | Yes | Yes | Yes | Yes | Yes |
 | apt / `apt` | Yes | No | Yes | No | No | No |
 
 Bun and pnpm use native range-respecting `update` commands for selected project packages. Bun reports actionable updates only; packages already at their range-compatible target are omitted even when a newer major exists. Yarn 4 checks registry `latest` tags and uses `yarn up` for selected names, which can cross declared ranges. Yarn updates and outdated checks currently reject workspace projects to prevent changes outside the approved project. Yarn local, workspace, and alias resolutions are skipped. Bun and Yarn updates require manifest-change permission and project Git safeguards; neither has global support.
+
+Cargo supports global and project inventory, outdated checks, and crates.io updates without a plugin. Global checks use `cargo info`’s compiler-compatible selected version, not its `latest` annotation. `.crates.toml` is authoritative for owned binaries, reconciled with `.crates2.json` install settings. No actual installs is an empty success; nonempty installs with missing/incomplete options fail closed. Versioned `cargo install` preserves root, owned binaries, features, default-feature setting, profile, and target. Registry/source overrides fail closed; Git, path, and alternate-registry installs are not update candidates.
+
+Project checks and updates require standalone projects with both `Cargo.toml` and `Cargo.lock`; workspace and path-dependency projects are rejected. Checks probe `cargo update name@current --dry-run`; each update uses `cargo update name@current --precise target`, binding the native dry-run’s range-compatible target. Duplicate consolidation reported only as `Removing` is skipped when no target can be established. Preflight rejects stale project manifests, lockfiles, Cargo configuration/environment, and changed global install settings or binary ownership. Project updates leave `Cargo.toml` unchanged but may change `Cargo.lock` and transitive dependencies; `allow_manifest_changes = true` and Git guards still apply. Inspection may access the network and write index/cache metadata; dry runs do not write the lockfile. Text parsing targets Cargo 1.99 and fails closed on unfamiliar output.
 
 These are declared adapter capabilities, not all operations offered by the upstream tools. Existing `go.mod` files in the current working directory are auto-detected for project inspection. A project containing both `mise.toml` and `go.mod` is inspected by both mise (configured tools) and Go (module dependencies); neither replaces the other.
 

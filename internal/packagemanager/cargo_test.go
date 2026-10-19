@@ -9,7 +9,8 @@ import (
 	"testing"
 )
 
-func TestCargoAdapterQueriesGlobalInventoryAndReportsUnsupportedOperations(t *testing.T) {
+func TestCargoAdapterQueriesGlobalInventoryAndEmptyUpdates(t *testing.T) {
+	cargoGlobalTestHome(t)
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
 	writeExecutable(t, filepath.Join(dir, PM_CARGO), `#!/bin/sh
@@ -31,7 +32,7 @@ if [ "$1" = "--version" ]; then printf 'cargo 1.98.1'; else printf 'cargo-edit v
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(installed.Packages) != 1 || len(outdated.Packages) != 0 || !strings.Contains(string(args), "install --list") || outdated.Managers[0].Operations[0].Status != StatusUnsupported {
+	if len(installed.Packages) != 1 || len(outdated.Packages) != 0 || !strings.Contains(string(args), "install --list") || outdated.Managers[0].Operations[0].Status != StatusAvailable {
 		t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed, outdated, args)
 	}
 }
