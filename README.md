@@ -189,30 +189,30 @@ Both files require TOML schema `version = 2`, but serve separate purposes: repos
 
 ### Manage Conficius from your dotfiles repository
 
-This macOS example keeps Conficius's own package config in `~/dotfiles` and links its directory into `~/.config`. macOS uses the Go platform name `darwin`; the package config still uses the supported `xdg` layout, not `os-native`.
+This macOS example keeps Conficius's own package config in `~/.config/dotfiles` and links its directory into `~/.config`. macOS uses the Go platform name `darwin`; the package config still uses the supported `xdg` layout, not `os-native`.
 
 ```text
-~/dotfiles/
+~/.config/
 ├── conficius.toml
-└── .config/
+└── dotfiles/
     └── conficius/
         └── config.toml
 ```
 
 Create the source directory and files first. Replace `/path/project-x` and `/path/project-y` with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or `sudo` are needed for these user-owned config files and links.
 
-Save this complete link config as `~/dotfiles/conficius.toml`:
+Save this complete link config as `~/.config/conficius.toml`:
 
 ```toml
 version = 2
 
 [[tools.conficius.links]]
-source = ".config/conficius"
+source = "dotfiles/conficius"
 target = "$HOME/.config/conficius"
 platforms = ["darwin"]
 ```
 
-The active package config is `~/.config/conficius/config.toml`, inside `~/.config/conficius`. For this optional symlink setup, save its source as `~/dotfiles/.config/conficius/config.toml`:
+The active package config is `~/.config/conficius/config.toml`, inside `~/.config/conficius`. For this optional symlink setup, save its source as `~/.config/dotfiles/conficius/config.toml`:
 
 ```toml
 version = 2
@@ -233,13 +233,13 @@ If `~/.config/conficius` already exists as a regular directory, linking will not
 Preview first, inspect the target, then apply:
 
 ```sh
-conficius --config ~/dotfiles/conficius.toml dotfiles link conficius
-conficius --config ~/dotfiles/conficius.toml dotfiles link conficius --apply
+conficius --config ~/.config/conficius.toml dotfiles link conficius
+conficius --config ~/.config/conficius.toml dotfiles link conficius --apply
 ```
 
 Add `"linux"` to `platforms` to use this link on Linux too; omit `platforms` to allow every platform. The target above is fixed at `~/.config/conficius` and ignores a custom `XDG_CONFIG_HOME`. For that setup, use `target = "${XDG_CONFIG_HOME}/conficius"` instead; the resolved target must remain inside your home directory.
 
-After linking, edit `~/dotfiles/.config/conficius/config.toml`; reads through the central path see the same file. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
+After linking, edit `~/.config/dotfiles/conficius/config.toml`; reads through the central path see the same file. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
 
 Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; `.gitignore` does not protect secrets or remove already tracked files.
 
@@ -277,9 +277,9 @@ The example leaves project mutation disabled. Set `allow_manifest_changes = true
 Run `conficius-tui`, or `./bin/conficius-tui` after building from source. Select either config independently:
 
 ```sh
-conficius-tui --config ~/dotfiles/conficius.toml
+conficius-tui --config ~/.config/conficius.toml
 conficius-tui --package-config ~/.config/conficius/config.toml
-conficius-tui --config ~/dotfiles/conficius.toml --package-config ~/.config/conficius/config.toml
+conficius-tui --config ~/.config/conficius.toml --package-config ~/.config/conficius/config.toml
 ```
 
 The home screen opens package scopes or dotfile audits and linking. Package views use compact rows for outdated versions and vulnerability findings. Missing dotfiles show optional onboarding: “Add your dotfiles when you're ready.” Run `conficius init` in your dotfiles repo when needed; package use does not require dotfiles.
