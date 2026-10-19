@@ -154,7 +154,7 @@
             <li><code>wisdom</code> prints a random Conficius proverb: a parody, not a Confucius quote. No command-specific options.</li>
             <li><code>help</code> (alias <code>h</code>) lists commands or shows help for a command.</li>
           </ul>
-          <p class="small">The <code>config</code>, <code>dotfiles</code>, <code>packages</code>, and <code>packages go-tools</code> groups organize the subcommands below; use their help to browse available operations.</p>
+          <p>The <code>config</code>, <code>dotfiles</code>, <code>packages</code>, and <code>packages go-tools</code> groups organize the subcommands below; use their help to browse available operations.</p>
         </section>
 
         <section id="config" aria-labelledby="config-title">
@@ -214,7 +214,7 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
           <p><code>home/zsh/.zshenv</code> can itself be a symlink inside your dotfiles directory, for example to <code>../../.config/zsh/.zshenv</code>. Conficius preserves that source symlink and creates <code>~/.zshenv</code> pointing to it, rather than replacing it with the resolved file. The source symlink must resolve to an existing file inside the dotfiles config file’s directory; broken links and links escaping that directory are rejected.</p>
           <p>With <code>ZDOTDIR</code> set, Zsh reads <code>.zprofile</code> from <code>$ZDOTDIR</code>; source <code>~/.zprofile</code> there if keeping the separate home file.</p>
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
-          <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
+          <p><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
           <h3 id="self-managed-config">Config file locations</h3>
           <p>If you have a dotfiles repository, keep its link definitions there. Example repository layout:</p>
           <pre><code>/path/to/repo/dotfiles/
@@ -264,7 +264,10 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
           <p>Use <code>--global</code> in CLI or select global scope in TUI. Global inventory, outdated queries, doctor checks, and supported package updates use the selected account; manager discovery uses that account’s login environment, not the caller’s executable path. Project/workspace delegation and delegated manager self-updates are explicitly blocked. This does not add adapter capabilities.</p>
           <p>Each handoff requires typing <code>yes</code> at the controlling <code>/dev/tty</code>, then runs the same Conficius binary through <code>/usr/bin/sudo -i -u USER --</code>. The account must exist, be authorized by sudo policy, and be able to execute that binary. Its login environment must provide the manager, native dependencies, and access to its tool installations, configuration, and caches. Fix that account’s <code>PATH</code> and permissions rather than duplicating users or adding executable overrides.</p>
           <p>stdin and stderr connect to the controlling terminal; sudo handles passwords there. Conficius never captures passwords or supplies password arguments. stdout carries bounded internal JSON only (48 KiB request, 16 MiB response); there is no silent fallback to the caller. TUI refresh stops and restarts before confirmation, then merges target-account and current-user results.</p>
-          <p class="note"><strong>APT privileges are separate.</strong> APT system changes and cache refresh require root privileges and appropriate sudo authorization; switching to an unprivileged user does not grant write access. Conficius supports APT inspection, not package upgrades: <code>run_as = 'root'</code> does not enable upgrades. Delegated APT cache refresh is blocked; use an authorized target-account terminal. Without APT delegation, Linux TUI <code>c</code> still previews the separate sudo/root cache-refresh action (<code>y</code> approves; <code>n</code>/Esc cancels). Grant only necessary sudo permissions; do not run Homebrew as root.</p>
+          <h4>APT privileges</h4>
+          <p>APT system changes and cache refresh require root privileges and appropriate sudo authorization. Switching to an unprivileged user does not grant write access. Conficius supports APT inspection, not package upgrades; <code>run_as = 'root'</code> does not enable upgrades.</p>
+          <p>Delegated APT cache refresh is blocked; use an authorized target-account terminal. Without APT delegation, Linux TUI <code>c</code> previews the separate sudo/root cache-refresh action. Press <code>y</code> to approve, or <code>n</code>/<code>Esc</code> to cancel.</p>
+          <p>Grant only necessary sudo permissions. Do not run Homebrew as root.</p>
           <p>The example leaves project mutation disabled. Set <code>allow_manifest_changes = true</code> in the matching project entry only when you intend to permit updates, then preview before using <code>--apply</code>.</p>
           <h3 id="tui-configuration-and-profiles">TUI configuration and profiles</h3>
           <pre><code><span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/.config/conficius.toml</span>
@@ -297,7 +300,7 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
           <pre><code><span class="syntax-command">conficius</span> dotfiles link
 <span class="syntax-command">conficius</span> dotfiles link zsh nvim <span class="syntax-flag">--exclude</span> nvim
 <span class="syntax-command">conficius</span> dotfiles link zsh <span class="syntax-flag">--apply</span></code></pre>
-          <p class="note">Sources must exist and resolve inside the configuration directory. Targets must remain inside the home directory, including existing parent symlinks. Duplicate targets and unsafe paths are rejected. Existing correct links are left alone; move conflicting real files yourself after backing them up. Link application revalidates state and attempts rollback on failure; inspect any reported rollback error before retrying.</p>
+          <p>Sources must exist and resolve inside the configuration directory. Targets must remain inside the home directory, including existing parent symlinks. Duplicate targets and unsafe paths are rejected. Existing correct links are left alone; move conflicting real files yourself after backing them up. Link application revalidates state and attempts rollback on failure; inspect any reported rollback error before retrying.</p>
         </section>
 
         <section id="packages" aria-labelledby="packages-title">
@@ -366,7 +369,7 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
 <span class="syntax-key">package</span> = <span class="syntax-string">"node"</span>
 <span class="syntax-key">product</span> = <span class="syntax-string">"Node"</span>
 <span class="syntax-key">vendor</span> = <span class="syntax-string">"nodejs"</span></code></pre>
-          <p class="note"><code>CONFICIUS_OSV_URL</code> and <code>CONFICIUS_EUVD_URL</code> override service endpoints. These services receive package identity and version-related queries. Use trusted endpoints; endpoint overrides are not CLI flags.</p>
+          <p><code>CONFICIUS_OSV_URL</code> and <code>CONFICIUS_EUVD_URL</code> override service endpoints. These services receive package identity and version-related queries. Use trusted endpoints; endpoint overrides are not CLI flags.</p>
         </section>
 
         <section id="updates" aria-labelledby="updates-title">
@@ -401,8 +404,10 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
             <li>A durable update log is written before execution. Failure to create it prevents updates. Commands run through the native managers; permission prompts and service impacts depend on the manager.</li>
             <li>Execution outcomes are verified against installed state and the log is finalized. Partial changes can remain after failure; review outcomes and any recovery guidance before retrying.</li>
           </ol>
-          <p class="note"><strong>Current CLI limits.</strong> Manager-version and project-mutation checks run against the initial plans, before the fresh query; the refreshed plans are not checked again by those guards. Interactive execution does not require accepted hashes or another confirmation for refreshed plans. An initial query error can still allow successfully queried plans to run and then be returned after execution. Preview output is not a frozen execution contract.</p>
-          <p class="note"><strong>No universal rollback.</strong> Native package updates can alter manifests, lockfiles, installed binaries, and services. Keep recoverable configuration and project backups. A dry run avoids executing update commands, but it can still query registries and run manager inspection commands.</p>
+          <h4>Current CLI limits</h4>
+          <p> Manager-version and project-mutation checks run against the initial plans, before the fresh query; the refreshed plans are not checked again by those guards. Interactive execution does not require accepted hashes or another confirmation for refreshed plans. An initial query error can still allow successfully queried plans to run and then be returned after execution. Preview output is not a frozen execution contract.</p>
+          <h4>No universal rollback</h4>
+          <p> Native package updates can alter manifests, lockfiles, installed binaries, and services. Keep recoverable configuration and project backups. A dry run avoids executing update commands, but it can still query registries and run manager inspection commands.</p>
         </section>
 
         <section id="logs" aria-labelledby="logs-title">
@@ -451,7 +456,7 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
             <li><strong>Yarn 4:</strong> project inventory and registry latest-tag checks; selected upgrades use <code>yarn up</code> and may cross declared ranges. Workspace outdated/update operations are rejected; local and alias resolutions are skipped. <strong>Bun:</strong> project inventory and actionable range-compatible outdated checks; selected updates use <code>bun update</code>, without <code>--latest</code>. Packages already at their range-compatible target are omitted. Bun and Yarn updates require manifest-change permission and project Git safeguards. Neither supports global operations.</li>
             <li><strong>Go:</strong> journal-backed global tool inventory, outdated checks, and updates remain unchanged; ownership records are managed through <a href="#logs"><code>packages go-tools import</code></a>. Project and workspace module inventory and outdated checks require <code>go.mod</code>; CLI and TUI project updates batch selected modules using pinned <code>go get module@version ...</code> in the project directory. Configure <code>allow_manifest_changes = true</code> and satisfy Git safety checks. Native Go may change <code>go.mod</code>, <code>go.sum</code>, transitive dependencies and Go/toolchain requirements while retaining existing tool directives. Review the diff and run project tests. Both manifests are hashed to reject stale plans. Project updates never write the global tool journal and have no automatic rollback or recovery command; keep Git history or backups.</li>
           </ul>
-          <p class="small">Declared project files do not all trigger automatic working-directory scope discovery; see <a href="#packages">scope defaults</a>. Tested ranges are adapter guards, not a promise that every release or OS combination was tested. Availability depends on the host, installed executable, and manager setup. Use <code>packages pms --json</code> for runtime status and <code>packages doctor</code> for integrity checks.</p>
+          <p>Declared project files do not all trigger automatic working-directory scope discovery; see <a href="#packages">scope defaults</a>. Tested ranges are adapter guards, not a promise that every release or OS combination was tested. Availability depends on the host, installed executable, and manager setup. Use <code>packages pms --json</code> for runtime status and <code>packages doctor</code> for integrity checks.</p>
         </section>
       </main>
     </div>
