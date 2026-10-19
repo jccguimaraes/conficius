@@ -41,7 +41,7 @@ Package settings are independent: `$XDG_CONFIG_HOME/conficius/config.toml` (defa
 `CONFICIUS_DOTFILES_CONFIG` and `CONFICIUS_PACKAGES_CONFIG` hold paths to the dotfiles and package config files respectively, not TOML contents or directory paths. Both CLI and TUI use them. Explicit config flags take precedence over environment variables, which take precedence over discovery. Empty environment variables keep normal discovery; missing or invalid files selected by these variables return errors. `init` and `config layout` do not use these variables.
 
 ```sh
-export CONFICIUS_DOTFILES_CONFIG="$HOME/dotfiles/conficius.toml"
+export CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"
 export CONFICIUS_PACKAGES_CONFIG="$HOME/dotfiles/.config/conficius/config.toml"
 ```
 

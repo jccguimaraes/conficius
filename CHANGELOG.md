@@ -10,6 +10,25 @@ An atempt to be a modern alternative to the fantastic [GNU Stow](https://www.gnu
 
 ## [unreleased]
 
+## [0.0.5]
+
+CLI `0.0.5` and TUI `2026.10.5` share this release.
+
+### Features
+
+- Inspect and update Bun and Yarn project dependencies through their native package managers.
+- Add guarded Cargo global and standalone-project updates, with stale-state checks and post-update verification.
+- Select independent dotfiles and package config files through `CONFICIUS_DOTFILES_CONFIG` and `CONFICIUS_PACKAGES_CONFIG` in both CLI and TUI.
+
+### Fixes
+
+- Resolve Cargo lint failures involving unchecked return values and error strings.
+- Restore command heading appearance on the website.
+
+### Documentation
+
+- Document config environment variables, file-path examples, precedence, and error behavior in the README and website.
+
 ## [0.0.4]
 
 ### Features
