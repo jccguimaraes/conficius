@@ -7,7 +7,7 @@
     .theme-control svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
     * { box-sizing: border-box; }
     html { font-size: 20px; scroll-padding-top: 1rem; }
-    body { margin: 0; background: var(--paper); color: var(--ink); font: 1.05rem/1.75 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
+    body { margin: 0; background: var(--paper); color: var(--muted); font: .9rem/1.75 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
     ::selection { background: var(--ink); color: var(--paper); }
     a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: .22em; }
     a:hover { color: var(--accent); }
@@ -29,6 +29,7 @@
     .intro { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 3rem; padding: 3.5rem 0; }
     .intro-copy { min-width: 0; }
     .label { margin: 0 0 1rem; color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+    h1, h2, h3, h4, h5, h6 { color: var(--ink); }
     h1 { margin: 0 0 1.5rem -.06em; font-size: clamp(2.6rem, 6.8vw, 5.4rem); line-height: 1; font-weight: 500; letter-spacing: -.08em; }
     .intro .description { max-width: 36rem; margin-bottom: 1.5rem; font: 1.35rem/1.55 "Avenir Next", Avenir, "Segoe UI", sans-serif; }
     .stamp { display: inline-block; color: var(--accent); font-size: .68rem; letter-spacing: .08em; }
