@@ -55,7 +55,7 @@
                     <li><a href="#config-layout">config layout</a></li>
                     <li><a href="#config-migrate">config migrate</a></li>
                     <li><a href="#minimal-link-configuration">Minimal link configuration</a></li>
-                    <li><a href="#self-managed-config">Manage Conficius from your dotfiles repository</a></li>
+                    <li><a href="#self-managed-config">Config file locations</a></li>
                     <li><a href="#package-config-fields">Package config fields</a></li>
                     <li><a href="#tui-configuration-and-profiles">TUI configuration and profiles</a></li>
                   </ul>
@@ -215,22 +215,15 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
           <p>With <code>ZDOTDIR</code> set, Zsh reads <code>.zprofile</code> from <code>$ZDOTDIR</code>; source <code>~/.zprofile</code> there if keeping the separate home file.</p>
           <p>Targets expand <code>$VAR</code> and <code>${VAR}</code>; standard HOME and XDG variables have defaults. Omit <code>platforms</code>, or use an empty list, to enable a link on every platform. Values such as <code>linux</code>, <code>darwin</code>, and <code>windows</code> use Go OS names.</p>
           <p class="note"><strong>Directory links are live directories, not copies.</strong> If an application writes caches, sessions, sockets, credentials, or other runtime files inside a linked directory, it writes into your repository. Add suitable repository <code>.gitignore</code> rules before use, or link only the configuration files and keep runtime state outside the repository. Gitignore does not prevent writes, protect secrets, or remove files already tracked by Git.</p>
-          <h3 id="self-managed-config">Manage Conficius from your dotfiles repository</h3>
-          <p>This macOS example keeps Conficius's own package config in <code>~/.config/dotfiles</code> and links its directory into <code>~/.config</code>. macOS uses the Go platform name <code>darwin</code>; the package config still uses the supported <code>xdg</code> layout, not <code>os-native</code>.</p>
+          <h3 id="self-managed-config">Config file locations</h3>
+          <p>Use separate files for dotfile links and Conficius’s package settings:</p>
           <pre><code>~/.config/
 ├── conficius.toml
-└── dotfiles/
-    └── conficius/
-        └── config.toml</code></pre>
-          <p>Create the source directory and files first. Replace <code>/path/project-x</code> and <code>/path/project-y</code> with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or <code>sudo</code> are needed for these user-owned config files and links.</p>
-          <p>Save this complete link config as <code>~/.config/conficius.toml</code>:</p>
-          <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
-
-<span class="syntax-section">[[tools.conficius.links]]</span>
-<span class="syntax-key">source</span> = <span class="syntax-string">"dotfiles/conficius"</span>
-<span class="syntax-key">target</span> = <span class="syntax-string">"$HOME/.config/conficius"</span>
-<span class="syntax-key">platforms</span> = [<span class="syntax-string">"darwin"</span>]</code></pre>
-          <p>The active package config is <code>~/.config/conficius/config.toml</code>, inside <code>~/.config/conficius</code>. For this optional symlink setup, save its source as <code>~/.config/dotfiles/conficius/config.toml</code>:</p>
+└── conficius/
+    └── config.toml</code></pre>
+          <p>Set <code>CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"</code> to select the dotfiles file at this location; it is not the default dotfiles discovery path. Package discovery uses <code>~/.config/conficius/config.toml</code> when <code>XDG_CONFIG_HOME</code> is unset. These files do not need to be linked to each other.</p>
+          <p>Save dotfile link definitions, such as the Zsh example above, in <code>~/.config/conficius.toml</code>. Relative sources resolve from that file’s directory and must remain inside it.</p>
+          <p>Save this package config directly as <code>~/.config/conficius/config.toml</code>. Replace <code>/path/project-x</code> and <code>/path/project-y</code> with existing project directories before using their scopes:</p>
           <pre><code><span class="syntax-key">version</span> = <span class="syntax-value">2</span>
 <span class="syntax-key">layout</span> = <span class="syntax-string">"xdg"</span>
 <span class="syntax-key">profile</span> = <span class="syntax-string">"default"</span>
@@ -242,14 +235,8 @@ export CONFICIUS_PACKAGES_CONFIG=<span class="syntax-string">"$HOME/.config/conf
 <span class="syntax-section">[[profiles.work.projects]]</span>
 <span class="syntax-key">name</span> = <span class="syntax-string">"project-y"</span>
 <span class="syntax-key">path</span> = <span class="syntax-string">"/path/project-y"</span></code></pre>
-          <p>If <code>~/.config/conficius</code> already exists as a regular directory, linking will not overwrite or merge it, even with <code>--force</code>. Back it up, copy any settings you need into the repository source, then manually relocate the existing directory outside the target path before applying. Preserve the backup until you verify the new setup. Other conflicting real files or unrelated symlinks also require manual resolution.</p>
-          <p>Preview first, inspect the target, then apply:</p>
-          <pre><code><span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/.config/conficius.toml</span> dotfiles link conficius
-<span class="syntax-command">conficius</span> <span class="syntax-flag">--config</span> <span class="syntax-string">~/.config/conficius.toml</span> dotfiles link conficius <span class="syntax-flag">--apply</span></code></pre>
-          <p>Add <code>"linux"</code> to <code>platforms</code> to use this link on Linux too; omit <code>platforms</code> to allow every platform. The target above is fixed at <code>~/.config/conficius</code> and ignores a custom <code>XDG_CONFIG_HOME</code>. For that setup, use <code>target = "${XDG_CONFIG_HOME}/conficius"</code> instead; the resolved target must remain inside your home directory.</p>
-          <p>After linking, edit <code>~/.config/dotfiles/conficius/config.toml</code>; reads through the central path see the same file. In TUI package views, <code>r</code> reloads settings and project scopes. Press <code>p</code>, then <code>Enter</code>, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: <code>default</code> adds <code>project-x</code>, while <code>work</code> adds <code>project-y</code>. Profiles are independent; <code>work</code> does not inherit <code>default</code> projects or manager settings.</p>
-          <p>Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; <code>.gitignore</code> does not protect secrets or remove already tracked files.</p>
-          <p>Repository linking and <code>config layout</code> migration are separate workflows. Choose repository linking for this self-managed setup; changing <code>layout</code> does not move files automatically. Layout relocation requires a regular source config file and refuses a symlink source. A directory symlink does not itself make the contained <code>config.toml</code> a symlink; do not treat migration as a way to manage or relocate repository links.</p>
+          <p>Edit <code>~/.config/conficius/config.toml</code> to change package settings. In TUI package views, <code>r</code> reloads settings and project scopes. Press <code>p</code>, then <code>Enter</code>, to switch profiles for the session without changing the file. Profiles are independent; <code>work</code> does not inherit <code>default</code> projects or manager settings.</p>
+          <p>Project paths are machine-local and may need adjustment on another machine. Do not commit secrets.</p>
           <h3 id="package-config-fields">Package config fields</h3>
           <dl>
             <dt><code>version</code></dt><dd>Required: <code>2</code>. Package config schema version.</dd>

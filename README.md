@@ -187,32 +187,22 @@ Vulnerability checks query OSV with exact installed versions. Global and project
 
 Both files require TOML schema `version = 2`, but serve separate purposes: repository `conficius.toml` defines dotfile links; central `config.toml` defines package profiles, layout, and optional vulnerability mappings.
 
-### Manage Conficius from your dotfiles repository
+### Config file locations
 
-This macOS example keeps Conficius's own package config in `~/.config/dotfiles` and links its directory into `~/.config`. macOS uses the Go platform name `darwin`; the package config still uses the supported `xdg` layout, not `os-native`.
+Use separate files for dotfile links and Conficius’s package settings:
 
 ```text
 ~/.config/
 ├── conficius.toml
-└── dotfiles/
-    └── conficius/
-        └── config.toml
+└── conficius/
+    └── config.toml
 ```
 
-Create the source directory and files first. Replace `/path/project-x` and `/path/project-y` with your existing project directories, or create those directories before using their scopes. They are placeholders, not paths to create at the filesystem root. No root privileges or `sudo` are needed for these user-owned config files and links.
+Set `CONFICIUS_DOTFILES_CONFIG="$HOME/.config/conficius.toml"` to select the dotfiles file at this location; it is not the default dotfiles discovery path. Package discovery uses `~/.config/conficius/config.toml` when `XDG_CONFIG_HOME` is unset. These files do not need to be linked to each other.
 
-Save this complete link config as `~/.config/conficius.toml`:
+Save dotfile link definitions, such as the Zsh example above, in `~/.config/conficius.toml`. Relative sources resolve from that file’s directory and must remain inside it.
 
-```toml
-version = 2
-
-[[tools.conficius.links]]
-source = "dotfiles/conficius"
-target = "$HOME/.config/conficius"
-platforms = ["darwin"]
-```
-
-The active package config is `~/.config/conficius/config.toml`, inside `~/.config/conficius`. For this optional symlink setup, save its source as `~/.config/dotfiles/conficius/config.toml`:
+Save this package config directly as `~/.config/conficius/config.toml`. Replace `/path/project-x` and `/path/project-y` with existing project directories before using their scopes:
 
 ```toml
 version = 2
@@ -228,22 +218,9 @@ name = "project-y"
 path = "/path/project-y"
 ```
 
-If `~/.config/conficius` already exists as a regular directory, linking will not overwrite or merge it, even with `--force`. Back it up, copy any settings you need into the repository source, then manually relocate the existing directory outside the target path before applying. Preserve the backup until you verify the new setup. Other conflicting real files or unrelated symlinks also require manual resolution.
+Edit `~/.config/conficius/config.toml` to change package settings. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
 
-Preview first, inspect the target, then apply:
-
-```sh
-conficius --config ~/.config/conficius.toml dotfiles link conficius
-conficius --config ~/.config/conficius.toml dotfiles link conficius --apply
-```
-
-Add `"linux"` to `platforms` to use this link on Linux too; omit `platforms` to allow every platform. The target above is fixed at `~/.config/conficius` and ignores a custom `XDG_CONFIG_HOME`. For that setup, use `target = "${XDG_CONFIG_HOME}/conficius"` instead; the resolved target must remain inside your home directory.
-
-After linking, edit `~/.config/dotfiles/conficius/config.toml`; reads through the central path see the same file. In TUI package views, `r` reloads settings and project scopes. Press `p`, then `Enter`, to switch profiles for the session without changing the file. The selected profile supplies its projects alongside default/global package scopes: `default` adds `project-x`, while `work` adds `project-y`. Profiles are independent; `work` does not inherit `default` projects or manager settings.
-
-Version control the repository files deliberately: project paths are machine-local and may need adjustment on another machine. Do not commit secrets. Directory links are live, so runtime writes also land in the repository; `.gitignore` does not protect secrets or remove already tracked files.
-
-Repository linking and `config layout` migration are separate workflows. Choose repository linking for this self-managed setup; changing `layout` does not move files automatically. Layout relocation requires a regular source config file and refuses a symlink source. A directory symlink does not itself make the contained `config.toml` a symlink; do not treat migration as a way to manage or relocate repository links.
+Project paths are machine-local and may need adjustment on another machine. Do not commit secrets.
 
 ### Package config fields
 
