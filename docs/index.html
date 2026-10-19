@@ -118,7 +118,12 @@
         <section id="install" class="overview" aria-labelledby="install-title">
           <div class="section-head"><span>04 / START HERE</span><h2 id="install-title">Pick your<br>terminal.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">備</span></div>
           <p><code>conficius</code> for commands. <code>conficius-tui</code> for a keyboard-driven interface. Install either or both on macOS or Linux.</p>
+          <h3>Homebrew (macOS)</h3>
+          <pre><code><span class="syntax-command">brew</span> install <span class="syntax-flag">--cask</span> jccguimaraes/tap/conficius
+<span class="syntax-command">brew</span> install <span class="syntax-flag">--cask</span> jccguimaraes/tap/conficius-tui</code></pre>
+          <h3>Release binaries (macOS and Linux)</h3>
           <p>Download your platform’s archive from <a href="https://github.com/jccguimaraes/conficius/releases">GitHub releases</a>, verify its checksum, and put the extracted binary on your <code>PATH</code>.</p>
+          <p>macOS binaries are not signed or notarized by Apple and may be blocked by Gatekeeper. Install only if you trust the release artifacts; no automatic Gatekeeper bypass is included.</p>
           <p class="small">Early beta. Your package managers must already be installed.</p>
           <a class="reading-link" href="cli.html#overview">Installation and first run</a>
         </section>

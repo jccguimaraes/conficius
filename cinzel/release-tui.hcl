@@ -223,4 +223,9 @@ step "publish_with_goreleaser_2" {
     name  = "GITHUB_TOKEN"
     value = "$${{ secrets.GITHUB_TOKEN }}"
   }
+
+  env {
+    name  = "HOMEBREW_TAP_TOKEN"
+    value = "$${{ secrets.HOMEBREW_TAP_TOKEN }}"
+  }
 }

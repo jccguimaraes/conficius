@@ -54,6 +54,33 @@ mkdir -p ./bin
 go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-tui ./cmd/tui
 """
 
+[tasks.release-check]
+run = "goreleaser check && goreleaser check --config .goreleaser-tui.yaml"
+
+[tasks.release-snapshot-cli]
+env.CONFICIUS_VERSION = "dev"
+run = "goreleaser release --snapshot --clean"
+
+[tasks.release-snapshot-tui]
+env.CONFICIUS_VERSION = "dev"
+run = "goreleaser release --snapshot --clean --config .goreleaser-tui.yaml"
+
+[tasks.release-cli]
+run = '''
+set -eu
+: "${TAG:?Set TAG=cli-vX.Y.Z}"
+case "$TAG" in cli-v*) ;; *) printf '%s\n' 'Expected CLI tag cli-vX.Y.Z' >&2; exit 1 ;; esac
+gh workflow run release-cli.yml --ref "$TAG" -f confirm=publish
+'''
+
+[tasks.release-tui]
+run = '''
+set -eu
+: "${TAG:?Set TAG=tui-vYYYY.MM.revision}"
+case "$TAG" in tui-v*) ;; *) printf '%s\n' 'Expected TUI tag tui-vYYYY.MM.revision' >&2; exit 1 ;; esac
+gh workflow run release-tui.yml --ref "$TAG" -f confirm=publish
+'''
+
 [tasks.changelog]
 run = "git cliff --offline --output CHANGELOG.md"
 
