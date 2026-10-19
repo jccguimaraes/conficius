@@ -38,6 +38,15 @@ With mise installed, `mise install` installs the pinned development tools. `mise
 
 Package settings are independent: `$XDG_CONFIG_HOME/conficius/config.toml` (default: `~/.config/conficius/config.toml`) or, on macOS, `~/Library/Application Support/conficius/config.toml`. Discovery fails if both package locations exist. Missing package config uses defaults; package commands never read repository `conficius.toml`.
 
+`CONFICIUS_DOTFILES_CONFIG` and `CONFICIUS_PACKAGES_CONFIG` hold paths to the dotfiles and package config files respectively, not TOML contents or directory paths. Both CLI and TUI use them. Explicit config flags take precedence over environment variables, which take precedence over discovery. Empty environment variables keep normal discovery; missing or invalid files selected by these variables return errors. `init` and `config layout` do not use these variables.
+
+```sh
+export CONFICIUS_DOTFILES_CONFIG="$HOME/dotfiles/conficius.toml"
+export CONFICIUS_PACKAGES_CONFIG="$HOME/dotfiles/.config/conficius/config.toml"
+```
+
+The file selected by `CONFICIUS_PACKAGES_CONFIG` configures Conficius itself: package profiles, manager settings, layout, and optional vulnerability mappings. A minimal file contains only `version = 2`. Dotfile links belong in the separate file selected by `CONFICIUS_DOTFILES_CONFIG`. Create both files before using these exports.
+
 CLI `--config FILE` is command-specific: dotfiles commands, `init`, and `config migrate` use a dotfiles config; package inspection/update commands and `config resolve` use a package config. Put the flag before the command. `config layout` rejects it and works only with the central package locations:
 
 ```sh

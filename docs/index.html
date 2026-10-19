@@ -126,6 +126,7 @@
           <div class="section-head"><span>05 / DOCUMENTATION</span><h2 id="documentation-title">The details,<br>when needed.</h2></div>
           <p>Independent dotfiles and package config, practical profiles, CLI and TUI examples, supported managers, and update safeguards with their current limits.</p>
           <p class="small">Package config defaults to <code>$XDG_CONFIG_HOME/conficius/config.toml</code> (<code>~/.config/conficius/config.toml</code> when unset). macOS also supports <code>~/Library/Application Support/conficius/config.toml</code>; having both is a conflict. Use <code>conficius config layout --xdg</code> or <code>--os-native</code> to preview relocation, then <code>--apply</code> to write it with the old config retained as a backup.</p>
+          <p class="small">Set <code>CONFICIUS_DOTFILES_CONFIG</code> to your dotfiles TOML file path and <code>CONFICIUS_PACKAGES_CONFIG</code> to Conficius’s own package config file path, not the file contents. Both CLI and TUI use these variables; explicit config flags override them. See <a href="cli.html#config-environment">config environment variables</a> for examples and precedence.</p>
           <a class="reading-link" href="cli.html">Read the CLI documentation</a>
         </section>
       </main>

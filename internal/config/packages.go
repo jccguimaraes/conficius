@@ -93,6 +93,9 @@ func discoverPackages(xdg, native string) (string, error) {
 func LoadPackages(explicit string) (*Project, error) {
 	path := explicit
 	if path == "" {
+		path = os.Getenv("CONFICIUS_PACKAGES_CONFIG")
+	}
+	if path == "" {
 		xdg, native, err := currentPackageLocations()
 		if err != nil {
 			return nil, err
