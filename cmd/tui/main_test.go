@@ -579,8 +579,8 @@ func TestRunAsRefreshStopsBeforeWorkers(t *testing.T) {
 	}
 }
 func TestRunAsPreviewShowsIdentity(t *testing.T) {
-	preview := formatPlan(packagemanager.UpdatePlan{RunAs: "builder", Executable: "/target/npm", Args: []string{"update", "-g"}})
-	if !strings.Contains(preview, "run_as=builder") {
+	preview := formatPlan(packagemanager.UpdatePlan{RunAs: "builder", RunAsMethod: "su", Executable: "/target/npm", Args: []string{"update", "-g"}})
+	if !strings.Contains(preview, "run_as=builder") || !strings.Contains(preview, "method=su") {
 		t.Fatal(preview)
 	}
 }
