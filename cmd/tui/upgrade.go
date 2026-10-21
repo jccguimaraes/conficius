@@ -180,7 +180,11 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 	}
 	line := strings.Join(command, " ")
 	if plan.RunAs != "" {
-		line = "[run_as=" + plan.RunAs + "] " + line
+		method := plan.RunAsMethod
+		if method == "" {
+			method = "sudo"
+		}
+		line = "[run_as=" + plan.RunAs + " method=" + method + "] " + line
 	}
 	if plan.Directory != "" {
 		line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)

@@ -530,11 +530,11 @@ func TestPrintVulnerabilityFindingsShowsFirstRuleAndRemainingCount(t *testing.T)
 
 func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
 	var output bytes.Buffer
-	plans := []packagemanager.UpdatePlan{{Executable: "/bin/npm", Args: []string{"update"}, Confidence: packagemanager.PlanConfidenceEstimated, StateHash: "abc123", Impact: packagemanager.MutationImpact{MayRestartServices: true}, Recovery: []packagemanager.RecoveryCommand{{Executable: "/bin/npm", Args: []string{"install", "typescript@5.0"}}}}}
+	plans := []packagemanager.UpdatePlan{{RunAs: "builder", RunAsMethod: "su", Executable: "/bin/npm", Args: []string{"update"}, Confidence: packagemanager.PlanConfidenceEstimated, StateHash: "abc123", Impact: packagemanager.MutationImpact{MayRestartServices: true}, Recovery: []packagemanager.RecoveryCommand{{Executable: "/bin/npm", Args: []string{"install", "typescript@5.0"}}}}}
 	if err := printUpdatePlans(&output, plans, true); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "Confidence: estimated Plan: abc123") || !strings.Contains(output.String(), "restart-services=true") || !strings.Contains(output.String(), `Recovery: "/bin/npm" "install" "typescript@5.0"`) {
+	if !strings.Contains(output.String(), "Run as: builder (su login environment)") || !strings.Contains(output.String(), "Confidence: estimated Plan: abc123") || !strings.Contains(output.String(), "restart-services=true") || !strings.Contains(output.String(), `Recovery: "/bin/npm" "install" "typescript@5.0"`) {
 		t.Fatalf("output = %q", output.String())
 	}
 }

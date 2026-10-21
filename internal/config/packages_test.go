@@ -492,6 +492,47 @@ func TestProfilesRejectRemovedFields(t *testing.T) {
 	}
 }
 
+func TestPackageRunAsMethodConfiguration(t *testing.T) {
+	packageTestHome(t)
+	for _, test := range []struct {
+		name    string
+		fields  string
+		method  string
+		wantErr string
+	}{
+		{name: "omitted"},
+		{name: "default", fields: "run_as = 'builder'\n"},
+		{name: "empty", fields: "run_as_method = ''\n"},
+		{name: "sudo", fields: "run_as = 'builder'\nrun_as_method = 'sudo'\n", method: "sudo"},
+		{name: "su", fields: "run_as = 'builder'\nrun_as_method = 'su'\n", method: "su"},
+		{name: "unknown", fields: "run_as = 'builder'\nrun_as_method = 'doas'\n", wantErr: "invalid run_as_method"},
+		{name: "sudo without target", fields: "run_as_method = 'sudo'\n", wantErr: "run_as_method requires run_as"},
+		{name: "su without target", fields: "run_as_method = 'su'\n", wantErr: "run_as_method requires run_as"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writePackageTest(t, path, "version = 2\n[profiles.work.managers.brew]\n"+test.fields)
+			for _, load := range []func(string) (*Project, error){Load, LoadPackages} {
+				project, err := load(path)
+				if err == nil {
+					var profile ResolvedProfile
+					profile, err = project.ResolveProfile("work", false)
+					if err == nil && profile.Profile.Managers["brew"].RunAsMethod != test.method {
+						t.Fatalf("run_as_method = %q, want %q", profile.Profile.Managers["brew"].RunAsMethod, test.method)
+					}
+				}
+				if test.wantErr != "" {
+					if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+						t.Fatalf("want error containing %q, got %v", test.wantErr, err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestPackageRunAsConfiguration(t *testing.T) {
 	packageTestHome(t)
 	path := filepath.Join(t.TempDir(), "config.toml")

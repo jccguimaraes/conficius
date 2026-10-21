@@ -72,6 +72,7 @@ type ManagerEvidence struct {
 
 type ManagerStatus struct {
 	RunAs          string            `json:"run_as,omitempty"`
+	RunAsMethod    string            `json:"run_as_method,omitempty"`
 	Name           string            `json:"name"`
 	Status         string            `json:"status"`
 	Evidence       ManagerEvidence   `json:"evidence"`
@@ -124,6 +125,7 @@ type ManagerOptions struct {
 
 type QueryOptions struct {
 	RunAs             map[string]string
+	RunAsMethod       map[string]string
 	Managers          map[string]ManagerOptions
 	Executables       map[string]string
 	GlobalConfig      map[string]bool
@@ -147,6 +149,12 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 				options.RunAs = make(map[string]string)
 			}
 			options.RunAs[manager] = settings.RunAs
+			if settings.RunAsMethod != "" {
+				if options.RunAsMethod == nil {
+					options.RunAsMethod = make(map[string]string)
+				}
+				options.RunAsMethod[manager] = settings.RunAsMethod
+			}
 		}
 		if settings.Enabled != nil {
 			if *settings.Enabled {
@@ -166,6 +174,7 @@ type QueryResult struct {
 
 type Package struct {
 	RunAs           string      `json:"run_as,omitempty"`
+	RunAsMethod     string      `json:"run_as_method,omitempty"`
 	Manager         string      `json:"manager"`
 	Name            string      `json:"name"`
 	Current         string      `json:"current"`
@@ -194,17 +203,18 @@ type RecoveryCommand struct {
 }
 
 type UpdatePlan struct {
-	RunAs      string            `json:"run_as,omitempty"`
-	Manager    string            `json:"manager"`
-	Executable string            `json:"executable"`
-	Directory  string            `json:"directory,omitempty"`
-	Scope      string            `json:"scope"`
-	Confidence PlanConfidence    `json:"confidence"`
-	StateHash  string            `json:"state_hash"`
-	Impact     MutationImpact    `json:"impact"`
-	Args       []string          `json:"args"`
-	Recovery   []RecoveryCommand `json:"recovery,omitempty"`
-	Packages   []Package         `json:"packages"`
+	RunAs       string            `json:"run_as,omitempty"`
+	RunAsMethod string            `json:"run_as_method,omitempty"`
+	Manager     string            `json:"manager"`
+	Executable  string            `json:"executable"`
+	Directory   string            `json:"directory,omitempty"`
+	Scope       string            `json:"scope"`
+	Confidence  PlanConfidence    `json:"confidence"`
+	StateHash   string            `json:"state_hash"`
+	Impact      MutationImpact    `json:"impact"`
+	Args        []string          `json:"args"`
+	Recovery    []RecoveryCommand `json:"recovery,omitempty"`
+	Packages    []Package         `json:"packages"`
 }
 
 var commandContext = exec.CommandContext
@@ -818,7 +828,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		}
 		plan := plansByKey[key]
 		if plan == nil {
-			plan = &UpdatePlan{RunAs: record.RunAs, Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
+			plan = &UpdatePlan{RunAs: record.RunAs, RunAsMethod: record.RunAsMethod, Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
 			plansByKey[key] = plan
 			keys = append(keys, key)
 		}
@@ -864,7 +874,7 @@ func updatePlanHash(plan UpdatePlan) string {
 		_, _ = hash.Write([]byte(value))
 		_, _ = hash.Write([]byte{0})
 	}
-	for _, value := range []string{plan.RunAs, plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
+	for _, value := range []string{plan.RunAs, plan.RunAsMethod, plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
 		strconv.FormatBool(plan.Impact.MayChangeManifests), strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
 		writeHashValue(value)
 	}
@@ -1074,7 +1084,7 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			break
 		}
 		if plan.RunAs != "" {
-			response, err := callManagerWorker(ctx, workerRequest{Operation: "apply", Manager: plan.Manager, User: plan.RunAs, Plan: &plan})
+			response, err := callManagerWorker(ctx, workerRequest{Operation: "apply", Manager: plan.Manager, User: plan.RunAs, Method: plan.RunAsMethod, Plan: &plan})
 			outcomes = append(outcomes, response.Outcomes...)
 			if err != nil && len(response.Outcomes) == 0 {
 				outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(err.Error())})
