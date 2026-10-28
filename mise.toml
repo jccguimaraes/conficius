@@ -88,7 +88,7 @@ run = "git cliff --offline --output CHANGELOG.md"
 run = "mkdir -p ./coverage"
 
 [tasks.test-ci]
-run = "go test -race ./... --cover"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test -race ./... --cover"
 
 [tasks.smoke]
 depends = ["build-cli"]
@@ -96,7 +96,7 @@ run = "./bin/conficius --help >/dev/null && ./bin/conficius packages pms --json 
 
 [tasks.test]
 depends = ["coverpath"]
-run = "go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
 
 [tasks.report]
 depends = ["test"]
