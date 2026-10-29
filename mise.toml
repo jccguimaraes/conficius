@@ -1,10 +1,11 @@
 [tools]
 actionlint = "1.7.12"
+cinzel = "1.3.2"
 ghalint = "1.5.6"
 git-cliff = "2.14.2"
 go = "1.27.2"
 golangci-lint = "2.14.0"
-goreleaser = "2.18.3"
+goreleaser = "2.19.0"
 
 [env]
 COVERAGE_PATH="./coverage"
@@ -88,7 +89,7 @@ run = "git cliff --offline --output CHANGELOG.md"
 run = "mkdir -p ./coverage"
 
 [tasks.test-ci]
-run = "go test -race ./... --cover"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test -race ./... --cover"
 
 [tasks.smoke]
 depends = ["build-cli"]
@@ -96,7 +97,7 @@ run = "./bin/conficius --help >/dev/null && ./bin/conficius packages pms --json 
 
 [tasks.test]
 depends = ["coverpath"]
-run = "go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
 
 [tasks.report]
 depends = ["test"]
