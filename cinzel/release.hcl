@@ -53,7 +53,7 @@ job "verify" {
   }
 
   output {
-    name = "version"
+    name  = "version"
     value = "$${{ steps.validate.outputs.version }}"
   }
 
@@ -89,7 +89,7 @@ step "tools" {
 
   uses {
     action  = "jdx/mise-action"
-    version = "08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8"
+    version = "6be3c7ed4c21d4f76b208d351d95aac273ebb76d" # v5.2.4
   }
 
   with {
@@ -136,7 +136,7 @@ EOF
     value = "$${{ github.sha }}"
   }
   env {
-    name = "SELECTION"
+    name  = "SELECTION"
     value = "$${{ inputs.version && 'manual override' || 'automatic' }}"
   }
 }
@@ -185,7 +185,7 @@ step "snapshot" {
 }
 
 job "publish" {
-  name = "Publish $${{ inputs.product == 'cli' && 'CLI' || 'TUI' }} $${{ needs.verify.outputs.version }}"
+  name       = "Publish $${{ inputs.product == 'cli' && 'CLI' || 'TUI' }} $${{ needs.verify.outputs.version }}"
   depends_on = [job.verify]
 
   runs_on { runners = "ubuntu-latest" }
@@ -273,9 +273,9 @@ EOF
 
 step "summary" {
   ignore_id = true
-  name = "Release summary and changelog"
-  if = "always()"
-  run = <<-EOF
+  name      = "Release summary and changelog"
+  if        = "always()"
+  run       = <<-EOF
 {
   printf '## Release %s %s\n\n' "$PRODUCT" "$VERSION"
   printf -- '- Status: **%s**\n- Tag: %s\n- Commit: %s\n' "$STATUS" "$TAG" "$SHA"
@@ -290,31 +290,31 @@ step "summary" {
 } >> "$GITHUB_STEP_SUMMARY"
 EOF
   env {
-    name = "PRODUCT"
+    name  = "PRODUCT"
     value = "$${{ inputs.product == 'cli' && 'CLI' || 'TUI' }}"
   }
   env {
-    name = "VERSION"
+    name  = "VERSION"
     value = "$${{ needs.verify.outputs.version }}"
   }
   env {
-    name = "TAG"
+    name  = "TAG"
     value = "$${{ needs.verify.outputs.tag }}"
   }
   env {
-    name = "SHA"
+    name  = "SHA"
     value = "$${{ github.sha }}"
   }
   env {
-    name = "STATUS"
+    name  = "STATUS"
     value = "$${{ job.status }}"
   }
   env {
-    name = "SERVER"
+    name  = "SERVER"
     value = "$${{ github.server_url }}"
   }
   env {
-    name = "REPOSITORY"
+    name  = "REPOSITORY"
     value = "$${{ github.repository }}"
   }
 }
