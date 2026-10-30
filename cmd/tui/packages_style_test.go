@@ -338,8 +338,8 @@ func TestOutdatedWideColumnsStayCompact(t *testing.T) {
 	data.rows[0].Error = strings.Repeat("error ", 16)
 	buffer := glyph.NewBuffer(200, 30)
 	template.Execute(buffer, 200, 30)
-	if !strings.Contains(homeRenderOutput(buffer, 30), data.rows[0].Error) {
-		t.Fatal("error column did not receive remaining width")
+	if !strings.Contains(homeRenderOutput(buffer, 30), strings.TrimRight(data.rows[0].Error, " ")) {
+		t.Fatalf("error column did not receive remaining width:\n%s", homeRenderOutput(buffer, 30))
 	}
 	data.rows[0].Failed = true
 	data.rows[0].Error = ""
@@ -390,7 +390,7 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 				}
 			}
 			if width >= 120 {
-				columns := packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0]))
+				columns := packageColumns("vulnerability", width-2, vulnerabilityColumns(&data.findings[0]))
 				x = 3
 				for k := 0; k < j; k++ {
 					x += columns[k].width + 1
@@ -414,7 +414,7 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 			}
 		}
 		if width >= 140 {
-			for j, column := range packageColumns("vulnerability", width, vulnerabilityColumns(&data.findings[0])) {
+			for j, column := range packageColumns("vulnerability", width-2, vulnerabilityColumns(&data.findings[0])) {
 				if column.width != []int{22, 12, 6, 14, 14, 6, 24, 5, 12, 13}[j] {
 					t.Fatalf("%dx30 column %s stretched to %d", width, column.heading, column.width)
 				}

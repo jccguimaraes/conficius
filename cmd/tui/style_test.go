@@ -9,6 +9,34 @@ import (
 	"github.com/kungfusheep/riffkey"
 )
 
+func TestHelpTextViewStylesKeysAcrossResize(t *testing.T) {
+	text := "results · Profile: test\n\n↑/↓ or j/k move\nEnter choose profile\nn / Esc cancel\nq / Ctrl-C quit\nEsc return without changing selection"
+	viewer := helpTextView(&text)
+	template := glyph.Build(glyph.VBox.Grow(1)(viewer))
+	for _, width := range []int{80, 24, 40, 80} {
+		buffer := glyph.NewBuffer(width, 8)
+		template.Execute(buffer, int16(width), 8)
+		content := viewer.Layer().Buffer()
+		for _, row := range []struct {
+			y   int
+			key string
+		}{{2, "↑/↓ or j/k"}, {3, "Enter"}, {4, "n / Esc"}, {5, "q / Ctrl-C"}, {6, "Esc"}} {
+			for x := range glyph.StringWidth(row.key) {
+				style := content.Get(x, row.y).Style
+				if style.FG != glyph.Cyan || style.Attr != glyph.AttrBold || style.BG.Mode != glyph.ColorDefault {
+					t.Fatalf("width %d key %q style: %+v", width, row.key, style)
+				}
+			}
+			if style := content.Get(glyph.StringWidth(row.key)+1, row.y).Style; style.Attr != glyph.AttrDim || style.FG.Mode != glyph.ColorDefault {
+				t.Fatalf("width %d description style: %+v", width, style)
+			}
+		}
+		if content.Get(0, 0).Style.Attr&glyph.AttrDim != 0 {
+			t.Fatal("context dimmed with help descriptions")
+		}
+	}
+}
+
 func TestScreenFrameResize(t *testing.T) {
 	previous := screenSize
 	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
@@ -48,21 +76,53 @@ func TestScreenFrameChrome(t *testing.T) {
 	context := "Profile: test · Config: /very/long/shared/config/path/dotfiles.toml"
 	status := "Error: failed"
 	template := glyph.Build(screenFrame("Links", func() string { return context }, &status, glyph.Text("content"), "Space mark  u preview  ? help"))
-	for _, width := range []int{40, 80} {
-		updateScreenSize(width, 12)
-		buffer := glyph.NewBuffer(width, 12)
-		template.Execute(buffer, int16(width), 12)
-		if buffer.Get(0, 0).Rune != '╭' || buffer.Get(width-1, 11).Rune != '╯' {
-			t.Fatal("frame did not fill terminal")
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {80, 15}, {80, 16}, {40, 12}} {
+		width, height := size[0], size[1]
+		updateScreenSize(width, height)
+		buffer := glyph.NewBuffer(width, height)
+		template.Execute(buffer, int16(width), int16(height))
+		contentRow, statusRow := 3, height-3
+		if height >= 16 {
+			contentRow, statusRow = 4, height-4
 		}
-		if !strings.Contains(buffer.GetLine(10), "Space mark · u preview · ? help") {
-			t.Fatalf("footer not pinned: %q", buffer.GetLine(10))
+		for y := range height {
+			for x := range width {
+				cell := buffer.Get(x, y)
+				if (y == 0 || y == height-1 || x == 0 || x == width-1) && cell.Rune != 0 && cell.Rune != ' ' {
+					t.Fatalf("%dx%d edge not blank at %d,%d: %+v", width, height, x, y, cell)
+				}
+				if y == 1 && cell.Style.BG.Mode != glyph.ColorDefault {
+					t.Fatalf("header overrides terminal background at column %d", x)
+				}
+				if height < 16 && (cell.Rune == '━' || cell.Rune == '─') {
+					t.Fatalf("%dx%d separator visible at %d,%d", width, height, x, y)
+				}
+			}
+		}
+		if height >= 16 {
+			for x := 1; x < width-1; x++ {
+				if cell := buffer.Get(x, 3); cell.Rune != '━' || cell.Style.FG != glyph.Magenta {
+					t.Fatalf("header rule missing at column %d: %+v", x, cell)
+				}
+				if cell := buffer.Get(x, height-3); cell.Rune != '─' || cell.Style.Attr&glyph.AttrDim == 0 {
+					t.Fatalf("footer rule missing at column %d: %+v", x, cell)
+				}
+			}
+		}
+		if buffer.Get(1, 1).Style.FG.Mode != glyph.ColorDefault {
+			t.Fatal("header must use terminal foreground")
+		}
+		if !strings.HasPrefix(buffer.GetLine(1), " Conficius / Links") || !strings.HasPrefix(buffer.GetLine(contentRow), " content") {
+			t.Fatal("header or content misplaced")
+		}
+		if !strings.Contains(buffer.GetLine(height-2), "Space mark · u preview · ? help") {
+			t.Fatalf("footer not pinned: %q", buffer.GetLine(height-2))
 		}
 		if !strings.Contains(buffer.GetLine(2), "dotfiles.toml") {
 			t.Fatalf("context lost trailing path: %q", buffer.GetLine(2))
 		}
-		if buffer.Get(1, 9).Style.Attr&glyph.AttrDim != 0 {
-			t.Fatal("error status dimmed")
+		if !strings.HasPrefix(buffer.GetLine(statusRow), " "+status) || buffer.Get(1, statusRow).Style.Attr&glyph.AttrDim != 0 {
+			t.Fatal("error status misplaced or dimmed")
 		}
 		if glyph.StringWidth(screenFooter("Space mark  u preview  ? help")) > width-4 {
 			t.Fatal("footer exceeds usable width")
@@ -98,7 +158,7 @@ func TestScreenFooterRendering(t *testing.T) {
 			if !strings.Contains(line, footer) || !strings.Contains(line, "? help") || glyph.StringWidth(footer) > width-4 {
 				t.Fatalf("width %d help %q: footer %q, want %q", width, help, line, footer)
 			}
-			if !strings.Contains(buffer.GetLine(9), "Ready") || buffer.Get(width-1, 10).Rune != '│' || buffer.Get(width-1, 11).Rune != '╯' {
+			if !strings.HasPrefix(buffer.GetLine(2), " content") || !strings.Contains(buffer.GetLine(9), "Ready") || strings.Contains(homeRenderOutput(buffer, 12), "─") || glyph.StringWidth(line) > width-2 {
 				t.Fatalf("footer wrapped or overflowed at width %d: %q", width, line)
 			}
 			start := strings.Index(line, footer)
@@ -130,7 +190,10 @@ func TestScreenFooterRendering(t *testing.T) {
 					check(" "+description, false)
 				}
 			}
-			for row := range 10 {
+			for row := range 12 {
+				if row == 10 {
+					continue
+				}
 				if strings.Contains(buffer.GetLine(row), "? help") {
 					t.Fatal("footer escaped single pinned row")
 				}

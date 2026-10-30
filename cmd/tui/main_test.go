@@ -230,8 +230,11 @@ func TestViewsFillAvailableHeight(t *testing.T) {
 	} {
 		buffer := glyph.NewBuffer(80, 20)
 		glyph.Build(component).Execute(buffer, 80, 20)
-		if line := buffer.GetLine(19); !strings.Contains(line, "╰") {
-			t.Fatalf("%s bottom border = %q", name, line)
+		if line := buffer.GetLine(18); !strings.Contains(line, "? help") {
+			t.Fatalf("%s footer = %q", name, line)
+		}
+		if line := buffer.GetLine(17); line != " "+strings.Repeat("─", 78) {
+			t.Fatalf("%s footer rule = %q", name, line)
 		}
 	}
 }

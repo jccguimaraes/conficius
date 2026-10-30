@@ -264,16 +264,28 @@ func resizeNotice() glyph.Component {
 }
 
 func screenFrame(title string, context any, status any, content glyph.Component, help string, scanning ...*bool) glyph.Component {
-	parts := []glyph.Component{glyph.Text("Conficius / " + title).FG(glyph.Cyan).Bold()}
+	parts := []glyph.Component{
+		glyph.Text("Conficius / " + title).Bold(),
+	}
 	if context != nil {
 		parts = append(parts, glyph.Text(func() string { return screenContext(context) }).Dim())
 	}
-	parts = append(parts, glyph.VBox.Grow(1)(content))
+	parts = append(parts,
+		glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.Text(func() string {
+			return strings.Repeat("━", max(1, terminalWidth()-2))
+		}).FG(glyph.Magenta)),
+		glyph.VBox.Grow(1)(content),
+	)
 	if status != nil {
 		parts = append(parts, glyph.HBox.Height(1)(glyph.Text(status)))
 	}
-	parts = append(parts, screenFooterView(help, scanning...))
-	return glyph.VBox.Grow(1)(glyph.If(&screenTooSmall).Then(resizeNotice()).Else(glyph.VBox.Border(glyph.BorderRounded).Grow(1)(parts...)))
+	parts = append(parts,
+		glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.Text(func() string {
+			return strings.Repeat("─", max(1, terminalWidth()-2))
+		}).Dim()),
+		screenFooterView(help, scanning...),
+	)
+	return glyph.VBox.Padding(1).Grow(1)(glyph.If(&screenTooSmall).Then(resizeNotice()).Else(glyph.VBox.Grow(1)(parts...)))
 }
 
 var screenHelp = map[string]string{
@@ -307,10 +319,52 @@ func screenHelpForPlatform(name, goos string) string {
 	return help
 }
 
+func helpTextView(text *string) *glyph.TextViewC {
+	viewer := styledTextView(text).WordWrap()
+	layer := viewer.Layer()
+	render := layer.Render
+	layer.Render = func() {
+		render()
+		_, actions, _ := strings.Cut(*text, "\n\n")
+		buffer := layer.Buffer()
+		inActions := false
+		for y := range buffer.Height() {
+			line := buffer.GetLine(y)
+			if strings.TrimSpace(line) == "" {
+				inActions = true
+			}
+			if !inActions {
+				continue
+			}
+			for x := range buffer.Width() {
+				buffer.SetStyle(x, y, glyph.Style{Attr: glyph.AttrDim})
+			}
+			for _, action := range strings.Split(actions, "\n") {
+				key, rest, ok := strings.Cut(action, " ")
+				if !ok {
+					continue
+				}
+				if strings.HasPrefix(rest, "or ") || strings.HasPrefix(rest, "/ ") {
+					separator, tail, _ := strings.Cut(rest, " ")
+					alternate, _, _ := strings.Cut(tail, " ")
+					key += " " + separator + " " + alternate
+				}
+				if !strings.HasPrefix(line, key+" ") {
+					continue
+				}
+				for x := range glyph.StringWidth(key) {
+					buffer.SetStyle(x, y, glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold})
+				}
+			}
+		}
+	}
+	return viewer
+}
+
 func registerScreenHelp(app *glyph.App, data *model) {
 	var origin, context, text string
 	var title string
-	viewer := styledTextView(&text).WordWrap()
+	viewer := helpTextView(&text)
 	stop := func() {
 		if data.dotfiles != nil && data.dotfiles.pending {
 			data.dotfiles.quitPending = true

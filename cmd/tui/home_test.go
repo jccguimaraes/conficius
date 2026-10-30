@@ -159,7 +159,7 @@ func TestHomeWithoutConfig(t *testing.T) {
 	}
 }
 
-func TestHomeRendersQuietVerticalMenu(t *testing.T) {
+func TestHomeRendersWorkbenchMenu(t *testing.T) {
 	previous := screenSize
 	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
 	for _, size := range []glyph.Size{{Width: 40, Height: 12}, {Width: 80, Height: 24}, {Width: 120, Height: 30}} {
@@ -226,6 +226,12 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 			if packagesRow < 0 || dotfilesRow <= packagesRow+2 || strings.Trim(buffer.GetLine(dotfilesRow-1), " │") != "" {
 				t.Fatalf("missing blank gap:\n%s", output)
 			}
+			if buffer.Get(1, packagesRow).Rune != '▌' {
+				t.Fatalf("selection rail missing:\n%s", output)
+			}
+			if size.Height >= 16 && (!strings.Contains(output, "SYSTEM OVERVIEW") || strings.Index(output, "Conficius says:") < strings.Index(output, "Dotfiles")) {
+				t.Fatalf("wrong overview hierarchy:\n%s", output)
+			}
 			cards.Down(nil)
 			*data.dotfiles = dotfileState{project: &config.Project{}, configPath: "/tmp/refreshed.toml", environment: "Environment: native", links: "Links: 2 blocked", rows: []dotfileRow{{group: 1}}}
 			data.localLoading, data.localChecked, data.installedCount = false, true, 7
@@ -240,8 +246,13 @@ func TestHomeRendersQuietVerticalMenu(t *testing.T) {
 			}
 			for row := range size.Height {
 				line := buffer.GetLine(row)
-				if column := strings.Index(line, "Dotfiles"); column >= 0 && buffer.Get(utf8.RuneCountInString(line[:column]), row).Style.FG != glyph.Cyan {
-					t.Fatalf("selected name not cyan:\n%s", output)
+				for _, name := range []string{"Packages", "Dotfiles"} {
+					if column := strings.Index(line, name); column >= 0 {
+						style := buffer.Get(utf8.RuneCountInString(line[:column]), row).Style
+						if style.BG.Mode != glyph.ColorDefault || name == "Dotfiles" && style.FG != glyph.Cyan || name == "Packages" && style.FG.Mode != glyph.ColorDefault {
+							t.Fatalf("stale selection style %s: %+v", name, style)
+						}
+					}
 				}
 				for _, label := range []struct {
 					text  string
