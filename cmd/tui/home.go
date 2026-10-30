@@ -187,9 +187,12 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.VBox(glyph.Text("SYSTEM OVERVIEW").FG(glyph.Magenta).Bold(), glyph.Text(""))),
 		cards,
 		glyph.VBox.Grow(1)(),
-		glyph.If(&data.showWisdom).Then(glyph.Text(func() string {
-			return glyph.TruncateWidthEllipsis(data.wisdom, max(1, terminalWidth()-4))
-		}).Dim()),
+		glyph.If(&data.showWisdom).Then(glyph.HBox(
+			glyph.Text("Conficius says: ").FG(glyph.Magenta).Bold(),
+			glyph.Text(func() string {
+				return glyph.TruncateWidthEllipsis(strings.TrimPrefix(data.wisdom, "Conficius says: "), max(1, terminalWidth()-4-glyph.StringWidth("Conficius says: ")))
+			}).Italic(),
+		)),
 	)
 	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  p profiles  r refresh  ? help"), cards
 }

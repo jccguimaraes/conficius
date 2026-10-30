@@ -118,6 +118,20 @@ func TestHomeWisdomStaysFixedAcrossResize(t *testing.T) {
 		if data.wisdom != picked {
 			t.Fatal("refresh changed wisdom")
 		}
+		for y := range 30 {
+			line := buffer.GetLine(y)
+			if column := strings.Index(line, "Conficius says: "); column >= 0 {
+				x := glyph.StringWidth(line[:column])
+				label := buffer.Get(x, y).Style
+				phrase := buffer.Get(x+glyph.StringWidth("Conficius says: "), y).Style
+				if label.FG != glyph.Magenta || label.Attr != glyph.AttrBold {
+					t.Fatalf("wisdom label style: %+v", label)
+				}
+				if phrase.FG.Mode != glyph.ColorDefault || phrase.BG.Mode != glyph.ColorDefault || phrase.Attr != glyph.AttrItalic {
+					t.Fatalf("wisdom phrase style: %+v", phrase)
+				}
+			}
+		}
 	}
 }
 
