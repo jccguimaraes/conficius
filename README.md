@@ -110,9 +110,15 @@ CI runs race-enabled tests, vet, builds, and CLI smoke tests on Linux and macOS.
 <details>
 <summary>Release publishing</summary>
 
-CLI releases use `cli-vX.Y.Z`; TUI releases use calendar tags shaped `tui-vYYYY.MM.revision`. Tags must point to commits included in `main`; CLI versions also need a matching changelog heading. Tag pushes verify release state without publishing. To publish, manually run the matching release workflow against its tag with `confirm` set to `publish`. Both products currently publish as prereleases.
+CLI releases use `cli-vX.Y.Z`; TUI releases use `tui-vYYYY.MM.revision`. Each product has its own version, changelog, archives, and Homebrew cask. Shared changes may warrant both releases, but neither forces the other. CLI prereleases use `-alpha.N`, `-beta.N`, or `-rc.N`; TUI releases are stable. Build metadata is not supported in release versions.
 
-Publishing also updates `conficius` and `conficius-tui` casks in `jccguimaraes/homebrew-tap`. Set the repository Actions secret `HOMEBREW_TAP_TOKEN` to a token with Contents read/write access to that tap. The normal `GITHUB_TOKEN` still publishes release assets; the tap token is used only for tap updates. Cask uploads are explicitly enabled for the current prerelease policy. Binaries are not Apple-signed or notarized; no automatic Gatekeeper bypass is configured.
+Prepare a release section with git-cliff, review and merge it, then dispatch the Release workflow from `main` with product, version, and the full merged commit SHA. CLI notes go in `CHANGELOG.md`; TUI notes go in `CHANGELOG-TUI.md`. Notes include the selected command, shared internal packages, module files, and its GoReleaser config, bounded by that product’s previous reachable tag. Historical CLI notes remain unchanged.
+
+The workflow validates the SHA and changelog, runs checks and a snapshot build, then creates the product tag and publishes through GoReleaser. The `release` GitHub environment can require approval before publishing; configure its protection rules in repository settings. Tag pushes do not publish. Releases are serialized across both products. Publish versions in increasing order: CLI stable releases may update GitHub’s repository-wide latest slot; TUI downloads must use product tags or Homebrew.
+
+GoReleaser updates only the selected stable cask in `jccguimaraes/homebrew-tap`. Set repository Actions secret `HOMEBREW_TAP_TOKEN` with Contents read/write access to that tap. The normal `GITHUB_TOKEN` publishes tags and release assets. Prereleases skip stable cask updates.
+
+Existing tags are rejected. If publication fails after tag creation, inspect the tag, GitHub release, uploaded assets, and tap commit before manual recovery; do not blindly delete tags or overwrite published releases. No custom retry or rollback subsystem is maintained. Binaries are not Apple-signed or notarized; no automatic Gatekeeper bypass is configured.
 
 Local release tasks use the pinned GoReleaser from mise:
 
@@ -120,10 +126,19 @@ Local release tasks use the pinned GoReleaser from mise:
 mise run release-check
 mise run release-snapshot-cli
 mise run release-snapshot-tui
-TAG=cli-vX.Y.Z mise run release-cli
-TAG=tui-vYYYY.MM.revision mise run release-tui
+PRODUCT=cli mise run next-version
+PRODUCT=tui mise run next-version
+PRODUCT=cli mise run changelog
+PRODUCT=tui mise run changelog
+# Review, commit, merge, and check out the merged SHA before dispatching.
+mise run release-cli
+mise run release-tui
 ```
 
-Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch GitHub Actions against an existing remote tag, so the tap token stays in Actions secrets. They do not create tags. Merge publishing configuration before creating the next release tags; existing tags retain their original workflows and will not gain tap publishing by rerunning them.
+CLI version defaults come from git-cliff’s Conventional Commit bump calculation, filtered to CLI and shared paths. TUI defaults use the current UTC year/month and one more than the highest local tag revision for that month, starting at `1`. Fetch remote tags first (`git fetch origin --tags`) so calculations include published releases. Set `VERSION` to override either default. Publish tasks read the first prepared changelog version rather than recalculating after merge or a month boundary. `mise run check-release-versions` checks defaults, overrides, and release-note headings without publishing.
+
+Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch against `main` with the current full commit SHA; tokens stay in Actions secrets. Merge this workflow before dispatching a release.
+
+`mise run setup` installs hk hooks through mise, replacing the previous commitlint hook path when configured. Pre-commit checks formatting and generated-workflow drift without modifying or staging files; commit-msg runs commitlint. `mise run check` runs the same read-only checks across the repository in CI. Full race tests remain separate.
 
 </details>

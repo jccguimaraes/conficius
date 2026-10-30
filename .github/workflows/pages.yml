@@ -1,13 +1,14 @@
 # generated-by: cinzel
 # cinzel-provider: github
 # cinzel-source: cinzel/pages.hcl
+
 name: GitHub Pages
 on:
   push:
     branches:
       - main
     paths:
-      - "docs/**"
+      - docs/**
       - cinzel/pages.hcl
       - .github/workflows/pages.yml
   workflow_dispatch:
@@ -20,8 +21,8 @@ jobs:
   deploy_site:
     environment:
       name: github-pages
-      url: "${{ steps.deploy_pages.outputs.page_url }}"
-    if: "${{ github.ref == 'refs/heads/main' }}"
+      url: ${{ steps.deploy_pages.outputs.page_url }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     name: Deploy site
     permissions:
       contents: read

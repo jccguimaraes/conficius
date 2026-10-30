@@ -38,7 +38,7 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://jccguimaraes.github.io/conficius"
     description: "Manage dotfiles and inspect installed packages"
-    skip_upload: "false"
+    skip_upload: '{{ contains .Env.CONFICIUS_VERSION "-" }}'
     caveats: |
       This binary is not signed or notarized by Apple. macOS Gatekeeper may block execution.
       Install only if you trust this project's release artifacts.
@@ -48,7 +48,8 @@ checksum:
 
 release:
   draft: false
-  prerelease: true
+  prerelease: false
+  make_latest: auto
   name_template: "Conficius CLI {{.Env.CONFICIUS_VERSION}}"
 
 changelog:
