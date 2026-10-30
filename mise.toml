@@ -1,3 +1,6 @@
+[tool_alias]
+cinzel = "github:yldio/cinzel"
+
 [tools]
 actionlint = "1.7.12"
 cinzel = "1.4.0"
