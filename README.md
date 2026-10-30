@@ -30,7 +30,7 @@ Download from [GitHub releases](https://github.com/jccguimaraes/conficius/releas
 
 Choose `darwin` or `linux`, then `arm64` or `amd64`. Verify against `checksums.txt`, extract, and put the binary on `PATH`. Either binary runs independently.
 
-macOS binaries are not signed or notarized by Apple and may be blocked by Gatekeeper. Install only if you trust the artifacts; no automatic Gatekeeper bypass is included.
+macOS binaries are not signed or notarized by Apple. Homebrew casks remove quarantine from the installed binary, bypassing Gatekeeper for that file. Direct downloads may still be blocked. Install only if you trust the artifacts.
 
 ## Start
 
@@ -118,7 +118,7 @@ The workflow calculates and validates the version once, validates the captured S
 
 GoReleaser updates only the selected stable cask in `jccguimaraes/homebrew-tap`. Set repository Actions secret `HOMEBREW_TAP_TOKEN` with Contents read/write access to that tap. The normal `GITHUB_TOKEN` publishes tags and release assets. Prereleases skip stable cask updates.
 
-Existing tags are rejected. If publication fails after tag creation, inspect the tag, GitHub release, uploaded assets, and tap commit before manual recovery; do not blindly delete tags or overwrite published releases. No custom retry or rollback subsystem is maintained. Binaries are not Apple-signed or notarized; no automatic Gatekeeper bypass is configured.
+Existing tags are rejected. If publication fails after tag creation, inspect the tag, GitHub release, uploaded assets, and tap commit before manual recovery; do not blindly delete tags or overwrite published releases. No custom retry or rollback subsystem is maintained. Binaries are not Apple-signed or notarized. On macOS, generated Homebrew casks remove quarantine only from their staged binary; system-wide Gatekeeper settings remain unchanged.
 
 Local release tasks use the pinned GoReleaser from mise:
 
