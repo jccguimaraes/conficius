@@ -48,7 +48,7 @@ checksum:
 
 release:
   draft: false
-  prerelease: false
+  prerelease: "false"
   make_latest: auto
   name_template: "Conficius CLI {{.Env.CONFICIUS_VERSION}}"
 

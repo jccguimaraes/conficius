@@ -218,7 +218,7 @@ step "package" {
 
   run = <<-EOF
 case "$CONFICIUS_VERSION" in
-  *-*) sed 's/prerelease: false/prerelease: true/' "$CONFIG" > /tmp/goreleaser.yaml; CONFIG=/tmp/goreleaser.yaml ;;
+  *-*) sed 's/prerelease: "false"/prerelease: "true"/' "$CONFIG" > /tmp/goreleaser.yaml; CONFIG=/tmp/goreleaser.yaml ;;
 esac
 goreleaser release --clean --skip=validate --config "$CONFIG" --release-notes /tmp/release-notes.md
 EOF
