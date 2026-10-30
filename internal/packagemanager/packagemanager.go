@@ -107,10 +107,6 @@ func CheckManagerIntegrity(pms []string, options QueryOptions) ([]ManagerIntegri
 		if status.Status == StatusAvailable {
 			check.Status = "healthy"
 			check.Message = "executable and manager version available"
-			if status.ManagerVersion != "" && !status.VersionTested {
-				check.Status = "warning"
-				check.Message = fmt.Sprintf("manager version %s is outside tested range", status.ManagerVersion)
-			}
 		}
 		checks[i] = check
 	}
@@ -284,9 +280,6 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 				status.Warnings = append(status.Warnings, "read manager version: no version in output")
 			} else {
 				status.VersionTested = versionInRange(status.ManagerVersion, status.TestedVersions)
-				if !status.VersionTested {
-					status.Warnings = append(status.Warnings, fmt.Sprintf("manager version %s is outside tested major range %d-%d", status.ManagerVersion, status.TestedVersions.MinimumMajor, status.TestedVersions.MaximumMajor))
-				}
 			}
 		}
 		statuses = append(statuses, status)
@@ -668,9 +661,6 @@ func inspectExecutable(manager, executable string, adapter managerAdapter) Manag
 		return status
 	}
 	status.VersionTested = versionInRange(status.ManagerVersion, status.TestedVersions)
-	if !status.VersionTested {
-		status.Warnings = append(status.Warnings, fmt.Sprintf("manager version %s is outside tested major range %d-%d", status.ManagerVersion, status.TestedVersions.MinimumMajor, status.TestedVersions.MaximumMajor))
-	}
 	return status
 }
 

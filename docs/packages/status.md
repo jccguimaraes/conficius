@@ -83,7 +83,7 @@
 
 - Read-only manager executable and version integrity checks.
 - Manager integrity remains separate from package freshness.
-- Untested manager versions report warnings.
+- Untested manager versions remain available without warnings or mutation blocks.
 - `packages doctor` human and schema-versioned JSON output.
 - npm v2/v3 lockfile root metadata checked against direct manifest dependencies.
 - Unsupported old lockfiles report unknown rather than healthy.
