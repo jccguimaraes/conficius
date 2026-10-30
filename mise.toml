@@ -46,7 +46,7 @@ go fmt ./...
 [tasks.build-cli]
 depends = ["test-ci"]
 run = """
-VERSION="${VERSION:-$(git describe --tags --match 'cli-v*' --abbrev=0 2>/dev/null || true)}"
+VERSION="${VERSION:-$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --match 'cli-v*' --exclude '20[0-9][0-9].*' --abbrev=0 2>/dev/null || true)}"
 VERSION="${VERSION#cli-v}"
 if [ -z "$VERSION" ]; then
   VERSION="dev-$(git rev-parse --short HEAD)"
@@ -58,7 +58,7 @@ go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius ./cmd/cli
 [tasks.build-tui]
 depends = ["test-ci"]
 run = """
-VERSION="${VERSION:-$(git describe --tags --match 'tui-v*' --abbrev=0 2>/dev/null || true)}"
+VERSION="${VERSION:-$(git describe --tags --match '20[0-9][0-9].[01][0-9].*' --match 'tui-v*' --abbrev=0 2>/dev/null || true)}"
 VERSION="${VERSION#tui-v}"
 VERSION="${VERSION:-dev-$(git rev-parse --short HEAD)}"
 mkdir -p ./bin
@@ -94,12 +94,12 @@ set -eu
 if [ -n "${VERSION:-}" ]; then printf '%s\n' "$VERSION"; exit; fi
 case "${PRODUCT:?Set PRODUCT=cli or tui}" in
   cli)
-    version=$(git cliff --offline --no-exec --use-branch-tags --tag-pattern '^cli-v' --skip-tags '^$' --ignore-tags '^$' --include-path 'cmd/cli/**' --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path .goreleaser.yaml --bumped-version)
+    version=$(git cliff --offline --no-exec --use-branch-tags --tag-pattern '^(cli-v)?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' --skip-tags '^$' --ignore-tags '^20[0-9]{2}\.' --include-path 'cmd/cli/**' --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path .goreleaser.yaml --bumped-version)
     printf '%s\n' "${version#cli-v}"
     ;;
   tui)
     month=$(date -u +%Y.%m)
-    revision=$(git tag --list "tui-v$month.*" | awk -F. '$3 ~ /^[1-9][0-9]*$/ && $3+0 > max {max=$3+0} END {printf "%.0f", max+1}')
+    revision=$(git tag --list "$month.*" "tui-v$month.*" | awk -F. '$3 ~ /^[1-9][0-9]*$/ && $3+0 > max {max=$3+0} END {printf "%.0f", max+1}')
     printf '%s.%s\n' "$month" "$revision"
     ;;
   *) exit 1 ;;
@@ -128,15 +128,27 @@ run = '''
 set -eu
 VERSION="${VERSION:-$(mise run --quiet next-version)}"
 case "${PRODUCT:?Set PRODUCT=cli or tui}" in
-  cli) config=.goreleaser.yaml ;;
-  tui) config=.goreleaser-tui.yaml ;;
+  cli)
+    config=.goreleaser.yaml
+    pattern='^(cli-v)?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'
+    ignore='^20[0-9]{2}\.'
+    match='[0-9]*.[0-9]*.[0-9]*'
+    exclude='20[0-9][0-9].*'
+    ;;
+  tui)
+    config=.goreleaser-tui.yaml
+    pattern='^(tui-v)?20[0-9]{2}\.(0[1-9]|1[0-2])\.[1-9][0-9]*$'
+    ignore='^$'
+    match='20[0-9][0-9].[01][0-9].*'
+    exclude='cli-v*'
+    ;;
   *) exit 1 ;;
 esac
 sha="${SHA:-HEAD}"
-previous=$(git describe --tags --match "$PRODUCT-v*" --abbrev=0 "$sha" 2>/dev/null || true)
+previous=$(git describe --tags --match "$match" --match "$PRODUCT-v*" --exclude "$exclude" --abbrev=0 "$sha" 2>/dev/null || true)
 range="$sha"
 if [ -n "$previous" ]; then range="$previous..$sha"; fi
-git cliff --offline --no-exec --tag-pattern "^$PRODUCT-v" --skip-tags '^$' --ignore-tags '^$' --tag "$PRODUCT-v$VERSION" --strip all --include-path "cmd/$PRODUCT/**" --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path "$config" "$range" "$@"
+git cliff --offline --no-exec --tag-pattern "$pattern" --skip-tags '^$' --ignore-tags "$ignore" --tag "$VERSION" --strip all --include-path "cmd/$PRODUCT/**" --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path "$config" "$range" "$@"
 '''
 
 [tasks.check-release-versions]
@@ -150,7 +162,9 @@ for product in cli tui; do
     cli) printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ;;
     tui) printf '%s\n' "$version" | grep -Eq "^$(date -u +%Y.%m)\.[1-9][0-9]*$" ;;
   esac
-  PRODUCT="$product" VERSION="$version" mise run --quiet release-notes | grep -F "## [$version]"
+  notes=$(PRODUCT="$product" VERSION="$version" mise run --quiet release-notes)
+  printf '%s\n' "$notes" | grep -F "## [$version]"
+  printf '%s\n' "$notes" | grep -F "..$version)"
 done
 '''
 

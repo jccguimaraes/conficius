@@ -68,7 +68,7 @@ jobs:
               ;;
             *) exit 1 ;;
           esac
-          tag="$PRODUCT-v$VERSION"
+          tag="$VERSION"
           if git show-ref --verify --quiet "refs/tags/$tag"; then
             printf '%s\n' "Tag already exists: $tag; inspect partial releases before recovery" >&2
             exit 1
