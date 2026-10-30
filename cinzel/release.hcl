@@ -118,7 +118,7 @@ if git show-ref --verify --quiet "refs/tags/$tag"; then
   exit 1
 fi
 printf 'tag=%s\nconfig=%s\nversion=%s\n' "$tag" "$config" "$VERSION" >> "$GITHUB_OUTPUT"
-printf '## Release %s %s\n\n- Tag: `%s`\n- Commit: `%s`\n- Version selection: %s\n' "$PRODUCT" "$VERSION" "$tag" "$SHA" "$SELECTION" >> "$GITHUB_STEP_SUMMARY"
+printf '## Release %s %s\n\n- Tag: %s\n- Commit: %s\n- Version selection: %s\n' "$PRODUCT" "$VERSION" "$tag" "$SHA" "$SELECTION" >> "$GITHUB_STEP_SUMMARY"
 EOF
 
   env {
@@ -278,7 +278,7 @@ step "summary" {
   run = <<-EOF
 {
   printf '## Release %s %s\n\n' "$PRODUCT" "$VERSION"
-  printf -- '- Status: **%s**\n- Tag: `%s`\n- Commit: `%s`\n' "$STATUS" "$TAG" "$SHA"
+  printf -- '- Status: **%s**\n- Tag: %s\n- Commit: %s\n' "$STATUS" "$TAG" "$SHA"
   if [ "$STATUS" = success ]; then
     printf -- '- Release: [%s](%s/%s/releases/tag/%s)\n' "$TAG" "$SERVER" "$REPOSITORY" "$TAG"
   fi
