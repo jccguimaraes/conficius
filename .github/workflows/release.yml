@@ -46,7 +46,7 @@ jobs:
           [[ "$SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [ "$(git rev-parse HEAD)" = "$(git rev-parse "$SHA^{commit}")" ]
           git merge-base --is-ancestor "$SHA" origin/main
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: go goreleaser git-cliff cinzel hk pkl actionlint ghalint gh
       - env:
@@ -102,7 +102,7 @@ jobs:
           [[ "$SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [ "$(git rev-parse HEAD)" = "$(git rev-parse "$SHA^{commit}")" ]
           git merge-base --is-ancestor "$SHA" origin/main
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: go goreleaser git-cliff cinzel hk pkl actionlint ghalint gh
       - env:
