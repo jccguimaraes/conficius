@@ -201,7 +201,7 @@ func testWorkerTransport(t *testing.T, method string, failure bool) {
 			t.Fatal(string(raw))
 		}
 		command := exec.CommandContext(ctx, os.Args[0], "-test.run=TestWorkerTransportHelper")
-		command.Env = append(os.Environ(), "CONFICIUS_TRANSPORT_TEST_HELPER=1")
+		command.Env = append(os.Environ(), "CONFICIUS_TRANSPORT_TEST_HELPER=1", "CONFICIUS_TRANSPORT_TEST_METHOD="+method)
 		if failure {
 			command.Env = append(command.Env, "CONFICIUS_TRANSPORT_TEST_FAILURE=1")
 		}
@@ -282,7 +282,10 @@ func TestWorkerTransportHelper(t *testing.T) {
 	if os.Getenv("CONFICIUS_TRANSPORT_TEST_FAILURE") == "1" {
 		os.Exit(1)
 	}
-	_, _ = io.WriteString(os.Stdout, `{"Inventory":{"Managers":[{"name":"npm","status":"available"}]}}`)
+	if os.Getenv("CONFICIUS_TRANSPORT_TEST_METHOD") == "su" {
+		_, _ = io.WriteString(os.Stdout, "Password: \nLogin shell banner\n")
+	}
+	_, _ = io.WriteString(os.Stdout, workerResponseMarker+`{"Inventory":{"Managers":[{"name":"npm","status":"available"}]}}`)
 	os.Exit(0)
 }
 
