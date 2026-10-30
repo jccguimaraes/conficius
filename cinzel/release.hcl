@@ -1,6 +1,7 @@
 workflow "release" {
   filename = "release"
-  name     = "Release"
+  name     = "Release CLI/TUI"
+  run_name = "Release $${{ inputs.product == 'cli' && 'CLI' || 'TUI' }} $${{ inputs.version || '(automatic version)' }}"
 
   on "workflow_dispatch" {
     input "product" {
@@ -32,6 +33,7 @@ workflow "release" {
 }
 
 job "verify" {
+  name = "Verify $${{ inputs.product == 'cli' && 'CLI' || 'TUI' }} release"
   permissions { contents = "read" }
 
   if = "github.ref == 'refs/heads/main'"
@@ -116,6 +118,7 @@ if git show-ref --verify --quiet "refs/tags/$tag"; then
   exit 1
 fi
 printf 'tag=%s\nconfig=%s\nversion=%s\n' "$tag" "$config" "$VERSION" >> "$GITHUB_OUTPUT"
+printf '## Release %s %s\n\n- Tag: %s\n- Commit: %s\n- Version selection: %s\n' "$PRODUCT" "$VERSION" "$tag" "$SHA" "$SELECTION" >> "$GITHUB_STEP_SUMMARY"
 EOF
 
   env {
@@ -131,6 +134,10 @@ EOF
   env {
     name  = "SHA"
     value = "$${{ github.sha }}"
+  }
+  env {
+    name = "SELECTION"
+    value = "$${{ inputs.version && 'manual override' || 'automatic' }}"
   }
 }
 
@@ -178,6 +185,7 @@ step "snapshot" {
 }
 
 job "publish" {
+  name = "Publish $${{ inputs.product == 'cli' && 'CLI' || 'TUI' }} $${{ needs.verify.outputs.version }}"
   depends_on = [job.verify]
 
   runs_on { runners = "ubuntu-latest" }
@@ -188,7 +196,7 @@ job "publish" {
 
   permissions { contents = "write" }
 
-  steps = [step.checkout, step.check_sha, step.tools, step.notes, step.create_tag, step.package]
+  steps = [step.checkout, step.check_sha, step.tools, step.notes, step.create_tag, step.package, step.summary]
 }
 
 step "create_tag" {
@@ -260,5 +268,53 @@ EOF
   env {
     name  = "SHA"
     value = "$${{ github.sha }}"
+  }
+}
+
+step "summary" {
+  ignore_id = true
+  name = "Release summary and changelog"
+  if = "always()"
+  run = <<-EOF
+{
+  printf '## Release %s %s\n\n' "$PRODUCT" "$VERSION"
+  printf -- '- Status: **%s**\n- Tag: %s\n- Commit: %s\n' "$STATUS" "$TAG" "$SHA"
+  if [ "$STATUS" = success ]; then
+    printf -- '- Release: [%s](%s/%s/releases/tag/%s)\n' "$TAG" "$SERVER" "$REPOSITORY" "$TAG"
+  fi
+  if [ -f /tmp/release-notes.md ]; then
+    printf '\n<details><summary>Changelog</summary>\n\n'
+    cat /tmp/release-notes.md
+    printf '\n</details>\n'
+  fi
+} >> "$GITHUB_STEP_SUMMARY"
+EOF
+  env {
+    name = "PRODUCT"
+    value = "$${{ inputs.product == 'cli' && 'CLI' || 'TUI' }}"
+  }
+  env {
+    name = "VERSION"
+    value = "$${{ needs.verify.outputs.version }}"
+  }
+  env {
+    name = "TAG"
+    value = "$${{ needs.verify.outputs.tag }}"
+  }
+  env {
+    name = "SHA"
+    value = "$${{ github.sha }}"
+  }
+  env {
+    name = "STATUS"
+    value = "$${{ job.status }}"
+  }
+  env {
+    name = "SERVER"
+    value = "$${{ github.server_url }}"
+  }
+  env {
+    name = "REPOSITORY"
+    value = "$${{ github.repository }}"
   }
 }
