@@ -79,17 +79,13 @@ run = "goreleaser release --snapshot --clean --config .goreleaser-tui.yaml"
 [tasks.release-cli]
 run = '''
 set -eu
-VERSION="${VERSION:-$(awk '/^## \[/ {sub(/^## \[/, ""); sub(/\].*/, ""); print; exit}' CHANGELOG.md)}"
-: "${VERSION:?Prepare CLI changelog first}"
-gh workflow run release.yml --ref main -f product=cli -f version="$VERSION" -f sha="$(git rev-parse HEAD)"
+gh workflow run release.yml --ref main -f product=cli -f version="${VERSION:-}"
 '''
 
 [tasks.release-tui]
 run = '''
 set -eu
-VERSION="${VERSION:-$(awk '/^## \[/ {sub(/^## \[/, ""); sub(/\].*/, ""); print; exit}' CHANGELOG-TUI.md)}"
-: "${VERSION:?Prepare TUI changelog first}"
-gh workflow run release.yml --ref main -f product=tui -f version="$VERSION" -f sha="$(git rev-parse HEAD)"
+gh workflow run release.yml --ref main -f product=tui -f version="${VERSION:-}"
 '''
 
 [tasks.next-version]

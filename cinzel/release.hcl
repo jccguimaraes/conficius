@@ -11,16 +11,12 @@ workflow "release" {
     }
 
     input "version" {
-      description = "Version without product prefix"
-      required    = true
+      description = "Optional version override; leave blank to calculate"
+      required    = false
       type        = "string"
     }
 
-    input "sha" {
-      description = "Full commit SHA merged into main"
-      required    = true
-      type        = "string"
-    }
+
   }
 
   concurrency {
@@ -54,6 +50,11 @@ job "verify" {
     value = "$${{ steps.validate.outputs.config }}"
   }
 
+  output {
+    name = "version"
+    value = "$${{ steps.validate.outputs.version }}"
+  }
+
   steps = [step.checkout, step.check_sha, step.tools, step.validate, step.check, step.snapshot]
 }
 
@@ -67,7 +68,7 @@ step "checkout" {
 
   with {
     name  = "ref"
-    value = "$${{ inputs.sha }}"
+    value = "$${{ github.sha }}"
   }
 
   with {
@@ -97,16 +98,15 @@ step "tools" {
 
 step "validate" {
   run = <<-EOF
+VERSION="$(VERSION="$VERSION" mise run --quiet next-version)"
 case "$PRODUCT" in
   cli)
     [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$ ]]
     config=.goreleaser.yaml
-    changelog=CHANGELOG.md
     ;;
   tui)
     [[ "$VERSION" =~ ^20[0-9]{2}\.(0[1-9]|1[0-2])\.[1-9][0-9]*$ ]]
     config=.goreleaser-tui.yaml
-    changelog=CHANGELOG-TUI.md
     ;;
   *) exit 1 ;;
 esac
@@ -115,8 +115,7 @@ if git show-ref --verify --quiet "refs/tags/$tag"; then
   printf '%s\n' "Tag already exists: $tag; inspect partial releases before recovery" >&2
   exit 1
 fi
-grep -F "## [$VERSION]" "$changelog" | grep -q '^## '
-printf 'tag=%s\nconfig=%s\n' "$tag" "$config" >> "$GITHUB_OUTPUT"
+printf 'tag=%s\nconfig=%s\nversion=%s\n' "$tag" "$config" "$VERSION" >> "$GITHUB_OUTPUT"
 EOF
 
   env {
@@ -131,7 +130,7 @@ EOF
 
   env {
     name  = "SHA"
-    value = "$${{ inputs.sha }}"
+    value = "$${{ github.sha }}"
   }
 }
 
@@ -153,12 +152,12 @@ step "notes" {
 
   env {
     name  = "VERSION"
-    value = "$${{ inputs.version }}"
+    value = "$${{ needs.verify.outputs.version }}"
   }
 
   env {
     name  = "SHA"
-    value = "$${{ inputs.sha }}"
+    value = "$${{ github.sha }}"
   }
 }
 
@@ -174,7 +173,7 @@ step "snapshot" {
 
   env {
     name  = "CONFICIUS_VERSION"
-    value = "$${{ inputs.version }}"
+    value = "$${{ steps.validate.outputs.version }}"
   }
 }
 
@@ -189,7 +188,7 @@ job "publish" {
 
   permissions { contents = "write" }
 
-  steps = [step.checkout, step.check_sha, step.tools, step.validate, step.notes, step.create_tag, step.package]
+  steps = [step.checkout, step.check_sha, step.tools, step.notes, step.create_tag, step.package]
 }
 
 step "create_tag" {
@@ -209,7 +208,7 @@ step "create_tag" {
 
   env {
     name  = "SHA"
-    value = "$${{ inputs.sha }}"
+    value = "$${{ github.sha }}"
   }
 }
 
@@ -230,7 +229,7 @@ EOF
 
   env {
     name  = "CONFICIUS_VERSION"
-    value = "$${{ inputs.version }}"
+    value = "$${{ needs.verify.outputs.version }}"
   }
 
   env {
@@ -260,6 +259,6 @@ EOF
 
   env {
     name  = "SHA"
-    value = "$${{ inputs.sha }}"
+    value = "$${{ github.sha }}"
   }
 }
