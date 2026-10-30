@@ -110,7 +110,7 @@ CI runs race-enabled tests, vet, builds, and CLI smoke tests on Linux and macOS.
 <details>
 <summary>Release publishing</summary>
 
-CLI releases use `cli-vX.Y.Z`; TUI releases use `tui-vYYYY.MM.revision`. Each product has its own version, changelog, archives, and Homebrew cask. Shared changes may warrant both releases, but neither forces the other. CLI prereleases use `-alpha.N`, `-beta.N`, or `-rc.N`; TUI releases are stable. Build metadata is not supported in release versions.
+CLI releases use `X.Y.Z`; TUI releases use `YYYY.MM.revision`, with no product or `v` prefix. Existing prefixed tags remain unchanged and count toward version selection. Each product has its own version, changelog, archives, and Homebrew cask. Shared changes may warrant both releases, but neither forces the other. CLI prereleases use `-alpha.N`, `-beta.N`, or `-rc.N`; TUI releases are stable. Build metadata is not supported in release versions.
 
 Dispatch the Release workflow from `main` and choose CLI or TUI. Version is calculated automatically; the version input is an optional override. No commit SHA input is needed: both jobs use the exact `main` commit captured when the workflow was dispatched. GitHub release notes are generated with git-cliff from the selected command, shared internal packages, module files, and its GoReleaser config, bounded by that product’s previous reachable tag. Checked-in changelog updates are optional and do not gate publishing.
 
