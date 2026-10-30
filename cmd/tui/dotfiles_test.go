@@ -548,7 +548,11 @@ func TestDotfileScreensAtTerminalSizes(t *testing.T) {
 					t.Fatalf("%s at %dx%d missing %q:\n%s", view.title, size[0], size[1], want, text)
 				}
 			}
-			for y, want := range map[int]string{1: string([]rune("Conficius / " + view.title)[:min(len([]rune("Conficius / "+view.title)), size[0]-6)]), 2: screenContext(context), size[1] - 3: state.status, size[1] - 2: screenFooter(view.help)} {
+			statusRow := size[1] - 3
+			if size[1] >= 16 {
+				statusRow--
+			}
+			for y, want := range map[int]string{1: string([]rune("Conficius / " + view.title)[:min(len([]rune("Conficius / "+view.title)), size[0]-2)]), 2: screenContext(context), statusRow: state.status, size[1] - 2: screenFooter(view.help)} {
 				if !strings.Contains(buffer.GetLine(y), want) {
 					t.Fatalf("%s at %dx%d clipped chrome row %d, want %q:\n%s", view.title, size[0], size[1], y, want, text)
 				}

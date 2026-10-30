@@ -160,9 +160,9 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		data.homeCards = append(data.homeCards, homeCard{name: "Dotfiles", view: "dotfiles"})
 	}
 	updateHome(data)
-	cards := styleList(glyph.List(&data.homeCards)).MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
+	cards := styleList(glyph.List(&data.homeCards)).Marker("▌ ").MarkerStyle(glyph.Style{FG: glyph.Cyan, Attr: glyph.AttrBold}).SelectedStyle(glyph.Style{}).Render(func(card *homeCard) glyph.Component {
 		return glyph.VBox(
-			glyph.HBox.Gap(1)(glyph.Text(&card.name).Bold().FG(&card.nameColor), glyph.Text(&card.label).FG(&card.color)),
+			glyph.HBox.Gap(1)(glyph.Text(&card.name).Bold().FG(&card.nameColor), glyph.Space().Grow(1), glyph.Text(&card.label).FG(&card.color)),
 			glyph.TextBlock(&card.summary),
 			glyph.If(&card.gap).Then(glyph.Text("")),
 		)
@@ -184,10 +184,15 @@ func homeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[homeCa
 		return "Config: " + glyph.TruncateWidthEllipsis(filepath.Base(data.dotfiles.configPath), max(1, terminalWidth()-12))
 	}
 	content := glyph.VBox.Grow(1)(
-		glyph.If(&data.showWisdom).Then(glyph.VBox(glyph.Text(func() string {
-			return glyph.TruncateWidthEllipsis(data.wisdom, max(1, terminalWidth()-4))
-		}).Dim(), glyph.Text(""))),
+		glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.VBox(glyph.Text("SYSTEM OVERVIEW").FG(glyph.Magenta).Bold(), glyph.Text(""))),
 		cards,
+		glyph.VBox.Grow(1)(),
+		glyph.If(&data.showWisdom).Then(glyph.HBox(
+			glyph.Text("Conficius says: ").FG(glyph.Magenta).Bold(),
+			glyph.Text(func() string {
+				return glyph.TruncateWidthEllipsis(strings.TrimPrefix(data.wisdom, "Conficius says: "), max(1, terminalWidth()-4-glyph.StringWidth("Conficius says: ")))
+			}).Italic(),
+		)),
 	)
 	return screenFrame("Home · "+version, context, nil, content, "↑/↓ move  Enter open  p profiles  r refresh  ? help"), cards
 }
