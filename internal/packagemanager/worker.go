@@ -24,6 +24,7 @@ import (
 const workerFlag = "--internal-manager-operation"
 const workerRequestLimit = 48 * 1024
 const workerResponseLimit = 16 * 1024 * 1024
+const workerResponseMarker = "\x1econficius-manager-response\n"
 
 type workerRequest struct {
 	Operation string
@@ -331,7 +332,11 @@ func callManagerWorker(ctx context.Context, request workerRequest) (workerRespon
 	if err := cmd.Run(); err != nil {
 		return response, fmt.Errorf("%s as %s worker: %w", request.Manager, request.User, err)
 	}
-	decoder := json.NewDecoder(&output)
+	_, payload, ok := bytes.Cut(output.Bytes(), []byte(workerResponseMarker))
+	if !ok {
+		return response, errors.New("invalid manager worker response: missing response marker")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&response); err != nil {
 		return response, fmt.Errorf("invalid manager worker response: %w", err)
@@ -482,6 +487,9 @@ func HandleManagerWorker(args []string, stdout io.Writer) (bool, error) {
 	}
 	if len(raw) > workerResponseLimit {
 		return true, errors.New("manager worker response exceeds 16 MiB")
+	}
+	if _, err := io.WriteString(stdout, workerResponseMarker); err != nil {
+		return true, err
 	}
 	_, err = stdout.Write(raw)
 	return true, err
