@@ -152,6 +152,7 @@ job "lint" {
     step.install_tools,
     step.lint_go,
     step.check_goreleaser,
+    step.check_hooks,
   ]
 }
 
@@ -167,7 +168,7 @@ step "install_tools" {
 
   with {
     name  = "install_args"
-    value = "golangci-lint goreleaser"
+    value = "go golangci-lint goreleaser cinzel hk pkl actionlint ghalint git-cliff"
   }
 }
 
@@ -192,4 +193,10 @@ EOF
 
 variable "list_os" {
   value = ["ubuntu-latest", "macos-latest"]
+}
+
+step "check_hooks" {
+  ignore_id = true
+  name      = "Check hooks and generated workflows"
+  run       = "mise run check"
 }
