@@ -112,9 +112,9 @@ CI runs race-enabled tests, vet, builds, and CLI smoke tests on Linux and macOS.
 
 CLI releases use `cli-vX.Y.Z`; TUI releases use `tui-vYYYY.MM.revision`. Each product has its own version, changelog, archives, and Homebrew cask. Shared changes may warrant both releases, but neither forces the other. CLI prereleases use `-alpha.N`, `-beta.N`, or `-rc.N`; TUI releases are stable. Build metadata is not supported in release versions.
 
-Prepare a release section with git-cliff, review and merge it, then dispatch the Release workflow from `main` with product, version, and the full merged commit SHA. CLI notes go in `CHANGELOG.md`; TUI notes go in `CHANGELOG-TUI.md`. Notes include the selected command, shared internal packages, module files, and its GoReleaser config, bounded by that product’s previous reachable tag. Historical CLI notes remain unchanged.
+Dispatch the Release workflow from `main` and choose CLI or TUI. Version is calculated automatically; the version input is an optional override. No commit SHA input is needed: both jobs use the exact `main` commit captured when the workflow was dispatched. GitHub release notes are generated with git-cliff from the selected command, shared internal packages, module files, and its GoReleaser config, bounded by that product’s previous reachable tag. Checked-in changelog updates are optional and do not gate publishing.
 
-The workflow validates the SHA and changelog, runs checks and a snapshot build, then creates the product tag and publishes through GoReleaser. The `release` GitHub environment can require approval before publishing; configure its protection rules in repository settings. Tag pushes do not publish. Releases are serialized across both products. Publish versions in increasing order: CLI stable releases may update GitHub’s repository-wide latest slot; TUI downloads must use product tags or Homebrew.
+The workflow calculates and validates the version once, validates the captured SHA, runs checks and a snapshot build, then creates the product tag and publishes through GoReleaser. The `release` GitHub environment can require approval before publishing; configure its protection rules in repository settings. Tag pushes do not publish. Releases are serialized across both products. Publish versions in increasing order: CLI stable releases may update GitHub’s repository-wide latest slot; TUI downloads must use product tags or Homebrew.
 
 GoReleaser updates only the selected stable cask in `jccguimaraes/homebrew-tap`. Set repository Actions secret `HOMEBREW_TAP_TOKEN` with Contents read/write access to that tap. The normal `GITHUB_TOKEN` publishes tags and release assets. Prereleases skip stable cask updates.
 
@@ -130,14 +130,14 @@ PRODUCT=cli mise run next-version
 PRODUCT=tui mise run next-version
 PRODUCT=cli mise run changelog
 PRODUCT=tui mise run changelog
-# Review, commit, merge, and check out the merged SHA before dispatching.
+# Changelog commands above are optional; publish only the selected product.
 mise run release-cli
 mise run release-tui
 ```
 
-CLI version defaults come from git-cliff’s Conventional Commit bump calculation, filtered to CLI and shared paths. TUI defaults use the current UTC year/month and one more than the highest local tag revision for that month, starting at `1`. Fetch remote tags first (`git fetch origin --tags`) so calculations include published releases. Set `VERSION` to override either default. Publish tasks read the first prepared changelog version rather than recalculating after merge or a month boundary. `mise run check-release-versions` checks defaults, overrides, and release-note headings without publishing.
+CLI version defaults come from git-cliff’s Conventional Commit bump calculation, filtered to CLI and shared paths. TUI defaults use the current UTC year/month and one more than the highest local tag revision for that month, starting at `1`. Fetch remote tags first (`git fetch origin --tags`) so calculations include published releases. Set `VERSION` to override either default. Publish tasks dispatch to `main`; CI calculates the version once and passes that exact version to packaging, even across a month boundary. Local changelog previews can differ if commits or tags change before dispatch. `mise run check-release-versions` checks defaults, overrides, and release-note headings without publishing.
 
-Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch against `main` with the current full commit SHA; tokens stay in Actions secrets. Merge this workflow before dispatching a release.
+Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch against `main`, not the local checkout’s SHA; tokens stay in Actions secrets. Merge this workflow before dispatching a release.
 
 `mise run setup` installs hk hooks through mise, replacing the previous commitlint hook path when configured. Pre-commit checks formatting and generated-workflow drift without modifying or staging files; commit-msg runs commitlint. `mise run check` runs the same read-only checks across the repository in CI. Full race tests remain separate.
 
