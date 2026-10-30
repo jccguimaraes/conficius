@@ -67,7 +67,7 @@ func TestCheckManagerIntegritySeparatesHealthFromFreshness(t *testing.T) {
 	}
 }
 
-func TestCheckManagerIntegrityWarnsForUntestedVersion(t *testing.T) {
+func TestCheckManagerIntegrityAcceptsUntestedVersion(t *testing.T) {
 	dir := t.TempDir()
 	writeExecutable(t, filepath.Join(dir, PM_NPM), "#!/bin/sh\nprintf '12.0.0'\n")
 	t.Setenv("PATH", dir)
@@ -75,7 +75,7 @@ func TestCheckManagerIntegrityWarnsForUntestedVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(checks) != 1 || checks[0].Status != "warning" || !strings.Contains(checks[0].Message, "outside tested range") {
+	if len(checks) != 1 || checks[0].Status != "healthy" || checks[0].Message != "executable and manager version available" {
 		t.Fatalf("checks = %#v", checks)
 	}
 }

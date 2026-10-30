@@ -36,7 +36,7 @@ Do not add several managers in one slice. Start with one manager whose structure
 
 ## Mutation gaps
 
-- Align TUI with CLI re-query/accepted-plan, tested-version, mutation-journal, and post-update verification safeguards; TUI preview/apply already exists.
+- Align TUI with CLI re-query/accepted-plan, mutation-journal, and post-update verification safeguards; TUI preview/apply already exists.
 - Install command and planning.
 - Remove command, dependency impact, and explicit unknown safety state.
 - Constraint-preserving versus latest/major update modes.

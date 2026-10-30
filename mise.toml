@@ -5,6 +5,7 @@ git-cliff = "2.14.2"
 go = "1.27.2"
 golangci-lint = "2.14.0"
 goreleaser = "2.18.3"
+hk = { version = "latest", workflow = "release.yml" }
 
 [env]
 COVERAGE_PATH="./coverage"

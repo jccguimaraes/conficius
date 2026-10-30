@@ -36,17 +36,24 @@ func TestInspectReportsAdapterAndManagerVersions(t *testing.T) {
 	}
 }
 
-func TestInspectWarnsForUntestedManagerVersion(t *testing.T) {
-	dir := t.TempDir()
-	writeExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf 'npm 12.0.0\\n'\n")
-	t.Setenv("PATH", dir)
+func TestInspectAcceptsUntestedManagerVersions(t *testing.T) {
+	for _, version := range []string{"8.0.0", "12.0.0"} {
+		t.Run(version, func(t *testing.T) {
+			dir := t.TempDir()
+			executable := filepath.Join(dir, "npm")
+			writeExecutable(t, executable, "#!/bin/sh\nprintf 'npm "+version+"\n'\n")
+			t.Setenv("PATH", dir)
 
-	statuses, err := Inspect([]string{PM_NPM})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if statuses[0].VersionTested || len(statuses[0].Warnings) != 1 || statuses[0].Status != StatusAvailable {
-		t.Fatalf("status = %#v", statuses[0])
+			for _, options := range []QueryOptions{{}, {Executables: map[string]string{PM_NPM: executable}}} {
+				statuses, err := inspectWithOptions([]string{PM_NPM}, options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(statuses) != 1 || statuses[0].VersionTested || len(statuses[0].Warnings) != 0 || statuses[0].Status != StatusAvailable {
+					t.Fatalf("statuses = %#v", statuses)
+				}
+			}
+		})
 	}
 }
 

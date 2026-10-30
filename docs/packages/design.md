@@ -119,7 +119,7 @@ Inspection runs managers concurrently with bounded concurrency. Commands within 
 
 Successful manager results survive failures from other managers or scopes. Status can be available, unavailable, disabled, unsupported, partial, or error.
 
-`packages doctor` checks executable availability and tested version range without registry or freshness queries. For npm lockfiles v2 and v3, it checks that root lock metadata contains each direct manifest dependency. Older formats report unknown. It is read-only.
+`packages doctor` checks executable availability and reports the manager version without registry or freshness queries. For npm lockfiles v2 and v3, it checks that root lock metadata contains each direct manifest dependency. Older formats report unknown. It is read-only.
 
 Freshness and vulnerability are separate:
 
@@ -162,7 +162,7 @@ Cargo project updates run one crate per `cargo update name@current --precise tar
 
 CLI mutations run sequentially and fail fast by default. `--best-effort` continues independent manager groups. Cancellation stops new commands. Journal records per-plan outcomes, changed files, interruption, verification failures, and recovery commands. Secrets and machine identifiers are redacted.
 
-CLI manager version outside tested range permits inspection but blocks mutation unless explicit override.
+Tested manager version ranges are informational metadata only. Versions outside those ranges do not warn or block inspection or mutation; restrict versions only for known command incompatibilities.
 
 TUI uses shared plan/execution APIs but not the CLI accepted-hash, journal, post-update verification, or manager-version guard flow. It rechecks project safety before applying, runs commands sequentially with terminal I/O, retains per-package failures while continuing subsequent commands, and restarts to refresh installed/latest/security state.
 
