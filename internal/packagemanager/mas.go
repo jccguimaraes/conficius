@@ -20,7 +20,11 @@ func (MAS) projectFiles() []string                   { return nil }
 func (MAS) updateArgs(packages []Package) []string {
 	args := []string{"update", "--inaccurate", "--no-check-min-os"}
 	for _, pkg := range packages {
-		args = append(args, pkg.Name)
+		if pkg.AdamID != 0 {
+			args = append(args, fmt.Sprint(pkg.AdamID))
+		} else {
+			args = append(args, pkg.Name)
+		}
 	}
 	return args
 }
@@ -63,12 +67,13 @@ func parseMASInstalled(output []byte) ([]InstalledPackage, error) {
 		if app.AdamID == 0 || app.Name == "" || app.Version == "" {
 			continue
 		}
-		packages = append(packages, InstalledPackage{Manager: PM_MAS, Name: fmt.Sprint(app.AdamID), Version: app.Version, Role: RoleApplication})
+		packages = append(packages, InstalledPackage{Manager: PM_MAS, Name: app.Name, Version: app.Version, Role: RoleApplication})
 	}
 	return packages, nil
 }
 
 type masOutdatedApp struct {
+	Name       string `json:"name"`
 	AdamID     int64  `json:"adamID"`
 	Version    string `json:"version"`
 	NewVersion string `json:"newVersion"`
@@ -84,8 +89,11 @@ func parseMASOutdated(output []byte, executable string) (Packages, error) {
 		if app.AdamID == 0 || app.Version == "" || app.NewVersion == "" {
 			continue
 		}
-		name := fmt.Sprint(app.AdamID)
-		packages[name] = append(packages[name], masTool{name: name, current: app.Version, latest: app.NewVersion, executable: executable})
+		name := app.Name
+		if name == "" {
+			name = fmt.Sprint(app.AdamID)
+		}
+		packages[name] = append(packages[name], recordTool{Package{Manager: PM_MAS, Name: name, AdamID: app.AdamID, Current: app.Version, Latest: app.NewVersion, Executable: executable, Role: RoleApplication}})
 	}
 	return packages, nil
 }
@@ -112,17 +120,3 @@ func decodeMASJSON[T any](output []byte) ([]T, error) {
 	}
 	return items, nil
 }
-
-type masTool struct {
-	name       string
-	current    string
-	latest     string
-	executable string
-}
-
-func (tool masTool) GetPackageManager() string   { return PM_MAS }
-func (tool masTool) GetName() string             { return tool.name }
-func (tool masTool) GetCurrentVersion() string   { return tool.current }
-func (tool masTool) GetLatestVersion() string    { return tool.latest }
-func (tool masTool) GetRequestedVersion() string { return "" }
-func (tool masTool) GetExecutable() string       { return tool.executable }

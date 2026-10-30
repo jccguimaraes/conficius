@@ -169,6 +169,7 @@ type QueryResult struct {
 }
 
 type Package struct {
+	AdamID          int64       `json:"adam_id,omitempty"`
 	RunAs           string      `json:"run_as,omitempty"`
 	RunAsMethod     string      `json:"run_as_method,omitempty"`
 	Manager         string      `json:"manager"`

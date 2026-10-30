@@ -12,7 +12,7 @@ import (
 
 func TestMASUpdateArgsUseExplicitSafeChecksAndAdamIDs(t *testing.T) {
 	adapter := MAS{}
-	packages := []Package{{Name: "497799835"}, {Name: "123"}}
+	packages := []Package{{Name: "Xcode", AdamID: 497799835}, {Name: "Other App", AdamID: 123}}
 	want := []string{"update", "--inaccurate", "--no-check-min-os", "497799835", "123"}
 	if got := adapter.updateArgs(packages); !reflect.DeepEqual(got, want) {
 		t.Fatalf("args = %#v; want %#v", got, want)
@@ -25,7 +25,7 @@ func TestMASAdapterQueriesGlobalInventoryAndOutdated(t *testing.T) {
 	executable := filepath.Join(dir, PM_MAS)
 	writeExecutable(t, executable, `#!/bin/sh
 printf '%s\n' "$*" >>"$ARGS_FILE"
-if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then printf '{"adamID":497799835,"name":"Xcode","version":"26.0"}'; else printf '{"adamID":497799835,"version":"26.0","newVersion":"27.0"}'; fi
+if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then printf '{"adamID":497799835,"name":"Xcode","version":"26.0"}'; else printf '{"adamID":497799835,"name":"Xcode","version":"26.0","newVersion":"27.0"}'; fi
 `)
 	t.Setenv("PATH", dir)
 	t.Setenv("ARGS_FILE", argsFile)
@@ -36,6 +36,14 @@ if [ "$1" = "--version" ]; then printf '7.0.0'; elif [ "$1" = "list" ]; then pri
 	outdated, err := QueryOutdatedScopes(context.Background(), []string{PM_MAS}, []Scope{{Kind: "global"}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	records := Records(outdated.Packages)
+	if len(installed.Packages) != 1 || installed.Packages[0].Name != "Xcode" || len(records) != 1 || records[0].Name != "Xcode" || records[0].AdamID != 497799835 {
+		t.Fatalf("app names or IDs lost: installed=%+v outdated=%+v", installed.Packages, records)
+	}
+	plans, err := PlanUpdates(outdated, nil, nil)
+	if err != nil || len(plans) != 1 || !reflect.DeepEqual(plans[0].Args, []string{"update", "--inaccurate", "--no-check-min-os", "497799835"}) {
+		t.Fatalf("update must use ID: plans=%+v err=%v", plans, err)
 	}
 	args, err := os.ReadFile(argsFile)
 	if err != nil {
@@ -108,7 +116,7 @@ func TestParseMASInstalledSupportsJSONArray(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []InstalledPackage{{Manager: PM_MAS, Name: "497799835", Version: "27.0", Role: RoleApplication}}
+	want := []InstalledPackage{{Manager: PM_MAS, Name: "Xcode", Version: "27.0", Role: RoleApplication}}
 	if !reflect.DeepEqual(packages, want) {
 		t.Fatalf("packages = %#v; want %#v", packages, want)
 	}
@@ -120,7 +128,7 @@ func TestParseMASInstalledSupportsOneJSONObject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(packages) != 1 || packages[0].Name != "497799835" {
+	if len(packages) != 1 || packages[0].Name != "Xcode" {
 		t.Fatalf("packages = %#v", packages)
 	}
 }
