@@ -30,7 +30,7 @@ Download from [GitHub releases](https://github.com/jccguimaraes/conficius/releas
 
 Choose `darwin` or `linux`, then `arm64` or `amd64`. Verify against `checksums.txt`, extract, and put the binary on `PATH`. Either binary runs independently.
 
-macOS binaries are not signed or notarized by Apple and may be blocked by Gatekeeper. Install only if you trust the artifacts; no automatic Gatekeeper bypass is included.
+macOS binaries are not signed or notarized by Apple. Homebrew casks remove quarantine from the installed binary, bypassing Gatekeeper for that file. Direct downloads may still be blocked. Install only if you trust the artifacts.
 
 ## Start
 
@@ -110,9 +110,15 @@ CI runs race-enabled tests, vet, builds, and CLI smoke tests on Linux and macOS.
 <details>
 <summary>Release publishing</summary>
 
-CLI releases use `cli-vX.Y.Z`; TUI releases use calendar tags shaped `tui-vYYYY.MM.revision`. Tags must point to commits included in `main`; CLI versions also need a matching changelog heading. Tag pushes verify release state without publishing. To publish, manually run the matching release workflow against its tag with `confirm` set to `publish`. Both products currently publish as prereleases.
+CLI releases use `X.Y.Z`; TUI releases use `YYYY.MM.revision`, with no product or `v` prefix. Existing prefixed tags remain unchanged and count toward version selection. Each product has its own version, changelog, archives, and Homebrew cask. Shared changes may warrant both releases, but neither forces the other. CLI prereleases use `-alpha.N`, `-beta.N`, or `-rc.N`; TUI releases are stable. Build metadata is not supported in release versions.
 
-Publishing also updates `conficius` and `conficius-tui` casks in `jccguimaraes/homebrew-tap`. Set the repository Actions secret `HOMEBREW_TAP_TOKEN` to a token with Contents read/write access to that tap. The normal `GITHUB_TOKEN` still publishes release assets; the tap token is used only for tap updates. Cask uploads are explicitly enabled for the current prerelease policy. Binaries are not Apple-signed or notarized; no automatic Gatekeeper bypass is configured.
+Dispatch the Release workflow from `main` and choose CLI or TUI. Version is calculated automatically; the version input is an optional override. No commit SHA input is needed: both jobs use the exact `main` commit captured when the workflow was dispatched. GitHub release notes are generated with git-cliff from the selected command, shared internal packages, module files, and its GoReleaser config, bounded by that product’s previous reachable tag. Checked-in changelog updates are optional and do not gate publishing.
+
+The workflow calculates and validates the version once, validates the captured SHA, runs checks and a snapshot build, then creates the product tag and publishes through GoReleaser. The `release` GitHub environment can require approval before publishing; configure its protection rules in repository settings. Tag pushes do not publish. Releases are serialized across both products. Publish versions in increasing order: CLI stable releases may update GitHub’s repository-wide latest slot; TUI downloads must use product tags or Homebrew.
+
+GoReleaser updates only the selected stable cask in `jccguimaraes/homebrew-tap`. Set repository Actions secret `HOMEBREW_TAP_TOKEN` with Contents read/write access to that tap. The normal `GITHUB_TOKEN` publishes tags and release assets. Prereleases skip stable cask updates.
+
+Existing tags are rejected. If publication fails after tag creation, inspect the tag, GitHub release, uploaded assets, and tap commit before manual recovery; do not blindly delete tags or overwrite published releases. No custom retry or rollback subsystem is maintained. Binaries are not Apple-signed or notarized. On macOS, generated Homebrew casks remove quarantine only from their staged binary; system-wide Gatekeeper settings remain unchanged.
 
 Local release tasks use the pinned GoReleaser from mise:
 
@@ -120,10 +126,19 @@ Local release tasks use the pinned GoReleaser from mise:
 mise run release-check
 mise run release-snapshot-cli
 mise run release-snapshot-tui
-TAG=cli-vX.Y.Z mise run release-cli
-TAG=tui-vYYYY.MM.revision mise run release-tui
+PRODUCT=cli mise run next-version
+PRODUCT=tui mise run next-version
+PRODUCT=cli mise run changelog
+PRODUCT=tui mise run changelog
+# Changelog commands above are optional; publish only the selected product.
+mise run release-cli
+mise run release-tui
 ```
 
-Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch GitHub Actions against an existing remote tag, so the tap token stays in Actions secrets. They do not create tags. Merge publishing configuration before creating the next release tags; existing tags retain their original workflows and will not gain tap publishing by rerunning them.
+CLI version defaults come from git-cliff’s Conventional Commit bump calculation, filtered to CLI and shared paths. TUI defaults use the current UTC year/month and one more than the highest local tag revision for that month, starting at `1`. Fetch remote tags first (`git fetch origin --tags`) so calculations include published releases. Set `VERSION` to override either default. Publish tasks dispatch to `main`; CI calculates the version once and passes that exact version to packaging, even across a month boundary. Local changelog previews can differ if commits or tags change before dispatch. `mise run check-release-versions` checks defaults, overrides, and release-note headings without publishing.
+
+Snapshot tasks build archives and generate casks without publishing. Both use `dist/`; run them sequentially. Publish tasks dispatch against `main`, not the local checkout’s SHA; tokens stay in Actions secrets. Merge this workflow before dispatching a release.
+
+`mise run setup` installs hk hooks through mise, replacing the previous commitlint hook path when configured. Pre-commit checks formatting and generated-workflow drift without modifying or staging files; commit-msg runs commitlint. `mise run check` runs the same read-only checks across the repository in CI. Full race tests remain separate.
 
 </details>

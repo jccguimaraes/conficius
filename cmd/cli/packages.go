@@ -600,7 +600,11 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 	}
 	for _, plan := range plans {
 		if plan.RunAs != "" {
-			if _, err := fmt.Fprintf(writer, "Run as: %s (target login environment)\n", plan.RunAs); err != nil {
+			method := plan.RunAsMethod
+			if method == "" {
+				method = "sudo"
+			}
+			if _, err := fmt.Fprintf(writer, "Run as: %s (%s login environment)\n", plan.RunAs, method); err != nil {
 				return err
 			}
 		}

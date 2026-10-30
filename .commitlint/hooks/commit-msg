@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# POSIX compliant
-. $(dirname "$0")/utils.sh
-
-heading "running commitlint:"
-go tool commitlint lint --message "$1"

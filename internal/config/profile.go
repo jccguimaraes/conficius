@@ -19,8 +19,9 @@ type Profile struct {
 }
 
 type ManagerSettings struct {
-	Enabled *bool  `toml:"enabled" json:"enabled,omitempty"`
-	RunAs   string `toml:"run_as" json:"run_as,omitempty"`
+	Enabled     *bool  `toml:"enabled" json:"enabled,omitempty"`
+	RunAs       string `toml:"run_as" json:"run_as,omitempty"`
+	RunAsMethod string `toml:"run_as_method" json:"run_as_method,omitempty"`
 }
 
 type ProfileProject struct {
@@ -90,6 +91,12 @@ func normalizeProfile(profile *Profile, root string) error {
 	for manager, settings := range profile.Managers {
 		if settings.RunAs != "" && !ValidRunAsUser(settings.RunAs) {
 			return fmt.Errorf("manager %s: invalid run_as user %q", manager, settings.RunAs)
+		}
+		if settings.RunAsMethod != "" && settings.RunAsMethod != "sudo" && settings.RunAsMethod != "su" {
+			return fmt.Errorf("manager %s: invalid run_as_method %q", manager, settings.RunAsMethod)
+		}
+		if settings.RunAsMethod != "" && settings.RunAs == "" {
+			return fmt.Errorf("manager %s: run_as_method requires run_as", manager)
 		}
 		if !supportedManager(manager) {
 			return fmt.Errorf("unsupported manager %q", manager)

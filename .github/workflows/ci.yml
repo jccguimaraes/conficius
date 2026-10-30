@@ -1,6 +1,7 @@
 # generated-by: cinzel
 # cinzel-provider: github
 # cinzel-source: cinzel/ci.hcl
+
 name: CI
 on:
   pull_request:
@@ -11,13 +12,13 @@ permissions:
   contents: read
 concurrency:
   cancel-in-progress: true
-  group: "ci-${{ github.workflow }}-${{ github.ref }}"
+  group: ci-${{ github.workflow }}-${{ github.ref }}
 jobs:
   test:
-    name: "Test (${{ matrix.os }})"
+    name: Test (${{ matrix.os }})
     permissions:
       contents: read
-    runs-on: "${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,13 +59,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          install_args: golangci-lint goreleaser
+          install_args: go golangci-lint goreleaser cinzel hk pkl actionlint ghalint git-cliff
       - name: Lint Go
         run: golangci-lint run
       - name: Check GoReleaser
         run: |
           goreleaser check
           goreleaser check --config .goreleaser-tui.yaml
+      - name: Check hooks and generated workflows
+        run: mise run check
     timeout-minutes: 15

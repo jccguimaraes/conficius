@@ -1,0 +1,38 @@
+amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
+
+local workflowFiles = List("cinzel/**", ".github/**", ".cinzelrc.yaml", ".actionlint.{yaml,yml}", ".ghalint.{yaml,yml}", "ghalint.{yaml,yml}", "mise.toml", "hk.pkl")
+
+steps {
+  ["gofmt"] {
+    glob = List("**/*.go")
+    check_list_files = "gofmt -l {{files}}"
+  }
+  ["cinzel"] {
+    glob = workflowFiles
+    check = "cinzel github diff"
+  }
+  ["actionlint"] {
+    glob = workflowFiles
+    check = "actionlint"
+  }
+  ["ghalint"] {
+    glob = workflowFiles
+    check = "ghalint run"
+  }
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = false
+    stage = false
+  }
+  ["commit-msg"] {
+    steps {
+      ["commitlint"] {
+        check = new Command {
+          argv = List("go", "tool", "commitlint", "lint", "--message", "{{commit_msg_file}}")
+        }
+      }
+    }
+  }
+}

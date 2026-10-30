@@ -1,11 +1,17 @@
+[tool_alias]
+cinzel = "github:yldio/cinzel"
+
 [tools]
 actionlint = "1.7.12"
+cinzel = "1.4.0"
 ghalint = "1.5.6"
 git-cliff = "2.14.2"
 go = "1.27.2"
 golangci-lint = "2.14.0"
-goreleaser = "2.18.3"
-hk = { version = "latest", workflow = "release.yml" }
+goreleaser = "2.19.0"
+hk = "2.9.0"
+pkl = "0.32.2"
+gh = "2.103.3"
 
 [env]
 COVERAGE_PATH="./coverage"
@@ -14,8 +20,10 @@ COVERAGE_HTML_PATH="{{env.COVERAGE_PATH}}/coverage.html"
 
 [tasks.setup]
 run = """
-git config --local core.hooksPath ./.commitlint/hooks
-chmod +x ./.commitlint/hooks/*
+if [ "$(git config --local --get core.hooksPath || true)" = "./.commitlint/hooks" ]; then
+  git config --local --unset core.hooksPath
+fi
+hk install --mise
 """
 
 [tasks.cli]
@@ -38,18 +46,20 @@ go fmt ./...
 [tasks.build-cli]
 depends = ["test-ci"]
 run = """
-VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
-VERSION="${VERSION#v}"
+VERSION="${VERSION:-$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --match 'cli-v*' --exclude '20[0-9][0-9].*' --abbrev=0 2>/dev/null || true)}"
+VERSION="${VERSION#cli-v}"
 if [ -z "$VERSION" ]; then
   VERSION="dev-$(git rev-parse --short HEAD)"
 fi
-rm -rf ./bin
+mkdir -p ./bin
 go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius ./cmd/cli
 """
 
 [tasks.build-tui]
 depends = ["test-ci"]
 run = """
+VERSION="${VERSION:-$(git describe --tags --match '20[0-9][0-9].[01][0-9].*' --match 'tui-v*' --abbrev=0 2>/dev/null || true)}"
+VERSION="${VERSION#tui-v}"
 VERSION="${VERSION:-dev-$(git rev-parse --short HEAD)}"
 mkdir -p ./bin
 go build -ldflags "-s -w -X main.version=$VERSION" -o ./bin/conficius-tui ./cmd/tui
@@ -69,27 +79,100 @@ run = "goreleaser release --snapshot --clean --config .goreleaser-tui.yaml"
 [tasks.release-cli]
 run = '''
 set -eu
-: "${TAG:?Set TAG=cli-vX.Y.Z}"
-case "$TAG" in cli-v*) ;; *) printf '%s\n' 'Expected CLI tag cli-vX.Y.Z' >&2; exit 1 ;; esac
-gh workflow run release-cli.yml --ref "$TAG" -f confirm=publish
+gh workflow run release.yml --ref main -f product=cli -f version="${VERSION:-}"
 '''
 
 [tasks.release-tui]
 run = '''
 set -eu
-: "${TAG:?Set TAG=tui-vYYYY.MM.revision}"
-case "$TAG" in tui-v*) ;; *) printf '%s\n' 'Expected TUI tag tui-vYYYY.MM.revision' >&2; exit 1 ;; esac
-gh workflow run release-tui.yml --ref "$TAG" -f confirm=publish
+gh workflow run release.yml --ref main -f product=tui -f version="${VERSION:-}"
+'''
+
+[tasks.next-version]
+run = '''
+set -eu
+if [ -n "${VERSION:-}" ]; then printf '%s\n' "$VERSION"; exit; fi
+case "${PRODUCT:?Set PRODUCT=cli or tui}" in
+  cli)
+    version=$(git cliff --offline --no-exec --use-branch-tags --tag-pattern '^(cli-v)?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' --skip-tags '^$' --ignore-tags '^20[0-9]{2}\.' --include-path 'cmd/cli/**' --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path .goreleaser.yaml --bumped-version)
+    printf '%s\n' "${version#cli-v}"
+    ;;
+  tui)
+    month=$(date -u +%Y.%m)
+    revision=$(git tag --list "$month.*" "tui-v$month.*" | awk -F. '$3 ~ /^[1-9][0-9]*$/ && $3+0 > max {max=$3+0} END {printf "%.0f", max+1}')
+    printf '%s.%s\n' "$month" "$revision"
+    ;;
+  *) exit 1 ;;
+esac
 '''
 
 [tasks.changelog]
-run = "git cliff --offline --output CHANGELOG.md"
+run = '''
+set -eu
+VERSION="${VERSION:-$(mise run --quiet next-version)}"
+export VERSION
+case "${PRODUCT:?Set PRODUCT=cli or tui}" in
+  cli) changelog=CHANGELOG.md ;;
+  tui) changelog=CHANGELOG-TUI.md ;;
+  *) exit 1 ;;
+esac
+if grep -Fq "## [$VERSION]" "$changelog"; then
+  printf '%s\n' "Changelog already contains $VERSION" >&2
+  exit 1
+fi
+mise run release-notes -- --prepend "$changelog"
+'''
+
+[tasks.release-notes]
+run = '''
+set -eu
+VERSION="${VERSION:-$(mise run --quiet next-version)}"
+case "${PRODUCT:?Set PRODUCT=cli or tui}" in
+  cli)
+    config=.goreleaser.yaml
+    pattern='^(cli-v)?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'
+    ignore='^20[0-9]{2}\.'
+    match='[0-9]*.[0-9]*.[0-9]*'
+    exclude='20[0-9][0-9].*'
+    ;;
+  tui)
+    config=.goreleaser-tui.yaml
+    pattern='^(tui-v)?20[0-9]{2}\.(0[1-9]|1[0-2])\.[1-9][0-9]*$'
+    ignore='^$'
+    match='20[0-9][0-9].[01][0-9].*'
+    exclude='cli-v*'
+    ;;
+  *) exit 1 ;;
+esac
+sha="${SHA:-HEAD}"
+previous=$(git describe --tags --match "$match" --match "$PRODUCT-v*" --exclude "$exclude" --abbrev=0 "$sha" 2>/dev/null || true)
+range="$sha"
+if [ -n "$previous" ]; then range="$previous..$sha"; fi
+git cliff --offline --no-exec --tag-pattern "$pattern" --skip-tags '^$' --ignore-tags "$ignore" --tag "$VERSION" --strip all --include-path "cmd/$PRODUCT/**" --include-path 'internal/**' --include-path go.mod --include-path go.sum --include-path "$config" "$range" "$@"
+'''
+
+[tasks.check-release-versions]
+run = '''
+set -eu
+[ "$(PRODUCT=cli VERSION=1.2.3 mise run --quiet next-version)" = 1.2.3 ]
+[ "$(PRODUCT=tui VERSION=2026.12.9 mise run --quiet next-version)" = 2026.12.9 ]
+for product in cli tui; do
+  version=$(PRODUCT="$product" mise run --quiet next-version)
+  case "$product" in
+    cli) printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ;;
+    tui) printf '%s\n' "$version" | grep -Eq "^$(date -u +%Y.%m)\.[1-9][0-9]*$" ;;
+  esac
+  notes=$(PRODUCT="$product" VERSION="$version" mise run --quiet release-notes)
+  printf '%s\n' "$notes" | grep -F "## [$version]"
+  printf '%s\n' "$notes" | grep -F "..$version)"
+done
+'''
 
 [tasks.coverpath]
 run = "mkdir -p ./coverage"
 
 [tasks.test-ci]
-run = "go test -race ./... --cover"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test -race ./... --cover"
 
 [tasks.smoke]
 depends = ["build-cli"]
@@ -97,7 +180,7 @@ run = "./bin/conficius --help >/dev/null && ./bin/conficius packages pms --json 
 
 [tasks.test]
 depends = ["coverpath"]
-run = "go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
+run = "env -u CONFICIUS_DOTFILES_CONFIG -u CONFICIUS_PACKAGES_CONFIG -u CONFICIUS_PROFILE go test ./... --cover -coverprofile=${COVERAGE_REPORT_PATH}"
 
 [tasks.report]
 depends = ["test"]
@@ -110,4 +193,7 @@ run = "go tool addlicense -v -ignore '**/*.yaml' -ignore '**/*.yml' -ignore '**/
 run = "go tool addlicense -check -ignore '**/*.yaml' -ignore '**/*.yml' -ignore '**/*.md' ."
 
 [tasks.cinzel]
-run = "go tool cinzel github parse"
+run = "cinzel github parse"
+
+[tasks.check]
+run = "hk check --all"
