@@ -446,6 +446,20 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 	switch adapter.name() {
 	case PM_NPM:
 		manifest = "package.json"
+	case PM_PNPM:
+		root, err := filepath.EvalSymlinks(scope.Path)
+		if err != nil {
+			return false
+		}
+		for dir := root; ; dir = filepath.Dir(dir) {
+			info, err := os.Stat(filepath.Join(dir, "pnpm-lock.yaml"))
+			if err == nil && !info.IsDir() {
+				return true
+			}
+			if filepath.Dir(dir) == dir {
+				return false
+			}
+		}
 	case PM_CARGO:
 		manifest = "Cargo.lock"
 	case PM_GO:
