@@ -25,10 +25,13 @@ import (
 var version = "dev"
 
 type outdatedRow struct {
-	Package packagemanager.Package
-	Mark    string
-	Failed  bool
-	Error   string
+	Package         packagemanager.Package
+	Mark            string
+	Failed          bool
+	Error           string
+	Security        string
+	SecurityColor   glyph.Color
+	AdvisoryDetails string
 }
 
 type vulnerabilityRow struct {
@@ -78,6 +81,7 @@ type model struct {
 	preview            string
 	commands           []commandRow
 	planSummary        string
+	packageDetail      packagemanager.Package
 	packageDetailText  string
 	packageFocus       func(func())
 	updateErrorLines   []string
@@ -303,6 +307,18 @@ func runSession(data *model, startView string) error {
 		Handle("<Esc>", func() { app.Go("vulnerabilities") })
 	for name, back := range map[string]string{"package-detail": "results"} {
 		details := detailTextView(&data.packageDetailText, true)
+		layer := details.Layer()
+		render := layer.Render
+		var previousPackage packagemanager.Package
+		layer.Render = func() {
+			scroll := layer.ScrollY()
+			if previousPackage != data.packageDetail {
+				scroll = 0
+			}
+			render()
+			layer.ScrollTo(scroll)
+			previousPackage = data.packageDetail
+		}
 		app.View(name, screenFrame("Packages / Details", "Profile: "+data.profile.Name, &data.status, details, "↑/↓ scroll  Esc back  q quit")).
 			Handle("<Esc>", func() { app.Go(back) }).Handle("q", app.Stop)
 	}
@@ -514,6 +530,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			}
 			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
 			data.rows = outdatedRows(packages, data.selected, data.failed)
+			syncOutdatedSecurity(data)
 			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), upgraded, unchanged, failed), result.Managers), inventory.Commands)
 			if err != nil {
 				data.status = queryStatus(err)
@@ -541,6 +558,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			data.securitySummary, data.securityCount = report.Summary, len(scanPackages)
 			data.allEvidence = report.Evidence
 			data.findings = vulnerabilityRows(report.Evidence, data.includeGraphOnly)
+			syncOutdatedSecurity(data)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(packages), report.Summary, report.Evidence), err, scanErr)
 			if len(data.failed) > 0 {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
@@ -630,6 +648,7 @@ func refreshSecurity(data *model, app *glyph.App) {
 	inventory := security.SelectInventory(data.inventory, options)
 	data.loading, data.securityScanning, data.securityChecked = true, true, false
 	data.securityErr = nil
+	syncOutdatedSecurity(data)
 	data.status = fmt.Sprintf("Busy: checking security; %d selected / %d installed; expanded scans take time", len(inventory), data.installedCount)
 	updateHome(data)
 	app.RequestRender()
@@ -649,6 +668,7 @@ func refreshSecurity(data *model, app *glyph.App) {
 			data.securitySummary, data.securityCount = report.Summary, len(inventory)
 			data.allEvidence = report.Evidence
 			data.findings = vulnerabilityRows(report.Evidence, options.IncludeGraphOnly)
+			syncOutdatedSecurity(data)
 			data.status = vulnerabilityStatus(vulnerabilitySummary(len(data.packages), report.Summary, report.Evidence), errors.Join(data.localErr, data.outdatedErr), err)
 			updateHome(data)
 		})
@@ -668,6 +688,7 @@ func cancelSecurity(data *model, app *glyph.App) {
 	data.securityGeneration++
 	data.securityScanning, data.securityChecked = false, false
 	data.securityErr = context.Canceled
+	syncOutdatedSecurity(data)
 	data.loading = data.localLoading || data.networkPending
 	data.status = "Vulnerability scan canceled; results incomplete"
 	updateHome(data)

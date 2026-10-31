@@ -23,6 +23,7 @@ type Finding struct {
 	Package     string
 	Version     string
 	Scope       string
+	Path        string
 	Advisory    string
 	UpgradeTo   string
 	UpgradeNote string
@@ -58,7 +59,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			}
 		}
 		if len(identities) == 0 {
-			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusUnmapped, Reason: "no explicit EUVD mapping"})
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Path: pkg.Path, Status: StatusUnmapped, Reason: "no explicit EUVD mapping"})
 			continue
 		}
 		packageFindings := make(map[string]int)
@@ -67,7 +68,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			items, err := client.Query(ctx, identity, pkg.Version)
 			if err != nil {
 				scanErrors = append(scanErrors, fmt.Errorf("%s:%s@%s: %w", pkg.Manager, pkg.Name, pkg.Version, err))
-				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusError, Reason: "request failed"})
+				findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Path: pkg.Path, Status: StatusError, Reason: "request failed"})
 				packageHasOutput = true
 				continue
 			}
@@ -79,7 +80,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 				}
 				packageHasOutput = true
 				finding := Finding{
-					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope,
+					Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Path: pkg.Path,
 					Advisory: item.AdvisoryID(), UpgradeTo: latest[key(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)], Score: item.BaseScore,
 					Status: status, SourceID: item.ID, Aliases: item.AliasList(), Rules: rules, Description: item.Description,
 				}
@@ -106,7 +107,7 @@ func Scan(ctx context.Context, installed []packagemanager.InstalledPackage, outd
 			}
 		}
 		if !packageHasOutput {
-			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Status: StatusClean})
+			findings = append(findings, Finding{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Version, Scope: pkg.Scope, Path: pkg.Path, Status: StatusClean})
 		}
 	}
 	return findings, errors.Join(scanErrors...)

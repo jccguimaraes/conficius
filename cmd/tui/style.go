@@ -33,6 +33,7 @@ func styledTextView(text *string) *glyph.TextViewC {
 	var lastText string
 	var lastWidth int
 	layer.Render = func() {
+		*text = strings.ReplaceAll(strings.ReplaceAll(*text, "\r\n", "\n"), "\r", "\n")
 		width, scroll := layer.ViewportWidth(), layer.ScrollY()
 		preserve := width != lastWidth && *text == lastText
 		render()
