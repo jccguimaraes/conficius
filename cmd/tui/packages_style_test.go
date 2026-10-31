@@ -5,11 +5,42 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jccguimaraes/conficius/internal/config"
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	"github.com/jccguimaraes/conficius/internal/security"
 	"github.com/kungfusheep/glyph"
 	"github.com/kungfusheep/riffkey"
 )
+
+func TestPackageViewsShowActiveProjectPath(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	data := &model{active: &config.Scope{Kind: "project", Name: "web", Path: "/work/projects/web"}}
+	outdated, _ := resultView(data)
+	vulnerabilities, _ := vulnerabilityView(data)
+	for _, view := range []glyph.Component{outdated, vulnerabilities} {
+		template := glyph.Build(view)
+		for _, width := range []int{120, 40, 80} {
+			updateScreenSize(width, 24)
+			buffer := glyph.NewBuffer(width, 24)
+			template.Execute(buffer, int16(width), 24)
+			if line := buffer.GetLine(2); !strings.Contains(line, "Path: /work/projects/web") {
+				t.Fatalf("width %d missing project path: %q", width, line)
+			}
+		}
+		data.active.Path = "/work/projects/api"
+		buffer := glyph.NewBuffer(80, 24)
+		template.Execute(buffer, 80, 24)
+		if line := buffer.GetLine(2); !strings.Contains(line, "Path: /work/projects/api") {
+			t.Fatalf("project path did not update: %q", line)
+		}
+		data.active.Path = "/work/projects/web"
+	}
+	data.active = &config.Scope{Kind: "global"}
+	if text := packageContext(data).(func() string)(); strings.Contains(text, "Path:") {
+		t.Fatalf("global scope shows empty path: %q", text)
+	}
+}
 
 func TestPackageViewsResponsive(t *testing.T) {
 	data := &model{
