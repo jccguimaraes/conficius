@@ -83,6 +83,7 @@ func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("<Enter>", func() {
 			if row := packageList.Selected(); row != nil {
+				data.packageDetail = row.Package
 				data.packageDetailText = packageDetails(row)
 				app.Go("package-detail")
 			}

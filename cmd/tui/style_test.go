@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/config"
+	"github.com/jccguimaraes/conficius/internal/packagemanager"
 	glyph "github.com/kungfusheep/glyph"
 	"github.com/kungfusheep/riffkey"
 )
@@ -491,6 +493,67 @@ func TestDetailTextViewResizeAndNavigation(t *testing.T) {
 	}
 }
 
+func TestDetailTextViewReusedBuffer(t *testing.T) {
+	oldSize := screenSize
+	t.Cleanup(func() { updateScreenSize(oldSize.Width, oldSize.Height) })
+	text := packageDetails(&outdatedRow{
+		Package:         packagemanager.Package{Name: "node", Current: "22.0", Latest: "24.0"},
+		AdvisoryDetails: "Source: EUVD\nDescription: " + strings.Repeat("Node.js advisory describes a long request with trailing security details. ", 20) + "\nshort\nend\nReference: advisory",
+	})
+	viewer := detailTextView(&text, true)
+	layer := viewer.Layer()
+	render := layer.Render
+	pkg := packagemanager.Package{Name: "node"}
+	var previousPackage packagemanager.Package
+	layer.Render = func() {
+		scroll := layer.ScrollY()
+		if previousPackage != pkg {
+			scroll = 0
+		}
+		render()
+		layer.ScrollTo(scroll)
+		previousPackage = pkg
+	}
+	template := glyph.Build(screenFrame("Packages / Details", "Profile: test", "ready", viewer, "↑/↓ scroll  Esc back  q quit"))
+	destination := glyph.NewBuffer(80, 24)
+	for _, step := range []struct {
+		name                  string
+		width, height, scroll int
+		text                  string
+	}{
+		{name: "initial", width: 80, height: 24},
+		{name: "scroll", width: 80, height: 24, scroll: 12},
+		{name: "repeat", width: 80, height: 24, scroll: 12},
+		{name: "bottom", width: 80, height: 24, scroll: 10000},
+		{name: "top", width: 80, height: 24},
+		{name: "narrow", width: 48, height: 24, scroll: 12},
+		{name: "wide", width: 100, height: 30, scroll: 12},
+		{name: "update", width: 100, height: 30, text: "node\n\nDescription\nshort\nend"},
+		{name: "taller", width: 100, height: 40},
+		{name: "repeat-update", width: 100, height: 40},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			updateScreenSize(step.width, step.height)
+			if step.text != "" {
+				text = step.text
+			}
+			viewer.Layer().ScrollTo(step.scroll)
+			destination.Resize(step.width, step.height)
+			destination.ClearDirty()
+			template.Execute(destination, int16(step.width), int16(step.height))
+			expected := glyph.NewBuffer(step.width, step.height)
+			template.Execute(expected, int16(step.width), int16(step.height))
+			for y := range step.height {
+				for x := range step.width {
+					if got, want := destination.Get(x, y), expected.Get(x, y); !got.Equal(want) {
+						t.Fatalf("cell (%d,%d) = %#v, want %#v\nreused: %q\nfresh:  %q", x, y, got, want, destination.GetLine(y), expected.GetLine(y))
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestStyleListKeepsList(t *testing.T) {
 	items := []string{"row"}
 	list := glyph.List(&items)
@@ -498,4 +561,122 @@ func TestStyleListKeepsList(t *testing.T) {
 		t.Fatal("styling replaced list")
 	}
 	assertRenderedContains(t, list, "› row")
+}
+
+func TestDetailTextViewTerminalDiff(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	for _, description := range []struct{ name, text string }{
+		{"ascii", strings.Repeat("Long advisory description with trailing text. ", 15)},
+		{"wide", strings.Repeat("Request 界 details. ", 40)},
+		{"tabs", strings.Repeat("Long advisory\tdescription with trailing text. ", 15)},
+		{"crlf", "Node.js is vulnerable to a denial of service when processing a specially crafted HTTP request.\r\n\r\nAn unauthenticated remote attacker can cause the server to stop responding by sending malformed input.\r\n\r\nUsers should upgrade to a patched Node.js release."},
+		{"cr", "Node.js is vulnerable to a denial of service when processing a specially crafted HTTP request.\r\rAn unauthenticated remote attacker can cause the server to stop responding by sending malformed input.\r\rUsers should upgrade to a patched Node.js release."},
+	} {
+		t.Run(description.name, func(t *testing.T) {
+			var output strings.Builder
+			screen := glyph.NewScreen(&output)
+			width, height := screen.Width(), screen.Height()
+			t.Logf("terminal %dx%d", width, height)
+			updateScreenSize(width, height)
+			text := packageDetails(&outdatedRow{
+				Package:         packagemanager.Package{Name: "node", Current: "22.0", Latest: "24.0"},
+				AdvisoryDetails: strings.Repeat("Description: "+description.text+"\n\nshort\nend\n", 120),
+			})
+			viewer := detailTextView(&text, true)
+			layer := viewer.Layer()
+			render := layer.Render
+			layer.Render = func() {
+				scroll := layer.ScrollY()
+				render()
+				layer.ScrollTo(scroll)
+			}
+			template := glyph.Build(screenFrame("Packages / Details", "Profile: test", "ready", viewer, "↑/↓ scroll  Esc back  q quit"))
+			terminal := make([]rune, width*height)
+			for i := range terminal {
+				terminal[i] = ' '
+			}
+			x, y := 0, 0
+			for step := 0; step < 900; step++ {
+				offset := step
+				if step >= 450 {
+					offset = 899 - step
+				}
+				if step == 850 {
+					text = "node\n\nDescription\nshort\nend"
+				}
+				layer.ScrollTo(offset)
+				screen.Buffer().ClearDirty()
+				template.Execute(screen.Buffer(), int16(width), int16(height))
+				screen.Flush()
+				screen.FlushBuffer()
+				ansi := []rune(output.String())
+				output.Reset()
+				for i := 0; i < len(ansi); i++ {
+					r := ansi[i]
+					if r == '\x1b' {
+						start := i
+						i++
+						if i >= len(ansi) || ansi[i] != '[' {
+							t.Fatalf("unsupported ANSI at %d: %q", start, string(ansi[start:]))
+						}
+						i++
+						params := i
+						for i < len(ansi) && (ansi[i] < 0x40 || ansi[i] > 0x7e) {
+							i++
+						}
+						if i >= len(ansi) {
+							t.Fatal("incomplete CSI")
+						}
+						switch ansi[i] {
+						case 'H':
+							var row, col int
+							if _, err := fmt.Sscanf(string(ansi[params:i]), "%d;%d", &row, &col); err != nil {
+								t.Fatal(err)
+							}
+							x, y = col-1, row-1
+						case 'm':
+						default:
+							t.Fatalf("unsupported CSI: %q", string(ansi[start:i+1]))
+						}
+						continue
+					}
+					switch r {
+					case '\r':
+						x = 0
+						continue
+					case '\n':
+						y++
+						continue
+					case '\b':
+						x = max(0, x-1)
+						continue
+					}
+					rw := glyph.RuneWidth(r)
+					if x >= width {
+						x, y = 0, y+1
+					}
+					if y >= height {
+						copy(terminal, terminal[width:])
+						for j := (height - 1) * width; j < len(terminal); j++ {
+							terminal[j] = ' '
+						}
+						y = height - 1
+					}
+					terminal[y*width+x] = r
+					if rw == 2 && x+1 < width {
+						terminal[y*width+x+1] = 0
+					}
+					x += rw
+				}
+				for row := range height {
+					for col := range width {
+						if got, want := terminal[row*width+col], screen.Buffer().Get(col, row).Rune; got != want {
+							t.Fatalf("step %d scroll %d cell (%d,%d): terminal %q, buffer %q; terminal row %q; buffer row %q", step, layer.ScrollY(), col, row, got, want, string(terminal[row*width:(row+1)*width]), screen.Buffer().GetLine(row))
+						}
+					}
+				}
+			}
+		})
+	}
 }

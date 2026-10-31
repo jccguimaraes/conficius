@@ -269,15 +269,15 @@ func TestPackageRowsStaySingleLineAndUpdateSelection(t *testing.T) {
 
 func TestOutdatedColumnOrderAndVisibility(t *testing.T) {
 	defer updateScreenSize(80, 24)
-	row := outdatedRow{Package: packagemanager.Package{Name: "typescript", Manager: "npm", Scope: "project", Current: "5.8.2", Requested: "^5.8", Latest: "5.9.3"}, Mark: "[x]", Error: "failure"}
+	row := outdatedRow{Package: packagemanager.Package{Name: "typescript", Manager: "npm", Scope: "project", Current: "5.8.2", Requested: "^5.8", Latest: "5.9.3"}, Mark: "[x]", Security: "Unknown", Error: "failure"}
 	columns := func() []packageColumn { return outdatedColumns(&row) }
 	view, _ := resultView(&model{rows: []outdatedRow{row}})
 	template := glyph.Build(view)
-	for _, width := range []int{200, 120, 118, 117, 110, 109, 92, 91, 80, 76, 75, 40, 200} {
+	for _, width := range []int{200, 120, 118, 117, 110, 109, 100, 99, 92, 91, 80, 76, 75, 40, 200} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			updateScreenSize(width, 12)
 			visible := packageColumns("outdated", width, columns())
-			if len(visible) != 8 || visible[0].heading != "" || visible[0].width != 3 {
+			if len(visible) != 9 || visible[0].heading != "" || visible[0].width != 3 {
 				t.Fatalf("column indexes or mark width changed: %+v", visible)
 			}
 			buffer := glyph.NewBuffer(width, 12)
@@ -305,8 +305,8 @@ func TestOutdatedColumnOrderAndVisibility(t *testing.T) {
 				t.Fatalf("invalid mark column: %q / %q", heading, values)
 			}
 			previous := -1
-			for i, pair := range [][2]string{{"", "[x]"}, {"Manager", "npm"}, {"Scope", "project"}, {"Tool", "typescript"}, {"Requested", "^5.8"}, {"Current", "5.8.2"}, {"Latest", "5.9.3"}, {"Error", "failure"}} {
-				hidden := pair[0] == "Requested" && width < 118 || pair[0] == "Error" && width < 110 || pair[0] == "Scope" && width < 92 || pair[0] == "Manager" && width < 76
+			for i, pair := range [][2]string{{"", "[x]"}, {"Manager", "npm"}, {"Scope", "project"}, {"Tool", "typescript"}, {"Requested", "^5.8"}, {"Current", "5.8.2"}, {"Latest", "5.9.3"}, {"Security", "Unknown"}, {"Error", "failure"}} {
+				hidden := pair[0] == "Security" && width < 100 || pair[0] == "Requested" && width < 118 || pair[0] == "Error" && width < 110 || pair[0] == "Scope" && width < 92 || pair[0] == "Manager" && width < 76
 				if hidden {
 					if visible[i].width != 0 || strings.Contains(heading, pair[0]) || strings.Contains(values, pair[1]) {
 						t.Fatalf("hidden column %s rendered: %q / %q", pair[0], heading, values)
@@ -396,7 +396,7 @@ func TestMiseRequestedAndInstalledVersions(t *testing.T) {
 
 func TestOutdatedWideColumnsStayCompact(t *testing.T) {
 	defer updateScreenSize(80, 24)
-	row := outdatedRow{Package: packagemanager.Package{Name: "typescript", Manager: "npm", Scope: "project", Current: "5.8.2", Requested: "^5.8", Latest: "5.9.3"}, Mark: "[x]", Failed: true, Error: "npm update failed: /very/long/path\nfull command output"}
+	row := outdatedRow{Package: packagemanager.Package{Name: "typescript", Manager: "npm", Scope: "project", Current: "5.8.2", Requested: "^5.8", Latest: "5.9.3"}, Mark: "[x]", Security: "Unknown", Failed: true, Error: "npm update failed: /very/long/path\nfull command output"}
 	data := &model{rows: []outdatedRow{row}}
 	view, _ := resultView(data)
 	template := glyph.Build(view)
@@ -419,8 +419,8 @@ func TestOutdatedWideColumnsStayCompact(t *testing.T) {
 		if buffer.Get(1, rowY).Rune != '›' || buffer.Get(3, rowY).Rune != '[' || buffer.Get(5, rowY).Rune != ']' {
 			t.Fatalf("cursor/checkbox separated: %q", buffer.GetLine(rowY))
 		}
-		for i, pair := range [][2]string{{"Manager", "npm"}, {"Scope", "project"}, {"Tool", "typescript"}, {"Requested", "^5.8"}, {"Current", "5.8.2"}, {"Latest", "5.9.3"}, {"Error", "Update failed"}} {
-			x := []int{7, 16, 27, 52, 69, 86, 103}[i]
+		for i, pair := range [][2]string{{"Manager", "npm"}, {"Scope", "project"}, {"Tool", "typescript"}, {"Requested", "^5.8"}, {"Current", "5.8.2"}, {"Latest", "5.9.3"}, {"Security", "Unknown"}, {"Error", "Update failed"}} {
+			x := []int{7, 16, 27, 46, 59, 72, 85, 104}[i]
 			for j, r := range pair[0] {
 				if buffer.Get(x+j, headingY).Rune != r {
 					t.Fatalf("%dx30 heading %s not at %d: %q", width, pair[0], x, buffer.GetLine(headingY))

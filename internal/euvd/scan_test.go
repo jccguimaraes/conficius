@@ -2,10 +2,54 @@ package euvd
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/jccguimaraes/conficius/internal/packagemanager"
 )
+
+type pathQueryStub struct {
+	items []Vulnerability
+	err   error
+}
+
+func (client pathQueryStub) Query(context.Context, Identity, string) ([]Vulnerability, error) {
+	return client.items, client.err
+}
+
+func TestScanPreservesInventoryIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		status string
+		name   string
+		client pathQueryStub
+	}{
+		{StatusUnmapped, "unmapped-tool", pathQueryStub{}},
+		{StatusClean, "node", pathQueryStub{}},
+		{StatusError, "node", pathQueryStub{err: errors.New("offline")}},
+		{StatusVulnerable, "node", pathQueryStub{items: []Vulnerability{{ID: "EUVD-1", Products: []ProductEntry{productEntry("Node", "nodejs", "before 23.0.0")}}}}},
+		{StatusUnknown, "node", pathQueryStub{items: []Vulnerability{{ID: "EUVD-1", Products: []ProductEntry{productEntry("Node", "nodejs", ">=20")}}}}},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			installed := []packagemanager.InstalledPackage{
+				{Manager: "mise", Name: tc.name, Version: "22.10.0", Scope: "project", Path: "/project"},
+				{Manager: "mise", Name: tc.name, Version: "22.10.0", Scope: "global", Path: "/global"},
+			}
+			findings, err := Scan(context.Background(), installed, nil, nil, tc.client)
+			if !errors.Is(err, tc.client.err) {
+				t.Fatalf("unexpected scan error: %v", err)
+			}
+			if len(findings) != len(installed) {
+				t.Fatalf("findings = %+v", findings)
+			}
+			for i, finding := range findings {
+				pkg := installed[i]
+				if finding.Manager != pkg.Manager || finding.Package != pkg.Name || finding.Version != pkg.Version || finding.Scope != pkg.Scope || finding.Path != pkg.Path || finding.Status != tc.status {
+					t.Fatalf("lost identity or status: %+v, inventory: %+v", finding, pkg)
+				}
+			}
+		})
+	}
+}
 
 type stub struct{}
 

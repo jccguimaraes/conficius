@@ -130,7 +130,7 @@ func osvEvidence(findings []vulnerability.Finding) []Evidence {
 func euvdEvidence(findings []euvd.Finding) []Evidence {
 	evidence := make([]Evidence, len(findings))
 	for i, finding := range findings {
-		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, UpgradeNote: finding.UpgradeNote, Rules: append([]string(nil), finding.Rules...), Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
+		evidence[i] = Evidence{Source: SourceEUVD, Manager: finding.Manager, Package: finding.Package, Version: finding.Version, Scope: finding.Scope, Path: finding.Path, Status: normalizeStatus(finding.Status), Advisory: finding.Advisory, SourceID: finding.SourceID, Aliases: append([]string(nil), finding.Aliases...), UpgradeTo: finding.UpgradeTo, UpgradeNote: finding.UpgradeNote, Rules: append([]string(nil), finding.Rules...), Reason: finding.Reason, Description: finding.Description, Score: finding.Score}
 		evidence[i].CVELink = cveLink(evidence[i].Advisory, evidence[i].Aliases)
 	}
 	return evidence
