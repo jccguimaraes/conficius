@@ -23,7 +23,7 @@ func packageColumns(kind string, width int, columns []packageColumn) []packageCo
 	case "outdated":
 		for i := range columns {
 			heading := columns[i].heading
-			if heading == "Error" && width < 110 || heading == "Scope" && width < 92 || heading == "Manager" && width < 76 {
+			if heading == "Requested" && width < 118 || heading == "Error" && width < 110 || heading == "Scope" && width < 92 || heading == "Manager" && width < 76 {
 				columns[i].width = 0
 				count--
 			}
@@ -206,7 +206,7 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 func outdatedColumns(row *outdatedRow) []packageColumn {
 	markColor := glyph.If(&row.Failed).Then(glyph.Red).Else(glyph.Color{})
 	errorText := glyph.If(&row.Failed).Then(glyph.If(&row.Error).Then(glyph.Text("Update failed; Enter details").FG(glyph.Red))).Else(glyph.Text(&row.Error).FG(glyph.Red))
-	return []packageColumn{{"", &row.Mark, 3, markColor}, {"Manager", &row.Package.Manager, 8, glyph.Color{}}, {"Scope", &row.Package.Scope, 10, glyph.Color{}}, {"Tool", &row.Package.Name, 24, glyph.Color{}}, {"Current", &row.Package.Current, 16, glyph.Color{}}, {"Latest", &row.Package.Latest, 16, glyph.Color{}}, {"Error", errorText, 24, glyph.Red}}
+	return []packageColumn{{"", &row.Mark, 3, markColor}, {"Manager", &row.Package.Manager, 8, glyph.Color{}}, {"Scope", &row.Package.Scope, 10, glyph.Color{}}, {"Tool", &row.Package.Name, 24, glyph.Color{}}, {"Requested", &row.Package.Requested, 16, glyph.Color{}}, {"Current", glyph.If(&row.Package.Current).Then(glyph.Text(&row.Package.Current)).Else(glyph.IfOrd(&row.Package.Manager).Eq(packagemanager.PM_MISE).Then(glyph.Text("[MISSING]").FG(glyph.Yellow))), 16, glyph.Color{}}, {"Latest", &row.Package.Latest, 16, glyph.Color{}}, {"Error", errorText, 24, glyph.Red}}
 }
 
 func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
