@@ -141,6 +141,9 @@ func packageContext(data *model) any {
 		text := "Profile: " + data.profile.Name
 		if data.active != nil {
 			text += " · Scope: " + data.active.Kind + ":" + data.active.Name
+			if data.active.Path != "" {
+				text += " · Path: " + data.active.Path
+			}
 		}
 		if data.cacheRefreshErr != "" {
 			text += " · " + data.cacheRefreshErr
