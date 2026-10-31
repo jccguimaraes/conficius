@@ -472,11 +472,11 @@ func (cli *Cli) writePackageJSON(data any) error {
 func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectIntegrity {
 	var checks []packagemanager.ProjectIntegrity
 	for _, scope := range scopes {
-		if (scope.Kind == "project" || scope.Kind == "workspace") && hasPackageManifest(scope.Path) {
+		if (scope.Kind == "project" || scope.Kind == "workspace") && hasNPMManifest(scope.Path) {
 			checks = append(checks, packagemanager.CheckNPMProjectIntegrity(scope.Path))
 		}
 		for _, workspace := range scope.Workspaces {
-			if hasPackageManifest(workspace) {
+			if hasNPMManifest(workspace) {
 				checks = append(checks, packagemanager.CheckNPMProjectIntegrity(workspace))
 			}
 		}
@@ -484,13 +484,9 @@ func projectIntegrityChecks(scopes []config.Scope) []packagemanager.ProjectInteg
 	return checks
 }
 
-func hasPackageManifest(path string) bool {
-	for _, name := range []string{"package.json", "go.mod"} {
-		if info, err := os.Stat(filepath.Join(path, name)); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
+func hasNPMManifest(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "package.json"))
+	return err == nil && !info.IsDir()
 }
 
 func printProjectIntegrity(writer io.Writer, checks []packagemanager.ProjectIntegrity) error {

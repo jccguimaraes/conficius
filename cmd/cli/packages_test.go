@@ -136,36 +136,46 @@ if [ "$1" = "--version" ]; then printf '11.0.0'; elif [ "$1" = "root" ]; then pr
 	}
 }
 
-func TestProjectIntegrityChecksSkipCargoOnlyProject(t *testing.T) {
-	project := t.TempDir()
-	if err := os.WriteFile(filepath.Join(project, "Cargo.toml"), []byte("[package]\nname = \"app\"\nversion = \"0.1.0\"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if checks := projectIntegrityChecks([]config.Scope{{Kind: "project", Path: project}}); len(checks) != 0 {
-		t.Fatalf("checks = %#v", checks)
+func TestProjectIntegrityChecksSkipNonNPMProjects(t *testing.T) {
+	for _, manifest := range []string{"Cargo.toml", "go.mod"} {
+		t.Run(manifest, func(t *testing.T) {
+			project := t.TempDir()
+			if err := os.WriteFile(filepath.Join(project, manifest), []byte(""), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, scopes := range [][]config.Scope{
+				{{Kind: "project", Path: project}},
+				{{Kind: "workspace", Path: project}},
+				{{Kind: "project", Path: t.TempDir(), Workspaces: []string{project}}},
+			} {
+				if checks := projectIntegrityChecks(scopes); len(checks) != 0 {
+					t.Fatalf("checks = %#v", checks)
+				}
+			}
+		})
 	}
 }
 
-func TestHasPackageManifestDetectsGoProject(t *testing.T) {
+func TestHasNPMManifestDetectsPackageJSON(t *testing.T) {
 	project := t.TempDir()
-	if hasPackageManifest(project) {
-		t.Fatal("empty directory has package manifest")
+	if hasNPMManifest(project) {
+		t.Fatal("empty directory has npm manifest")
 	}
-	manifest := filepath.Join(project, "go.mod")
+	manifest := filepath.Join(project, "package.json")
 	if err := os.Mkdir(manifest, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if hasPackageManifest(project) {
-		t.Fatal("go.mod directory treated as manifest")
+	if hasNPMManifest(project) {
+		t.Fatal("package.json directory treated as manifest")
 	}
 	if err := os.Remove(manifest); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(manifest, []byte("module example.com/app\n\ngo 1.26\n"), 0o600); err != nil {
+	if err := os.WriteFile(manifest, []byte(`{}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if !hasPackageManifest(project) {
-		t.Fatal("go.mod not detected")
+	if !hasNPMManifest(project) {
+		t.Fatal("package.json not detected")
 	}
 }
 
