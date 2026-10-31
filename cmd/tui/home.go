@@ -101,10 +101,13 @@ func packageHomeSummary(data *model) (string, glyph.Color) {
 		}
 	} else if data.securityChecked {
 		security = fmt.Sprintf("Security: %d checked; %d vulnerable; %d unknown; %d errors", data.securityCount, data.securitySummary.Vulnerable, data.securitySummary.Unknown, data.securitySummary.Errors)
+		if data.securitySummary.Requested > 0 {
+			security += fmt.Sprintf("; %d requested-version findings (not installed)", data.securitySummary.Requested)
+		}
 		if data.securitySummary.Tools > 0 || data.securitySummary.GraphOnly > 0 {
 			security += fmt.Sprintf("; %d tool; %d graph-only", data.securitySummary.Tools, data.securitySummary.GraphOnly)
 		}
-		if data.securitySummary.Vulnerable > 0 || data.securitySummary.Tools > 0 || data.securitySummary.Errors > 0 || data.securityErr != nil {
+		if data.securitySummary.Vulnerable > 0 || data.securitySummary.Requested > 0 || data.securitySummary.Tools > 0 || data.securitySummary.Errors > 0 || data.securityErr != nil {
 			color = glyph.Red
 		} else if data.securitySummary.Unknown > 0 && color != glyph.Red {
 			color = glyph.Yellow

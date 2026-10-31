@@ -23,6 +23,46 @@ func (euvdStub) Query(context.Context, euvd.Identity, string) ([]euvd.Vulnerabil
 	return []euvd.Vulnerability{{ID: "EUVD-1", Aliases: "CVE-1\n", BaseScore: 8.1, Products: []euvd.ProductEntry{product("Node", "nodejs", "22.10.0")}}}, nil
 }
 
+func TestMiseRequestedInventorySelection(t *testing.T) {
+	for _, version := range []string{"1.2.3", "0.12.0", "2026.10.31.123"} {
+		pkg := packagemanager.Package{Manager: "mise", Name: "node", Requested: version, Scope: "project", Path: "/project"}
+		options := Options{Outdated: []packagemanager.Package{pkg, pkg}}
+		selected := SelectInventory(nil, options)
+		if len(selected) != 1 || selected[0].Version != version {
+			t.Errorf("%s selected = %+v", version, selected)
+			continue
+		}
+		if again := SelectInventory(selected, options); len(again) != 1 {
+			t.Errorf("not idempotent: %+v", again)
+		}
+		installed := []packagemanager.InstalledPackage{{Manager: pkg.Manager, Name: pkg.Name, Scope: pkg.Scope, Path: pkg.Path, Version: "2.0.0"}}
+		if got := SelectInventory(installed, options); len(got) != 1 || got[0].Version != "2.0.0" || installed[0].Version != "2.0.0" {
+			t.Errorf("installed must win: %+v", got)
+		}
+		installed[0].Path = "/other"
+		if got := SelectInventory(installed, options); len(got) != 2 {
+			t.Errorf("scope identity lost: %+v", got)
+		}
+	}
+	for _, version := range []string{"", "latest", "24", "0.12", "22.10", "^1", "~1.2.3", ">=1.2.3", "1.x", "{{version}}", "npm:node@1.2.3", "1.2.3-rc.1", "1.2.3+build.2", "1.2.3-rc.1+build.2", "1.2.3-", "1.2.3+", "1.2.3-rc..1"} {
+		client := &countingOSV{}
+		report, err := Scan(t.Context(), nil, Options{Outdated: []packagemanager.Package{{Manager: "mise", Name: "node", Requested: version}}, OSVClient: client, EUVDClient: euvdStub{}})
+		if err != nil || client.calls.Load() != 0 || len(report.Evidence) != 0 {
+			t.Errorf("unsupported requested version %q assessed: %+v, %v", version, report, err)
+		}
+	}
+	client := &countingOSV{}
+	report, err := Scan(t.Context(), nil, Options{Outdated: []packagemanager.Package{{Manager: "mise", Name: "unmapped-tool", Requested: "1.2.3"}}, OSVClient: client, EUVDClient: euvdStub{}})
+	if err != nil || client.calls.Load() != 0 || len(report.Evidence) != 2 {
+		t.Fatalf("unmapped tool: %+v, %v", report, err)
+	}
+	for _, item := range report.Evidence {
+		if item.Status != StatusUnknown && item.Status != StatusUnmapped {
+			t.Fatal(item)
+		}
+	}
+}
+
 func TestScanCombinesSourcesWithoutDeduplicating(t *testing.T) {
 	inventory := []packagemanager.InstalledPackage{{Manager: "npm", Name: "node", Version: "22.10.0"}}
 	report, err := Scan(context.Background(), inventory, Options{OSVClient: osvStub{}, EUVDClient: euvdStub{}})

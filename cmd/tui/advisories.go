@@ -24,16 +24,21 @@ func syncOutdatedSecurity(data *model) {
 func updateOutdatedSecurity(row *outdatedRow, data *model) {
 	row.Security, row.SecurityColor, row.AdvisoryDetails = "Unknown", glyph.Yellow, ""
 	pkg := row.Package
-	if pkg.Manager == packagemanager.PM_MISE && pkg.Current == "" {
-		row.Security = "Not installed"
-		return
+	version, versionSource := pkg.Current, ""
+	heading, versionLabel := "Installed-version security evidence", "installed"
+	if pkg.Manager == packagemanager.PM_MISE && version == "" {
+		if !security.ScannableRequestedVersion(pkg.Requested) {
+			return
+		}
+		version, versionSource = pkg.Requested, "requested"
+		heading, versionLabel = "Requested-version security evidence (not installed)", "requested"
 	}
 	var findings []security.Evidence
 	clean, incomplete := false, false
 	seen := make(map[string]bool)
 	var details []string
 	for _, item := range data.allEvidence {
-		if item.Manager != pkg.Manager || item.Package != pkg.Name || item.Version != pkg.Current || item.Scope != pkg.Scope || item.Path != pkg.Path || item.Transitive && !item.DeclaredTool || item.DependencyClass == "graph-only" {
+		if item.Manager != pkg.Manager || item.Package != pkg.Name || item.Version != version || item.VersionSource != versionSource || item.Scope != pkg.Scope || item.Path != pkg.Path || item.Transitive && !item.DeclaredTool || item.DependencyClass == "graph-only" {
 			continue
 		}
 		key := fmt.Sprintf("%+v", item)
@@ -49,10 +54,10 @@ func updateOutdatedSecurity(row *outdatedRow, data *model) {
 		default:
 			incomplete = true
 		}
-		details = append(details, fmt.Sprintf("Source: %s\nStatus: %s\nAffected installed version: %s\nAdvisory: %s\nSource ID: %s\nAliases: %s\nCVSS: %g\nDescription: %s\nReference: %s\nCVE URL: %s\nReason: %s\nUnsupported rules: %s", item.Source, item.Status, item.Version, item.Advisory, item.SourceID, strings.Join(item.Aliases, ", "), item.Score, item.Description, item.Reference, item.CVELink, item.Reason, strings.Join(item.Rules, ", ")))
+		details = append(details, fmt.Sprintf("Source: %s\nStatus: %s\nAffected %s version: %s\nAdvisory: %s\nSource ID: %s\nAliases: %s\nCVSS: %g\nDescription: %s\nReference: %s\nCVE URL: %s\nReason: %s\nUnsupported rules: %s", item.Source, item.Status, versionLabel, item.Version, item.Advisory, item.SourceID, strings.Join(item.Aliases, ", "), item.Score, item.Description, item.Reference, item.CVELink, item.Reason, strings.Join(item.Rules, ", ")))
 	}
 	if len(details) > 0 {
-		row.AdvisoryDetails = "Installed-version security evidence; latest version is not verified fixed.\n\n" + strings.Join(details, "\n\n")
+		row.AdvisoryDetails = heading + "; latest version is not verified fixed.\n\n" + strings.Join(details, "\n\n")
 	}
 	canceled := errors.Is(data.securityErr, context.Canceled)
 	switch {

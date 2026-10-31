@@ -32,7 +32,7 @@ func (advisoryOSVClient) Query(context.Context, vulnerability.Package) ([]vulner
 }
 
 func TestOutdatedSecurityFromScan(t *testing.T) {
-	pkg := packagemanager.Package{Manager: "mise", Name: "node", Current: "22.10.0", Latest: "23.0.0", Scope: "project", Path: "/project"}
+	pkg := packagemanager.Package{Manager: "mise", Name: "node", Current: "22.10.0", Requested: "23.0.0", Latest: "23.0.0", Scope: "project", Path: "/project"}
 	report, err := security.Scan(context.Background(), []packagemanager.InstalledPackage{
 		{Manager: pkg.Manager, Name: pkg.Name, Version: pkg.Current, Scope: pkg.Scope, Path: pkg.Path},
 	}, security.Options{
@@ -71,6 +71,54 @@ func TestOutdatedSecurityFromScan(t *testing.T) {
 	}
 }
 
+func TestMissingMiseRequestedSecurityFromScan(t *testing.T) {
+	pkg := packagemanager.Package{Manager: "mise", Name: "node", Requested: "22.10.0", Scope: "project", Path: "/project"}
+	report, err := security.Scan(t.Context(), nil, security.Options{
+		Outdated:    []packagemanager.Package{pkg, pkg},
+		OSVMappings: []config.VulnerabilityMapping{{Manager: "mise", Package: "node", Ecosystem: "npm", Name: "node"}},
+		OSVClient:   advisoryOSVClient{}, EUVDClient: advisoryEUVDClient{t},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Evidence) != 2 || report.Summary.Vulnerable != 0 || report.Summary.Requested != 1 {
+		t.Fatalf("requested assessment missing or counted as installed: %+v", report)
+	}
+	for _, item := range report.Evidence {
+		if item.VersionSource != "requested" {
+			t.Fatalf("missing provenance: %+v", item)
+		}
+	}
+	findings := vulnerabilityRows(report.Evidence)
+	if len(findings) != 1 || !strings.Contains(findings[0].Current, "requested") || vulnerabilityOrigin(findings[0].Evidence) != "requested version (not installed)" {
+		t.Fatalf("vulnerability provenance: %+v", findings)
+	}
+	row := outdatedRow{Package: pkg}
+	updateOutdatedSecurity(&row, &model{securityChecked: true, allEvidence: report.Evidence})
+	if row.Security != "1 advisories" || row.Package.Current != "" {
+		t.Fatalf("requested findings missing or installed version fabricated: %+v", row)
+	}
+	for _, want := range []string{"Requested-version security evidence", "not installed", "Affected requested version: 22.10.0", "CVE-2026-1"} {
+		if !strings.Contains(row.AdvisoryDetails, want) {
+			t.Errorf("missing %q in %q", want, row.AdvisoryDetails)
+		}
+	}
+	for _, other := range []packagemanager.Package{
+		{Manager: "mise", Name: "node", Requested: "22.10.0", Scope: "global", Path: "/project"},
+		{Manager: "mise", Name: "node", Requested: "22.10.0", Scope: "project", Path: "/other"},
+		{Manager: "mise", Name: "node", Current: "22.10.0", Scope: "project", Path: "/project"},
+	} {
+		otherRow := outdatedRow{Package: other}
+		updateOutdatedSecurity(&otherRow, &model{securityChecked: true, allEvidence: report.Evidence})
+		if otherRow.Security != "Unknown" || otherRow.AdvisoryDetails != "" {
+			t.Fatalf("requested evidence leaked: %+v", otherRow)
+		}
+	}
+	if strings.Contains(row.AdvisoryDetails, "Affected installed version") {
+		t.Fatal(row.AdvisoryDetails)
+	}
+}
+
 func TestOutdatedSecurityStates(t *testing.T) {
 	pkg := packagemanager.Package{Manager: "npm", Name: "tool", Current: "1", Scope: "project", Path: "/project"}
 	clean := security.Evidence{Manager: pkg.Manager, Package: pkg.Name, Version: pkg.Current, Scope: pkg.Scope, Path: pkg.Path, Status: security.StatusClean}
@@ -105,10 +153,15 @@ func TestOutdatedSecurityStates(t *testing.T) {
 			t.Fatal(row.Security)
 		}
 	}
-	missing := outdatedRow{Package: packagemanager.Package{Manager: "mise", Name: "node", Requested: "22"}}
-	updateOutdatedSecurity(&missing, &model{securityScanning: true})
-	if missing.Security != "Not installed" {
-		t.Fatal(missing.Security)
+	for _, version := range []string{"22", "22.10", "0.12", "1.2.3-rc.1", "1.2.3+build.2"} {
+		for _, scanning := range []bool{false, true} {
+			missing := outdatedRow{Package: packagemanager.Package{Manager: "mise", Name: "minisign", Requested: version}}
+			clean := security.Evidence{Manager: "mise", Package: "minisign", Version: version, VersionSource: "requested", Status: security.StatusClean}
+			updateOutdatedSecurity(&missing, &model{securityChecked: true, securityScanning: scanning, allEvidence: []security.Evidence{clean}})
+			if missing.Security != "Unknown" || missing.AdvisoryDetails != "" {
+				t.Fatalf("unsupported requested version %q (scanning=%t): %+v", version, scanning, missing)
+			}
+		}
 	}
 }
 

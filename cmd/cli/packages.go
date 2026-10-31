@@ -574,6 +574,9 @@ func printVulnerabilityFindings(writer io.Writer, evidence []security.Evidence, 
 			rule = " " + rule
 		}
 		status := item.Status
+		if item.VersionSource == "requested" {
+			status += " [requested; not installed]"
+		}
 		if item.DependencyClass != "" {
 			status += " [" + item.DependencyClass + "]"
 		}

@@ -506,6 +506,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		}
 		securityTargets := packagemanager.Records(result.Packages)
 		packages := append([]packagemanager.Package(nil), securityTargets...)
+		scanOptions.Outdated = securityTargets
 		scanPackages := security.SelectInventory(inventory.Packages, scanOptions)
 		if ctx.Err() != nil {
 			return
@@ -538,7 +539,6 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			data.status = fmt.Sprintf("Busy: checking security; %d selected / %d installed; %d outdated", len(scanPackages), len(inventory.Packages), len(packages))
 			updateHome(data)
 		})
-		scanOptions.Outdated = securityTargets
 		report, scanErr := security.Scan(securityCtx, scanPackages, scanOptions)
 		if securityCtx.Err() != nil {
 			cancel()
@@ -576,8 +576,12 @@ func vulnerabilitySummary(outdated int, summary security.Summary, evidence []sec
 			unknown++
 		}
 	}
+	requested := ""
+	if summary.Requested > 0 {
+		requested = fmt.Sprintf("; %d requested-version findings (not installed)", summary.Requested)
+	}
 	return fmt.Sprintf("%d outdated; %d vulnerable, %d unknown, %d security errors", outdated,
-		summary.Vulnerable, unknown, summary.Errors) + fmt.Sprintf("; %d tool, %d graph-only (g toggles)", summary.Tools, summary.GraphOnly)
+		summary.Vulnerable, unknown, summary.Errors) + fmt.Sprintf("; %d tool, %d graph-only (g toggles)", summary.Tools, summary.GraphOnly) + requested
 }
 
 func queryStatus(err error) string {
@@ -696,6 +700,9 @@ func cancelSecurity(data *model, app *glyph.App) {
 }
 
 func vulnerabilityOrigin(item security.Evidence) string {
+	if item.VersionSource == "requested" {
+		return "requested version (not installed)"
+	}
 	if item.DeclaredTool {
 		return "declared tool"
 	}
@@ -714,7 +721,11 @@ func vulnerabilityRows(evidence []security.Evidence, includeGraphOnly ...bool) [
 		if item.Status == security.StatusClean || item.Advisory == "" || (item.Status == security.StatusUnknown && len(item.Rules) == 0) {
 			continue
 		}
-		rows = append(rows, vulnerabilityRow{Evidence: item, Current: item.Version, RuleCount: fmt.Sprint(len(item.Rules))})
+		version := item.Version
+		if item.VersionSource == "requested" {
+			version = "requested: " + version
+		}
+		rows = append(rows, vulnerabilityRow{Evidence: item, Current: version, RuleCount: fmt.Sprint(len(item.Rules))})
 	}
 	return rows
 }

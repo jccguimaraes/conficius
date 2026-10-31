@@ -14,6 +14,7 @@ const (
 )
 
 type Evidence struct {
+	VersionSource   string   `json:"version_source,omitempty"`
 	Transitive      bool     `json:"transitive,omitempty"`
 	DeclaredTool    bool     `json:"declared_tool,omitempty"`
 	DependencyClass string   `json:"dependency_class,omitempty"`
