@@ -233,7 +233,7 @@ func confirmView(data *model) glyph.Component {
 
 func vulnerabilityColumns(row *vulnerabilityRow) []packageColumn {
 	color := glyph.Match(&row.Score, glyph.Where(func(score float64) bool { return score >= 9 }, glyph.Red), glyph.Where(func(score float64) bool { return score >= 7 }, glyph.Yellow), glyph.Where(func(score float64) bool { return score >= 4 }, glyph.Yellow), glyph.Where(func(score float64) bool { return score > 0 }, glyph.Blue)).Default(glyph.Color{})
-	return []packageColumn{{"Tool", &row.Package, 22, glyph.Color{}}, {"Status", &row.Status, 12, glyph.Match(&row.Status, glyph.Eq("vulnerable", glyph.Red), glyph.Eq("error", glyph.Red), glyph.Eq("unknown", glyph.Yellow), glyph.Eq("unmapped", glyph.Yellow), glyph.Eq("clean", glyph.Green)).Default(glyph.Color{})}, {"CVSS", &row.Score, 6, color}, {"Current", &row.Current, 14, glyph.Color{}}, {"Fix", &row.UpgradeTo, 14, glyph.Color{}}, {"Source", &row.Source, 6, glyph.Color{}}, {"Advisory", &row.Advisory, 24, glyph.Color{}}, {"Rules", &row.RuleCount, 5, glyph.Color{}}, {"Class", &row.DependencyClass, 12, glyph.Color{}}, {"Origin", glyph.Text(func() string { return vulnerabilityOrigin(row.Evidence) }).Dim(), 13, glyph.Color{}}}
+	return []packageColumn{{"Tool", &row.Package, 22, glyph.Color{}}, {"Status", &row.Status, 12, glyph.Match(&row.Status, glyph.Eq("vulnerable", glyph.Red), glyph.Eq("error", glyph.Red), glyph.Eq("unknown", glyph.Yellow), glyph.Eq("unmapped", glyph.Yellow), glyph.Eq("clean", glyph.Green)).Default(glyph.Color{})}, {"CVSS", &row.Score, 6, color}, {"Version", &row.Current, 14, glyph.Color{}}, {"Fix", &row.UpgradeTo, 14, glyph.Color{}}, {"Source", &row.Source, 6, glyph.Color{}}, {"Advisory", &row.Advisory, 24, glyph.Color{}}, {"Rules", &row.RuleCount, 5, glyph.Color{}}, {"Class", &row.DependencyClass, 12, glyph.Color{}}, {"Origin", glyph.Text(func() string { return vulnerabilityOrigin(row.Evidence) }).Dim(), 13, glyph.Color{}}}
 }
 
 func vulnerabilityView(data *model) (glyph.Component, *glyph.ListC[vulnerabilityRow]) {
@@ -272,7 +272,10 @@ func vulnerabilityDetailContent(row *vulnerabilityRow) (glyph.Component, *glyph.
 	// TextBlock funcs are not evaluated by glyph v0.8.0; Text evaluates before the layer sync.
 	binding := glyph.HBox.Height(0)(glyph.Text(func() string {
 		formatted := fmt.Sprintf("Package\n%s\n\nClass\n%s\n\nScan scope\n%s\n\nManager\n%s\n\nScope\n%s\n\nPath\n%s\n\nStatus\n%s\n\nCurrent\n%s\n\nSource\n%s\n\nCVE/advisory\n%s\n\nSource ID\n%s\n\nCVSS\n%g\n\nUnsupported rules\n%s\n\nAliases\n%s\n\nUpgrade target\n%s\n\nUpgrade note\n%s\n\nDescription\n%s\n\nReference\n%s\n\nCVE URL\n%s\n\nReason/error\n%s", row.Package, row.DependencyClass, row.ScanScope, row.Manager, row.Scope, row.Path, row.Status, row.Current, row.Source, row.Advisory, row.SourceID, row.Score, strings.Join(row.Rules, ", "), strings.Join(row.Aliases, ", "), row.UpgradeTo, row.UpgradeNote, row.Description, row.Reference, row.CVELink, row.Reason)
-		formatted = "Read-only security evidence; no mark or update actions.\nInstalled version is checked against advisory ranges. Fixed version is advisory evidence, not an update plan.\nUsage describes current-build module membership, not vulnerable call reachability.\n\nOrigin\n" + vulnerabilityOrigin(row.Evidence) + "\n\n" + formatted
+		if row.VersionSource == "requested" {
+			formatted = strings.Replace(formatted, "\n\nCurrent\n", "\n\nRequested (not installed)\n", 1)
+		}
+		formatted = "Read-only security evidence; no mark or update actions.\nAssessed version is checked against advisory ranges; requested versions are not installed. Fixed version is advisory evidence, not an update plan.\nUsage describes current-build module membership, not vulnerable call reachability.\n\nOrigin\n" + vulnerabilityOrigin(row.Evidence) + "\n\n" + formatted
 		if text != formatted {
 			text = formatted
 			viewer.Layer().ScrollToTop()

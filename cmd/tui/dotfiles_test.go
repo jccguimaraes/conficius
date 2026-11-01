@@ -550,7 +550,11 @@ func TestDotfileScreensAtTerminalSizes(t *testing.T) {
 			}
 			statusRow := size[1] - 3
 			if size[1] >= 16 {
-				statusRow--
+				for x := 1; x < size[0]-1; x++ {
+					if cell := buffer.Get(x, statusRow-1); cell.Rune != '━' || cell.Style.FG != glyph.Magenta || cell.Style.Attr&glyph.AttrDim != 0 {
+						t.Fatalf("%s at %dx%d status rule missing at column %d: %+v", view.title, size[0], size[1], x, cell)
+					}
+				}
 			}
 			for y, want := range map[int]string{1: string([]rune("Conficius / " + view.title)[:min(len([]rune("Conficius / "+view.title)), size[0]-2)]), 2: screenContext(context), statusRow: state.status, size[1] - 2: screenFooter(view.help)} {
 				if !strings.Contains(buffer.GetLine(y), want) {

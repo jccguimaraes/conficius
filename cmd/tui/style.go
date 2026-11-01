@@ -51,14 +51,15 @@ func detailTextView(text *string, title bool) *glyph.TextViewC {
 	render := layer.Render
 	var lastText string
 	var lastWidth int
+	var lastBuffer *glyph.Buffer
 	layer.Render = func() {
 		render()
 		width := layer.ViewportWidth()
-		if width <= 0 || (*text == lastText && width == lastWidth) {
+		buffer := layer.Buffer()
+		if width <= 0 || (*text == lastText && width == lastWidth && buffer == lastBuffer) {
 			return
 		}
-		lastText, lastWidth = *text, width
-		buffer := layer.Buffer()
+		lastText, lastWidth, lastBuffer = *text, width, buffer
 		x, y := 0, 0
 		paint := func(value string, style glyph.Style) {
 			for _, r := range value {
@@ -277,15 +278,13 @@ func screenFrame(title string, context any, status any, content glyph.Component,
 		}).FG(glyph.Magenta)),
 		glyph.VBox.Grow(1)(content),
 	)
+	parts = append(parts, glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.Text(func() string {
+		return strings.Repeat("━", max(1, terminalWidth()-2))
+	}).FG(glyph.Magenta)))
 	if status != nil {
 		parts = append(parts, glyph.HBox.Height(1)(glyph.Text(status)))
 	}
-	parts = append(parts,
-		glyph.IfOrd(&screenSize.Height).Gte(16).Then(glyph.Text(func() string {
-			return strings.Repeat("─", max(1, terminalWidth()-2))
-		}).Dim()),
-		screenFooterView(help, scanning...),
-	)
+	parts = append(parts, screenFooterView(help, scanning...))
 	return glyph.VBox.Padding(1).Grow(1)(glyph.If(&screenTooSmall).Then(resizeNotice()).Else(glyph.VBox.Grow(1)(parts...)))
 }
 

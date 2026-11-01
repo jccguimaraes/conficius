@@ -85,7 +85,7 @@ func TestScreenFrameChrome(t *testing.T) {
 		template.Execute(buffer, int16(width), int16(height))
 		contentRow, statusRow := 3, height-3
 		if height >= 16 {
-			contentRow, statusRow = 4, height-4
+			contentRow = 4
 		}
 		for y := range height {
 			for x := range width {
@@ -106,8 +106,8 @@ func TestScreenFrameChrome(t *testing.T) {
 				if cell := buffer.Get(x, 3); cell.Rune != '━' || cell.Style.FG != glyph.Magenta {
 					t.Fatalf("header rule missing at column %d: %+v", x, cell)
 				}
-				if cell := buffer.Get(x, height-3); cell.Rune != '─' || cell.Style.Attr&glyph.AttrDim == 0 {
-					t.Fatalf("footer rule missing at column %d: %+v", x, cell)
+				if cell := buffer.Get(x, height-4); cell.Rune != '━' || cell.Style.FG != glyph.Magenta || cell.Style.Attr&glyph.AttrDim != 0 {
+					t.Fatalf("status rule missing at column %d: %+v", x, cell)
 				}
 			}
 		}
@@ -388,6 +388,23 @@ func TestStyledTextViewPreservesScroll(t *testing.T) {
 	}
 }
 
+func TestDetailTextViewReopeningKeepsColors(t *testing.T) {
+	text := "node\n\nStatus: vulnerable\n\nDescription: " + strings.Repeat("long description ", 40)
+	viewer := detailTextView(&text, true)
+	template := glyph.Build(glyph.VBox.Grow(1)(viewer))
+	for i := range 3 {
+		text = strings.Clone(text)
+		buffer := glyph.NewBuffer(80, 24)
+		template.Execute(buffer, 80, 24)
+		if style := buffer.Get(0, 0).Style; style.FG != glyph.Cyan || style.Attr&glyph.AttrBold == 0 {
+			t.Fatalf("open %d lost title color: %+v", i, style)
+		}
+		if style := buffer.Get(8, 2).Style; style.FG != glyph.Red {
+			t.Fatalf("open %d lost status color: %+v", i, style)
+		}
+	}
+}
+
 func TestDetailTextViewHierarchy(t *testing.T) {
 	for _, test := range []struct {
 		name, text, heading, label, value, warning, failure, path string
@@ -541,6 +558,14 @@ func TestDetailTextViewReusedBuffer(t *testing.T) {
 			destination.Resize(step.width, step.height)
 			destination.ClearDirty()
 			template.Execute(destination, int16(step.width), int16(step.height))
+			for x := 1; x < step.width-1; x++ {
+				if cell := destination.Get(x, step.height-4); cell.Rune != '━' || cell.Style.FG != glyph.Magenta || cell.Style.Attr&glyph.AttrDim != 0 {
+					t.Fatalf("detail content/status rule missing at column %d: %+v", x, cell)
+				}
+			}
+			if line := destination.GetLine(step.height - 3); !strings.HasPrefix(line, " ready") {
+				t.Fatalf("status not below detail rule: %q", line)
+			}
 			expected := glyph.NewBuffer(step.width, step.height)
 			template.Execute(expected, int16(step.width), int16(step.height))
 			for y := range step.height {

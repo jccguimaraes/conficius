@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jccguimaraes/conficius/internal/config"
@@ -28,7 +29,28 @@ func SelectInventory(inventory []packagemanager.InstalledPackage, options Option
 		}
 		selected = append(selected, pkg)
 	}
+	type identity struct{ manager, name, scope, path string }
+	present := make(map[identity]bool, len(inventory))
+	for _, pkg := range inventory {
+		present[identity{pkg.Manager, pkg.Name, pkg.Scope, pkg.Path}] = true
+	}
+	for _, pkg := range options.Outdated {
+		key := identity{pkg.Manager, pkg.Name, pkg.Scope, pkg.Path}
+		if pkg.Manager != packagemanager.PM_MISE || pkg.Current != "" || present[key] || !ScannableRequestedVersion(pkg.Requested) {
+			continue
+		}
+		selected = append(selected, packagemanager.InstalledPackage{Manager: pkg.Manager, Name: pkg.Name, Version: pkg.Requested, VersionSource: "requested", Scope: pkg.Scope, Path: pkg.Path})
+		present[key] = true
+	}
 	return selected
+}
+
+var scannableRequestedVersion = regexp.MustCompile(`^[0-9]+(\.[0-9]+){2,}$`)
+
+// ScannableRequestedVersion accepts only plain numeric versions with at least three components.
+// ponytail: two-part selectors need resolution; suffixes need a suffix-aware EUVD comparator.
+func ScannableRequestedVersion(version string) bool {
+	return scannableRequestedVersion.MatchString(version)
 }
 
 type Options struct {
@@ -42,6 +64,7 @@ type Options struct {
 }
 
 type Summary struct {
+	Requested  int `json:"requested"`
 	Vulnerable int `json:"vulnerable"`
 	Unmapped   int `json:"unmapped"`
 	Unknown    int `json:"unknown"`
@@ -84,7 +107,8 @@ func Scan(ctx context.Context, inventory []packagemanager.InstalledPackage, opti
 	for i := range report.Evidence {
 		item := &report.Evidence[i]
 		for _, pkg := range inventory {
-			if pkg.Manager == packagemanager.PM_GO && item.Manager == pkg.Manager && item.Package == pkg.Name && item.Version == pkg.Version && item.Scope == pkg.Scope && (item.Path == pkg.Path || item.Path == "") {
+			if item.Manager == pkg.Manager && item.Package == pkg.Name && item.Version == pkg.Version && item.Scope == pkg.Scope && item.Path == pkg.Path {
+				item.VersionSource = pkg.VersionSource
 				item.DependencyClass, item.ScanScope = pkg.DependencyClass, pkg.ScanScope
 				item.Transitive, item.DeclaredTool = pkg.Transitive, pkg.DeclaredTool
 				break
@@ -156,6 +180,10 @@ func normalizeStatus(status string) string {
 func summarize(evidence []Evidence) Summary {
 	var summary Summary
 	for _, item := range evidence {
+		if item.Status == StatusVulnerable && item.VersionSource == "requested" {
+			summary.Requested++
+			continue
+		}
 		if item.Status == StatusVulnerable && item.DependencyClass == "graph-only" {
 			summary.GraphOnly++
 			continue

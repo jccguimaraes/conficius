@@ -233,8 +233,13 @@ func TestViewsFillAvailableHeight(t *testing.T) {
 		if line := buffer.GetLine(18); !strings.Contains(line, "? help") {
 			t.Fatalf("%s footer = %q", name, line)
 		}
-		if line := buffer.GetLine(17); line != " "+strings.Repeat("─", 78) {
-			t.Fatalf("%s footer rule = %q", name, line)
+		if line := buffer.GetLine(16); line != " "+strings.Repeat("━", 78) {
+			t.Fatalf("%s status rule = %q", name, line)
+		}
+		for x := 1; x < 79; x++ {
+			if cell := buffer.Get(x, 16); cell.Style.FG != glyph.Magenta || cell.Style.Attr&glyph.AttrDim != 0 {
+				t.Fatalf("%s status rule style at column %d: %+v", name, x, cell.Style)
+			}
 		}
 	}
 }

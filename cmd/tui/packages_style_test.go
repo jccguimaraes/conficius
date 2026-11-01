@@ -477,7 +477,7 @@ func TestVulnerabilityWideColumnsStayCompact(t *testing.T) {
 		if headingY < 0 || rowY < 0 {
 			t.Fatal(homeRenderOutput(buffer, 30))
 		}
-		pairs := [][2]string{{"Tool", "lodash"}, {"Status", "vulnerable"}, {"CVSS", fmt.Sprint(score)}, {"Current", "4.17.20"}, {"Fix", "4.17.21"}, {"Source", "OSV"}, {"Advisory", "GHSA-29mw-wpgm-hmr9"}, {"Rules", "2"}}
+		pairs := [][2]string{{"Tool", "lodash"}, {"Status", "vulnerable"}, {"CVSS", fmt.Sprint(score)}, {"Version", "4.17.20"}, {"Fix", "4.17.21"}, {"Source", "OSV"}, {"Advisory", "GHSA-29mw-wpgm-hmr9"}, {"Rules", "2"}}
 		if width < 120 {
 			pairs = pairs[:3]
 		} else if width < 140 {
