@@ -2,74 +2,59 @@ WEBVTT
 
 NOTE Paragraph timing uses generated clips; intra-paragraph timing is approximate.
 
-00:00:00.000 --> 00:00:04.430
-Let's look at dotfiles in Conficius, starting with the repository.
+00:00:00.000 --> 00:00:03.630
+This walkthrough covers dotfiles in the Conficius TUI.
 
-00:00:04.440 --> 00:00:08.882
-This repo collects our tool configs in one place: Bash, Git,
+00:00:03.640 --> 00:00:07.370
+The dotfiles repository collects configurations for Bash, Git, Neovim,
 
-00:00:08.882 --> 00:00:12.920
-Neovim, Starship, and tmux. They're ordinary files, grouped by tool.
+00:00:07.370 --> 00:00:11.100
+Starship, and tmux in one place, grouped by tool.
 
-00:00:12.920 --> 00:00:16.173
-Here's the actual Conficius config beside them. Each link
+00:00:11.120 --> 00:00:15.541
+The Conficius configuration defines each link, with a source in the
 
-00:00:16.173 --> 00:00:19.427
-names a source in the repo and the place
+00:00:15.541 --> 00:00:19.560
+repository and a destination under the home or config directory.
 
-00:00:19.427 --> 00:00:22.680
-it should appear under home or the config directory.
+00:00:19.840 --> 00:00:23.286
+The dotfiles overview shows actionable, blocked, and
 
-00:00:22.680 --> 00:00:27.615
-Open Conficius and head into dotfiles. The overview shows which links need
+00:00:23.286 --> 00:00:26.240
+healthy links, along with environment checks.
 
-00:00:27.615 --> 00:00:32.550
-attention, which are blocked, and which already point to the right files.
+00:00:29.640 --> 00:00:32.885
+The links view lists the configured files. Open a
 
-00:00:32.560 --> 00:00:35.985
-The links view brings those files together. Open a
+00:00:32.885 --> 00:00:36.130
+row to see its source, destination, and link status.
 
-00:00:35.985 --> 00:00:39.410
-row to see the source, destination, and current state.
+00:00:40.880 --> 00:00:43.290
+Filter to actionable links and mark the
 
-00:00:43.800 --> 00:00:48.080
-Let's filter to actionable links and select one. This narrows the next
+00:00:43.290 --> 00:00:45.700
+file to include in the next operation.
 
-00:00:48.080 --> 00:00:52.360
-step to the file we want, rather than everything in the repo.
+00:00:48.120 --> 00:00:51.445
+The preview shows the link that would be created.
 
-00:00:52.360 --> 00:00:56.393
-Here's the preview before anything changes. It shows the link we'd
+00:00:51.445 --> 00:00:54.770
+Cancel returns to the list without changing any files.
 
-00:00:56.393 --> 00:01:00.060
-create. We'll cancel and leave the files as they are.
+00:00:57.320 --> 00:01:01.505
+This Git configuration is blocked because a file already exists at
 
-00:01:01.560 --> 00:01:06.190
-This Git config is blocked because there's already a file at
+00:01:01.505 --> 00:01:05.310
+the destination. The link action will not replace that file.
 
-00:01:06.190 --> 00:01:10.400
-the destination. Conficius won't replace it through this link action.
+00:01:07.280 --> 00:01:10.224
+Healthy links already point to the correct files
 
-00:01:11.520 --> 00:01:14.460
-These links are healthy: they already point back
+00:01:10.224 --> 00:01:12.800
+in the repository. No action is needed.
 
-00:01:14.460 --> 00:01:17.400
-to the repo. There's nothing to fix here.
+00:01:12.960 --> 00:01:17.703
+Environment checks also flag configuration paths that do not match the selected
 
-00:01:17.400 --> 00:01:20.993
-Environment checks caught a config path that doesn't match
-
-00:01:20.993 --> 00:01:24.586
-the selected layout. Open the warning to see the
-
-00:01:24.586 --> 00:01:27.380
-current path and where Conficius expects it.
-
-00:01:28.360 --> 00:01:31.670
-Press the question mark whenever you need the keys.
-
-00:01:31.670 --> 00:01:34.980
-Then we're back at the overview. We've checked the
-
-00:01:34.980 --> 00:01:38.290
-repo and reviewed a link plan without applying it.
+00:01:17.703 --> 00:01:22.050
+layout. Open a warning to see the current and expected paths.
