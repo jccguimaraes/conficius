@@ -77,11 +77,11 @@ func (Mise) capabilities() []Capability {
 }
 
 func (Mise) listInstalled(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
-	return installedMise(ctx, executable, scope.Path)
+	return installedMise(ctx, executable, scope)
 }
 
 func (p Mise) listOutdatedScope(ctx context.Context, executable string, scope Scope, options ManagerOptions, packages Packages) error {
-	return p.listOutdated(ctx, scope.Path, executable, options, packages)
+	return p.listOutdated(ctx, scope, executable, options, packages)
 }
 
 func (Mise) updateArgs(packages []Package) []string {
@@ -104,6 +104,7 @@ const (
 	MiseFlagBump         string = "--bump"
 	MiseFlagExcludes     string = "--exclude"
 	MiseFlagLocal        string = "--local"
+	MiseFlagGlobal       string = "--global"
 	MiseFlagOnlyInactive string = "--inactive"
 	MiseFlagYes          string = "--yes"
 )
@@ -137,19 +138,21 @@ func equivalentMiseVersions(current, latest string) bool {
 }
 
 func (p Mise) ListOutdated(ctx context.Context, executable string, outdatedPackages Packages) error {
-	return p.listOutdated(ctx, "", executable, ManagerOptions{IncludeBumpCandidates: true}, outdatedPackages)
+	return p.listOutdated(ctx, Scope{}, executable, ManagerOptions{IncludeBumpCandidates: true}, outdatedPackages)
 }
 
-func (p Mise) listOutdated(ctx context.Context, dir, executable string, options ManagerOptions, outdatedPackages Packages) error {
+func (p Mise) listOutdated(ctx context.Context, scope Scope, executable string, options ManagerOptions, outdatedPackages Packages) error {
 	args := []string{MiseCommandOutdated, MiseFlagJSON}
-	if dir != "" {
+	if scope.Path != "" {
 		args = append(args, MiseFlagLocal)
 		options.IncludeBumpCandidates = true
+	} else if scope.Kind != "" {
+		args = append(args, MiseFlagGlobal)
 	}
 	if options.IncludeBumpCandidates {
 		args = append(args, MiseFlagBump)
 	}
-	output, err := runOutputDir(ctx, dir, executable, args...)
+	output, err := runOutputDir(ctx, scope.Path, executable, args...)
 	if err != nil {
 		return err
 	}

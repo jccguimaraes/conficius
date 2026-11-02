@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -295,5 +297,79 @@ func TestOutdatedSecurityBindingsResize(t *testing.T) {
 			}
 		}
 		data.rows[0].Security, data.rows[0].SecurityColor = "No known findings", glyph.Green
+	}
+}
+
+type globalMiseEUVDClient struct{ t *testing.T }
+
+func (client globalMiseEUVDClient) Query(_ context.Context, identity euvd.Identity, version string) ([]euvd.Vulnerability, error) {
+	if identity.Product != "Node" || identity.Vendor != "nodejs" || (version != "20.0.0" && version != "24.0.0") {
+		client.t.Errorf("unexpected EUVD query: %+v@%s", identity, version)
+	}
+	if version == "24.0.0" {
+		return nil, nil
+	}
+	entry := euvd.ProductEntry{ProductVersion: "before 23.0.0"}
+	entry.Product.Name, entry.Product.Vendor.Name = "Node", "nodejs"
+	return []euvd.Vulnerability{{ID: "EUVD-1", Aliases: "CVE-2026-1", Products: []euvd.ProductEntry{entry}}}, nil
+}
+
+func TestGlobalMiseOutdatedSecurityFromProjectScan(t *testing.T) {
+	bin, project := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "mise.toml"), []byte("[tools]\nnode = '24'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "mise"), []byte(`#!/bin/sh
+[ "$1" = "--version" ] && { printf '2026.10.24'; exit 0; }
+version=24.0.0
+case " $* " in *" --global "*) version=20.0.0 ;; esac
+case "$1" in
+ls) printf '{"node":[{"version":"%s","installed":true}]}' "$version" ;;
+outdated) printf '{"node":{"name":"node","current":"%s","requested":"%s","latest":"25.0.0"}}' "$version" "$version" ;;
+*) exit 1 ;;
+esac
+`), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Chdir(project)
+	scopes := []packagemanager.Scope{{Kind: "global"}, {Kind: "project", Path: project}}
+	inventory, err := packagemanager.QueryInstalledScopes(t.Context(), []string{"mise"}, scopes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outdated, err := packagemanager.QueryOutdatedScopes(t.Context(), []string{"mise"}, scopes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := packagemanager.Records(outdated.Packages)
+	if len(inventory.Packages) != 2 || len(records) != 2 {
+		t.Fatalf("inventory = %+v; outdated = %+v", inventory.Packages, records)
+	}
+	report, err := security.Scan(t.Context(), inventory.Packages, security.Options{
+		Outdated:    records,
+		OSVMappings: []config.VulnerabilityMapping{{Manager: "mise", Package: "node", Ecosystem: "npm", Name: "node"}},
+		OSVClient:   advisoryOSVClient{}, EUVDClient: globalMiseEUVDClient{t},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := &model{securityChecked: true, allEvidence: report.Evidence}
+	for _, pkg := range records {
+		row := outdatedRow{Package: pkg}
+		updateOutdatedSecurity(&row, data)
+		if pkg.Scope == "global" {
+			if pkg.Current != "20.0.0" || pkg.Path != "" || row.Security != "1 advisories" || row.SecurityColor != glyph.Red || !strings.Contains(row.AdvisoryDetails, "CVE-2026-1") || !strings.Contains(row.AdvisoryDetails, "Affected installed version: 20.0.0") {
+				t.Errorf("global CVE missing or wrong installed version: %+v", row)
+			}
+			other := outdatedRow{Package: pkg}
+			other.Package.Scope, other.Package.Path = "project", project
+			updateOutdatedSecurity(&other, data)
+			if other.Security != "Unknown" || other.AdvisoryDetails != "" {
+				t.Errorf("global evidence leaked into project: %+v", other)
+			}
+		} else if pkg.Current != "24.0.0" || pkg.Path != project || row.Security != "No known findings" || strings.Contains(row.AdvisoryDetails, "CVE-2026-1") {
+			t.Errorf("project scope contaminated: %+v", row)
+		}
 	}
 }

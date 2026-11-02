@@ -595,12 +595,14 @@ func appendNPMDependencies(packages *[]InstalledPackage, dependencies map[string
 	}
 }
 
-func installedMise(ctx context.Context, executable, dir string) ([]InstalledPackage, error) {
+func installedMise(ctx context.Context, executable string, scope Scope) ([]InstalledPackage, error) {
 	args := []string{"ls", "--current", "--installed", "--json"}
-	if dir != "" {
-		args = append(args, "--local")
+	if scope.Path != "" {
+		args = append(args, MiseFlagLocal)
+	} else if scope.Kind != "" {
+		args = append(args, MiseFlagGlobal)
 	}
-	output, err := runOutputDir(ctx, dir, executable, args...)
+	output, err := runOutputDir(ctx, scope.Path, executable, args...)
 	if err != nil {
 		return nil, err
 	}
