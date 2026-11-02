@@ -385,7 +385,7 @@ func TestPlanUpdatesUsesExactNativeNamesAndExclusions(t *testing.T) {
 			Manager: PM_MISE, Executable: "/bin/mise",
 			Scope:      "",
 			Confidence: PlanConfidenceEstimated,
-			Args:       []string{"upgrade", "--bump", "--yes", "node"},
+			Args:       []string{"upgrade", "--yes", "node"},
 			Packages:   []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: "22", Role: RoleRuntime, Executable: "/bin/mise"}},
 		},
 		{
@@ -527,7 +527,7 @@ func TestTypedManagerOptionsControlOutdatedFlags(t *testing.T) {
 	writeExecutable(t, filepath.Join(dir, "brew"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$ARGS_LOG\"\nprintf '{\"formulae\":[],\"casks\":[]}'\n")
 	t.Setenv("PATH", dir)
 	t.Setenv("ARGS_LOG", log)
-	_, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_MISE, PM_BREW}, []Scope{{Kind: "global"}}, QueryOptions{Managers: map[string]ManagerOptions{
+	_, err := QueryOutdatedScopesWithOptions(context.Background(), []string{PM_MISE, PM_BREW}, []Scope{{Kind: "global"}}, QueryOptions{Bump: true, Managers: map[string]ManagerOptions{
 		PM_MISE: {IncludeBumpCandidates: true},
 		PM_BREW: {IncludeGreedy: true},
 	}})
@@ -558,7 +558,7 @@ func TestProjectMiseOutdatedExcludesInactiveGlobalTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(contents)
-	if !strings.Contains(got, project+"|outdated --json --local --bump") || strings.Contains(got, "--inactive") {
+	if !strings.Contains(got, project+"|outdated --json --local") || strings.Contains(got, "--bump") || strings.Contains(got, "--inactive") {
 		t.Fatalf("invocation = %q", got)
 	}
 }
@@ -684,6 +684,71 @@ func TestVerifyUpdateOutcomesKeepsCompletedWhenTargetCurrent(t *testing.T) {
 	outcomes, err := VerifyUpdateOutcomes(context.Background(), plans, []UpdateOutcome{{StateHash: "plan", Status: "completed"}}, QueryOptions{})
 	if err != nil || outcomes[0].Status != "completed" {
 		t.Fatalf("outcomes = %#v; error = %v", outcomes, err)
+	}
+}
+
+func TestVerifyUpdateOutcomesChecksApprovedInstalledVersion(t *testing.T) {
+	for _, manager := range []string{PM_MISE, PM_PNPM} {
+		for _, version := range []string{"1.0.0", "1.1.0", "v1.1.0", "2.0.0", "missing", "error"} {
+			t.Run(manager+"/"+version, func(t *testing.T) {
+				dir := t.TempDir()
+				executable := filepath.Join(dir, manager)
+				t.Setenv("VERIFY_DIRECTORY", dir)
+				t.Setenv("VERIFY_VERSION", version)
+				writeExecutable(t, executable, `#!/bin/sh
+[ "$PWD" = "$VERIFY_DIRECTORY" ] || exit 2
+case "$1" in
+outdated)
+ case "$0" in
+ *mise) printf '{"tool":{"name":"tool","current":"1.0.0","latest":"1.0.0","requested":"1.0.0"}}';;
+ *)
+  latest=2.0.0
+  for arg in "$@"; do if [ "$arg" = "--compatible" ]; then latest=1.0.0; fi; done
+  printf '{"tool":{"current":"1.0.0","wanted":"1.0.0","latest":"%s","dependencyType":"dependencies"}}' "$latest";;
+ esac;;
+ls|list)
+ [ "$VERIFY_VERSION" = error ] && exit 3
+ if [ "$VERIFY_VERSION" = missing ]; then
+  case "$0" in *mise) printf '{}';; *) printf '[]';; esac
+ else
+  case "$0" in
+  *mise)
+   [ "$*" = 'ls --current --installed --json --local' ] || exit 4
+   printf '{"tool":[{"version":"%s","installed":true}]}' "$VERIFY_VERSION";;
+  *)
+   [ "$*" = 'list --depth 0 --json' ] || exit 5
+   printf '[{"dependencies":{"tool":{"version":"%s"}}}]' "$VERIFY_VERSION";;
+  esac
+ fi;;
+*) exit 1;;
+esac
+`)
+				remaining := make(Packages)
+				if err := listOutdatedScope(t.Context(), manager, executable, Scope{Kind: "project", Path: dir}, ManagerOptions{}, remaining); err != nil || len(remaining) != 0 {
+					t.Fatalf("constrained outdated = %+v, %v", remaining, err)
+				}
+				plans := []UpdatePlan{{Manager: manager, Executable: executable, Scope: "project", Directory: dir, StateHash: "plan", Packages: []Package{{Manager: manager, Name: "tool", Latest: "1.1.0"}}}}
+				outcomes, err := VerifyUpdateOutcomes(t.Context(), plans, []UpdateOutcome{{StateHash: "plan", Status: "completed"}}, QueryOptions{})
+				wantSuccess := version == "1.1.0" || manager == PM_MISE && version == "v1.1.0"
+				if wantSuccess {
+					if err != nil || outcomes[0].Status != "completed" {
+						t.Fatalf("verification = %+v, %v", outcomes, err)
+					}
+				} else if err == nil || outcomes[0].Status != "verification-failed" {
+					t.Fatalf("unapproved installed version verified: %+v, %v", outcomes, err)
+				}
+			})
+		}
+	}
+}
+
+func TestVerifyUpdateOutcomesSkipsFailedPlans(t *testing.T) {
+	for _, manager := range []string{PM_MISE, PM_PNPM} {
+		plans := []UpdatePlan{{Manager: manager, Executable: filepath.Join(t.TempDir(), "missing"), StateHash: "plan"}}
+		outcomes, err := VerifyUpdateOutcomes(t.Context(), plans, []UpdateOutcome{{StateHash: "plan", Status: "failed", Error: "update failed"}}, QueryOptions{})
+		if err != nil || outcomes[0].Status != "failed" || outcomes[0].Error != "update failed" {
+			t.Fatalf("verification = %+v, %v", outcomes, err)
+		}
 	}
 }
 
@@ -919,5 +984,220 @@ func TestProjectMutationErrorsIdentifyWholeDirtyBatch(t *testing.T) {
 	err = ValidateProjectMutations(plans, profile, true, false)
 	if !errors.Is(err, ErrUnversionedProject) {
 		t.Fatalf("unversioned error: %v", err)
+	}
+}
+
+func TestUpdateModesDiscoveryPlanAndVerification(t *testing.T) {
+	for _, manager := range []string{PM_MISE, PM_PNPM} {
+		for _, bump := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/bump=%t", manager, bump), func(t *testing.T) {
+				dir := t.TempDir()
+				manifest := "pnpm-lock.yaml"
+				if manager == PM_MISE {
+					manifest = "mise.toml"
+				}
+				if err := os.WriteFile(filepath.Join(dir, manifest), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				writeExecutable(t, filepath.Join(dir, manager), `#!/bin/sh
+case "$1" in
+--version) printf '12.0.0';;
+outdated)
+ current=1.0.0
+ [ -f "$UPDATED_MARKER" ] && current=1.1.0
+ target=1.1.0
+ if [ "$BUMP_MODE" = true ]; then
+  target=2.0.0
+  [ -f "$UPDATED_MARKER" ] && current=2.0.0
+ fi
+ case "$0" in
+ *mise)
+  case " $* " in
+   *" --bump "*) [ "$BUMP_MODE" = true ] || exit 3;;
+   *) [ "$BUMP_MODE" = false ] || exit 4;;
+  esac
+  printf '{"tool":{"name":"tool","current":"%s","latest":"%s","requested":"1"}}' "$current" "$target";;
+ *)
+  latest=2.0.0
+  for arg in "$@"; do if [ "$arg" = "--compatible" ]; then latest=1.1.0; fi; done
+  printf '{"tool":{"current":"%s","wanted":"1.0.0","latest":"%s","dependencyType":"dependencies"}}' "$current" "$latest";;
+ esac;;
+ls|list)
+ current=1.0.0
+ if [ -f "$UPDATED_MARKER" ]; then
+  current=1.1.0
+  [ "$BUMP_MODE" = true ] && current=2.0.0
+ fi
+ case "$0" in
+ *mise) printf '{"tool":[{"version":"%s","installed":true}]}' "$current";;
+ *) printf '[{"dependencies":{"tool":{"version":"%s"}}}]' "$current";;
+ esac;;
+upgrade|update) printf updated > "$UPDATED_MARKER";;
+*) exit 1;;
+esac
+`)
+				t.Setenv("PATH", dir)
+				t.Setenv("UPDATED_MARKER", filepath.Join(dir, "updated"))
+				t.Setenv("BUMP_MODE", fmt.Sprint(bump))
+				options := QueryOptions{Bump: bump, Managers: map[string]ManagerOptions{manager: {IncludeBumpCandidates: !bump}}}
+				result, err := QueryOutdatedScopesWithOptions(t.Context(), []string{manager}, []Scope{{Kind: "project", Path: dir}}, options)
+				if err != nil {
+					t.Fatal(err)
+				}
+				target := "1.1.0"
+				if bump {
+					target = "2.0.0"
+				}
+				records := Records(result.Packages)
+				if result.Bump != bump || len(records) != 1 || records[0].Latest != target {
+					t.Fatalf("result = %+v, records = %+v", result, records)
+				}
+				plans, err := PlanUpdates(result, nil, nil)
+				if err != nil || len(plans) != 1 {
+					t.Fatal(plans, err)
+				}
+				want := []string{"update"}
+				if manager == PM_MISE {
+					want = []string{"upgrade", "--yes"}
+				}
+				if bump {
+					flag := "--latest"
+					if manager == PM_MISE {
+						flag = "--bump"
+					}
+					want = append(want, flag)
+				}
+				want = append(want, "tool")
+				plan := plans[0]
+				if plan.Bump != bump || plan.Confidence != PlanConfidenceEstimated || !reflect.DeepEqual(plan.Args, want) {
+					t.Fatalf("plan = %+v, want args %q", plan, want)
+				}
+				changed := plan
+				changed.Bump = !bump
+				if updatePlanHash(changed) == plan.StateHash {
+					t.Fatal("mode absent from state hash")
+				}
+				outcomes, err := VerifyUpdateOutcomes(t.Context(), plans, []UpdateOutcome{{StateHash: plan.StateHash, Status: "completed"}}, QueryOptions{Bump: !bump})
+				if err == nil || outcomes[0].Status != "verification-failed" {
+					t.Fatalf("unchanged package verified: %+v, %v", outcomes, err)
+				}
+				outcomes, err = ApplyUpdatesWithOutcomes(t.Context(), plans, false, nil, nil, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				outcomes, err = VerifyUpdateOutcomes(t.Context(), plans, outcomes, options)
+				if err != nil || outcomes[0].Status != "completed" {
+					t.Fatalf("verification = %+v, %v", outcomes, err)
+				}
+				result, err = QueryOutdatedScopesWithOptions(t.Context(), []string{manager}, []Scope{{Kind: "project", Path: dir}}, options)
+				if err != nil || result.Bump != bump || len(Records(result.Packages)) != 0 {
+					t.Fatalf("updated query = %+v, %v", result, err)
+				}
+				plans, err = PlanUpdates(result, nil, nil)
+				if err != nil || len(plans) != 0 {
+					t.Fatalf("empty plan = %+v, %v", plans, err)
+				}
+			})
+		}
+	}
+}
+
+func TestBumpRejectsOnlySelectedUnsupportedManagers(t *testing.T) {
+	result := QueryResult{Bump: true, Packages: Packages{
+		"node": {NewMiseTool(MiseOutdatedTool{Name: "node", Current: "20", Latest: "22"}, "/bin/mise")},
+		"tool": {NewNPMTool("tool", NPMOutdatedTool{Current: "1", Latest: "2"}, "/bin/npm")},
+	}}
+	if _, err := PlanUpdates(result, nil, nil); err == nil {
+		t.Fatal("unsupported bump accepted")
+	}
+	plans, err := PlanUpdates(result, []string{"mise:node"}, nil)
+	if err != nil || len(plans) != 1 || !plans[0].Bump {
+		t.Fatal(plans, err)
+	}
+	plans, err = PlanUpdates(result, nil, []string{"npm:tool"})
+	if err != nil || len(plans) != 1 {
+		t.Fatal(plans, err)
+	}
+	if _, err := ApplyUpdatesWithOutcomes(t.Context(), []UpdatePlan{{Manager: PM_NPM, Bump: true}}, false, nil, nil, nil); err == nil {
+		t.Fatal("unsupported bump mutation accepted")
+	}
+}
+
+func TestQueryBumpCandidatesMixedProject(t *testing.T) {
+	dir := t.TempDir()
+	for _, manifest := range []string{"package.json", "go.mod", "pnpm-lock.yaml", "mise.toml"} {
+		content := ""
+		if manifest == "package.json" {
+			content = `{"packageManager":"pnpm@10.0.0","dependencies":{"tool":"^1.0.0"}}`
+		}
+		if err := os.WriteFile(filepath.Join(dir, manifest), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, manager := range []string{PM_MISE, PM_PNPM} {
+		writeExecutable(t, filepath.Join(dir, manager), `#!/bin/sh
+case "$1" in
+--version) printf '12.0.0';;
+outdated)
+ case "$0" in
+ *mise)
+  case " $* " in *" --bump "*) ;; *) exit 3;; esac
+  printf '{"node":{"name":"node","current":"20","latest":"22"}}';;
+ *)
+  case " $* " in *" --compatible "*) exit 4;; esac
+  printf '{"tool":{"current":"1.0.0","wanted":"1.0.0","latest":"2.0.0","dependencyType":"dependencies"}}';;
+ esac;;
+*) exit 5;;
+esac
+`)
+	}
+	for _, manager := range RegisteredPackageManagers {
+		if manager != PM_MISE && manager != PM_PNPM {
+			writeExecutable(t, filepath.Join(dir, manager), "#!/bin/sh\nprintf unexpected >> \"$UNEXPECTED_MANAGER\"\nexit 1\n")
+		}
+	}
+	t.Setenv("PATH", dir)
+	unexpected := filepath.Join(dir, "unexpected")
+	t.Setenv("UNEXPECTED_MANAGER", unexpected)
+	scopes := []Scope{{Kind: "project", Path: dir}}
+	options := QueryOptions{Disabled: map[string]bool{PM_NPM: true, PM_GO: true}, Required: map[string]bool{PM_GO: true}}
+	result, err := QueryBumpCandidates(t.Context(), scopes, options)
+	if err != nil || !result.Bump || len(result.Managers) != 2 || len(Records(result.Packages)) != 2 {
+		t.Fatalf("mixed bump query = %+v, %v", result, err)
+	}
+	if options.Bump || len(options.Required) != 1 {
+		t.Fatal("query mutated caller options")
+	}
+	if _, err := os.Stat(unexpected); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unsupported manager queried: %v", err)
+	}
+	for _, manager := range []string{PM_MISE, PM_PNPM} {
+		enabled := false
+		profile := config.Profile{Managers: map[string]config.ManagerSettings{manager: {Enabled: &enabled}}}
+		disabled := QueryOptionsFromProfile(profile)
+		result, err = QueryBumpCandidates(t.Context(), scopes, disabled)
+		if err != nil || len(Records(result.Packages)) != 1 {
+			t.Fatalf("disabled %s query = %+v, %v", manager, result, err)
+		}
+		for _, status := range result.Managers {
+			if status.Name == manager && status.Status != StatusDisabled {
+				t.Fatalf("disabled manager = %+v", status)
+			}
+		}
+	}
+	if _, err := QueryOutdatedScopesWithOptions(t.Context(), []string{PM_MISE, PM_PNPM}, scopes, options); err == nil || !strings.Contains(err.Error(), "npm is disabled but required") {
+		t.Fatalf("normal manifest validation changed: %v", err)
+	}
+	if _, err := QueryBumpCandidates(t.Context(), []Scope{{Kind: "project"}}, options); err == nil {
+		t.Fatal("invalid scope accepted")
+	}
+	if err := os.Remove(filepath.Join(dir, "package.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "missing"), filepath.Join(dir, "package.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := QueryBumpCandidates(t.Context(), scopes, options); err == nil || !strings.Contains(err.Error(), "inspect manager manifest") {
+		t.Fatalf("manifest safety validation skipped: %v", err)
 	}
 }

@@ -1,10 +1,14 @@
 package packagemanager
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jccguimaraes/conficius/internal/config"
 )
 
 func TestEquivalentMiseVersionsIgnoreVPrefix(t *testing.T) {
@@ -13,6 +17,51 @@ func TestEquivalentMiseVersionsIgnoreVPrefix(t *testing.T) {
 	}
 	if equivalentMiseVersions("v2.13.1", "2.13.2") {
 		t.Fatal("different versions should not be equivalent")
+	}
+}
+
+func TestMiseUpdatePlansKeepProjectMutationGuards(t *testing.T) {
+	project, bin := t.TempDir(), t.TempDir()
+	writeExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nif [ \"$3\" = status ]; then printf ' M mise.toml'; else printf '%s\\n' \"$2\"; fi\n")
+	t.Setenv("PATH", bin)
+	for _, kind := range []string{"global", "project", "workspace"} {
+		for _, bump := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/bump=%t", kind, bump), func(t *testing.T) {
+				scope := Scope{Kind: kind}
+				if kind != "global" {
+					scope.Path = project
+				}
+				plans, err := PlanUpdates(QueryResult{Bump: bump, Packages: Packages{
+					"node": {scopedTool{Tool: NewMiseTool(MiseOutdatedTool{Name: "node", Current: "20", Latest: "22"}, "/bin/mise"), scope: scope}},
+				}}, nil, nil)
+				if err != nil || len(plans) != 1 {
+					t.Fatalf("plans = %+v, error = %v", plans, err)
+				}
+				want := MutationImpact{MayChangeManifests: kind != "global"}
+				if plans[0].Impact != want {
+					t.Fatalf("impact = %+v; want %+v", plans[0].Impact, want)
+				}
+				profile := config.Profile{Projects: []config.ProfileProject{{Path: project}}}
+				if kind == "global" {
+					if err := ValidateProjectMutations(plans, profile, false, false); err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				for _, allowDirty := range []bool{false, true} {
+					if err := ValidateProjectMutations(plans, profile, allowDirty, true); err == nil || !strings.Contains(err.Error(), "does not allow manifest changes") {
+						t.Fatalf("manifest guard bypassed: %v", err)
+					}
+				}
+				profile.Projects[0].AllowManifestChanges = true
+				if err := ValidateProjectMutations(plans, profile, false, false); !errors.Is(err, ErrDirtyProject) {
+					t.Fatalf("dirty guard bypassed: %v", err)
+				}
+				if err := ValidateProjectMutations(plans, profile, true, false); err != nil {
+					t.Fatalf("explicit dirty permission rejected: %v", err)
+				}
+			})
+		}
 	}
 }
 
@@ -46,9 +95,9 @@ esac
 			if err != nil {
 				t.Fatal(err)
 			}
-			version, flag, bump := "24.0.0", "--local", " --bump"
+			version, flag := "24.0.0", "--local"
 			if scope.Kind == "global" {
-				version, flag, bump = "20.0.0", "--global", ""
+				version, flag = "20.0.0", "--global"
 			}
 			if len(installed.Packages) != 1 || installed.Packages[0].Version != version || installed.Packages[0].Scope != scope.Kind || installed.Packages[0].Path != scope.Path {
 				t.Errorf("inventory = %+v; want node@%s in %+v", installed.Packages, version, scope)
@@ -61,7 +110,7 @@ esac
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, command := range []string{"ls --current --installed --json " + flag, "outdated --json " + flag + bump} {
+			for _, command := range []string{"ls --current --installed --json " + flag, "outdated --json " + flag} {
 				if !strings.Contains(string(args), project+"|"+command+"\n") {
 					t.Errorf("missing %q in calls:\n%s", command, args)
 				}

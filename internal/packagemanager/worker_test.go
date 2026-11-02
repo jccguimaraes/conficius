@@ -366,3 +366,169 @@ func TestWorkerCacheSeparatesMethods(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkerBumpRebuildAndVerify(t *testing.T) {
+	for _, bump := range []bool{false, true} {
+		t.Run(fmt.Sprint(bump), func(t *testing.T) {
+			dir := t.TempDir()
+			writeExecutable(t, filepath.Join(dir, PM_MISE), `#!/bin/sh
+case "$1" in
+--version) printf '2026.10.0';;
+outdated)
+ case " $* " in
+ *" --bump "*) [ "$BUMP_MODE" = true ] || exit 3;;
+ *) [ "$BUMP_MODE" = false ] || exit 4;;
+ esac
+ if [ -f "$UPDATED_MARKER" ]; then printf '{}'; else printf '{"node":{"name":"node","current":"20","latest":"22"}}'; fi;;
+upgrade)
+ if [ "$BUMP_MODE" = true ]; then
+  [ "$*" = 'upgrade --yes --bump node' ] || exit 5
+ else
+  [ "$*" = 'upgrade --yes node' ] || exit 6
+ fi
+ printf updated > "$UPDATED_MARKER";;
+ls)
+ [ "$*" = 'ls --current --installed --json --global' ] || exit 7
+ version=20
+ [ -f "$UPDATED_MARKER" ] && version=22
+ printf '{"node":[{"version":"%s","installed":true}]}' "$version";;
+*) exit 1;;
+esac
+`)
+			t.Setenv("PATH", dir)
+			t.Setenv("UPDATED_MARKER", filepath.Join(dir, "updated"))
+			t.Setenv("BUMP_MODE", fmt.Sprint(bump))
+			options := QueryOptions{Bump: bump, RunAs: map[string]string{PM_MISE: "builder"}}
+			if target := managerWorkerOptions(options, PM_MISE); target.Bump != bump {
+				t.Fatal(target)
+			}
+			response := executeManagerWorker(t.Context(), workerRequest{Operation: "outdated", Manager: PM_MISE, Scopes: []Scope{{Kind: "global"}}, Options: managerWorkerOptions(options, PM_MISE)})
+			if response.Error != "" {
+				t.Fatal(response.Error)
+			}
+			request := workerRequest{Operation: "outdated", Manager: PM_MISE, User: "builder", Scopes: []Scope{{Kind: "global"}}, Options: managerWorkerOptions(options, PM_MISE)}
+			raw, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			workerCache.Lock()
+			previousOnly, previousValues := workerCache.only, workerCache.values
+			workerCache.only = true
+			workerCache.values = map[string]workerResponse{string(raw): response}
+			workerCache.Unlock()
+			defer func() {
+				workerCache.Lock()
+				workerCache.only, workerCache.values = previousOnly, previousValues
+				workerCache.Unlock()
+			}()
+			result, err := QueryOutdatedScopesWithOptions(t.Context(), []string{PM_MISE}, request.Scopes, options)
+			if err != nil || result.Bump != bump {
+				t.Fatal(result, err)
+			}
+			plans, err := PlanUpdates(result, nil, nil)
+			if err != nil || len(plans) != 1 {
+				t.Fatal(plans, err)
+			}
+			previousTTY := workerTTY
+			workerTTY = func() (*os.File, error) { return os.OpenFile(os.DevNull, os.O_RDWR, 0) }
+			defer func() { workerTTY = previousTTY }()
+			outcomes, err := applyWorkerPlan(t.Context(), plans[0])
+			if err != nil || len(outcomes) != 1 || outcomes[0].Status != "completed" {
+				t.Fatal(outcomes, err)
+			}
+		})
+	}
+}
+
+func TestPrepareRunAsQueriesCachesBothBumpModes(t *testing.T) {
+	workerCache.Lock()
+	previousOnly, previousPreparing, previousValues := workerCache.only, workerCache.preparing, workerCache.values
+	workerCache.values = map[string]workerResponse{"stale": {}}
+	workerCache.Unlock()
+	previousCommand, previousTTY := workerCommand, workerTTY
+	t.Cleanup(func() {
+		workerCommand, workerTTY = previousCommand, previousTTY
+		workerCache.Lock()
+		workerCache.only, workerCache.preparing, workerCache.values = previousOnly, previousPreparing, previousValues
+		workerCache.Unlock()
+	})
+	requests := []workerRequest{}
+	workerTTY = func() (*os.File, error) {
+		operation := "outdated"
+		if len(requests) == 0 {
+			operation = "inventory"
+		}
+		prompt := "\nTUI stopped / foreground terminal. Run mise " + operation + " as builder using sudo login environment? Type yes: "
+		path := filepath.Join(t.TempDir(), "terminal")
+		if err := os.WriteFile(path, []byte(strings.Repeat(" ", len(prompt))+"yes\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return os.OpenFile(path, os.O_RDWR, 0)
+	}
+	workerCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		raw, err := base64.RawURLEncoding.DecodeString(args[len(args)-1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var request workerRequest
+		if err := json.Unmarshal(raw, &request); err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, request)
+		response := workerResponse{}
+		if request.Operation == "inventory" {
+			response.Inventory = InstalledResult{Packages: []InstalledPackage{{Manager: PM_MISE, Name: "node", Version: "20"}}}
+		} else {
+			latest := "21"
+			if request.Options.Bump {
+				latest = "22"
+			}
+			response.Records = []Package{{Manager: PM_MISE, Name: "node", Current: "20", Latest: latest}}
+		}
+		payload, err := json.Marshal(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return exec.CommandContext(ctx, "/bin/sh", "-c", `printf '%s' "$1"`, "sh", workerResponseMarker+string(payload))
+	}
+	scopes := []Scope{{Kind: "global"}}
+	options := QueryOptions{RunAs: map[string]string{PM_MISE: "builder"}}
+	bumpOptions := options
+	bumpOptions.Bump = true
+	if err := PrepareRunAsQueries(t.Context(), scopes, options, bumpOptions, options); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 3 || requests[0].Operation != "inventory" || requests[0].Options.Bump || requests[1].Options.Bump || !requests[2].Options.Bump {
+		t.Fatalf("requests = %+v", requests)
+	}
+	workerCache.Lock()
+	only, preparing, count := workerCache.only, workerCache.preparing, len(workerCache.values)
+	_, stale := workerCache.values["stale"]
+	workerCache.Unlock()
+	if !only || preparing || count != 3 || stale {
+		t.Fatalf("cache only=%t preparing=%t count=%d stale=%t", only, preparing, count, stale)
+	}
+	workerTTY = func() (*os.File, error) {
+		t.Fatal("cached query opened terminal")
+		return nil, errors.New("unexpected terminal")
+	}
+	for _, mode := range []QueryOptions{options, bumpOptions} {
+		result, err := QueryOutdatedScopesWithOptions(t.Context(), []string{PM_MISE}, scopes, mode)
+		records := Records(result.Packages)
+		latest := "21"
+		if mode.Bump {
+			latest = "22"
+		}
+		if err != nil || result.Bump != mode.Bump || len(records) != 1 || records[0].Latest != latest {
+			t.Fatalf("cached outdated bump=%t: %+v, %v", mode.Bump, result, err)
+		}
+		inventory, err := QueryInstalledScopesWithOptions(t.Context(), []string{PM_MISE}, scopes, mode)
+		if err != nil || len(inventory.Packages) != 1 {
+			t.Fatalf("cached inventory bump=%t: %+v, %v", mode.Bump, inventory, err)
+		}
+	}
+	result, err := QueryBumpCandidates(t.Context(), scopes, options)
+	if err != nil || !result.Bump || len(Records(result.Packages)) != 1 {
+		t.Fatalf("cached bump candidates = %+v, %v", result, err)
+	}
+}

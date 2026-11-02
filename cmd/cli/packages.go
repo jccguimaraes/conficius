@@ -173,6 +173,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
 				Flags: append([]urfave.Flag{pmFlag(), jsonFlag(),
+					&urfave.BoolFlag{Name: "bump", Usage: "Include latest versions beyond constraints (mise and pnpm)"},
 					&urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"},
 					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates exist"},
 				}, scopeFlags()...),
@@ -182,6 +183,7 @@ func (cli *Cli) packages() *urfave.Command {
 						return err
 					}
 					options := packagemanager.QueryOptionsFromProfile(resolved.Profile)
+					options.Bump = c.Bool("bump")
 					if c.Bool("offline") {
 						inventory, queryErr := packagemanager.QueryInstalledScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 						collisions := packagemanager.ResolveCollisionCandidates(packagemanager.CollisionCandidates(inventory.Commands), exec.LookPath)
@@ -288,6 +290,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Flags: append([]urfave.Flag{
 					pmFlag(),
 					jsonFlag(),
+					&urfave.BoolFlag{Name: "bump", Usage: "Update to latest versions beyond constraints (mise and pnpm)"},
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
 					&urfave.BoolFlag{Name: "yes", Usage: "Run non-interactively with accepted plan hashes"},
 					&urfave.BoolFlag{Name: "best-effort", Usage: "Continue with later plans after a failed plan"},
@@ -318,7 +321,9 @@ func (cli *Cli) packages() *urfave.Command {
 					if err != nil {
 						return err
 					}
-					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					options := packagemanager.QueryOptionsFromProfile(resolved.Profile)
+					options.Bump = c.Bool("bump")
+					result, queryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 					plans, err := packagemanager.PlanUpdates(result, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err != nil {
 						return err
@@ -339,7 +344,7 @@ func (cli *Cli) packages() *urfave.Command {
 					if err := packagemanager.ValidateProjectMutations(plans, resolved.Profile, c.Bool("allow-dirty"), c.Bool("allow-unversioned")); err != nil {
 						return err
 					}
-					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					freshResult, freshQueryErr := packagemanager.QueryOutdatedScopesWithOptions(ctx, c.StringSlice("pm"), managerScopes(scopes), options)
 					freshPlans, freshPlanErr := packagemanager.PlanUpdates(freshResult, c.StringSlice("include"), c.StringSlice("exclude"))
 					if err := errors.Join(freshQueryErr, freshPlanErr); err != nil {
 						return err
@@ -362,7 +367,7 @@ func (cli *Cli) packages() *urfave.Command {
 					}
 					outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, plans, c.Bool("best-effort"), stdin, cli.Writer, cli.Writer)
 					var verifyErr error
-					outcomes, verifyErr = packagemanager.VerifyUpdateOutcomes(ctx, plans, outcomes, packagemanager.QueryOptionsFromProfile(resolved.Profile))
+					outcomes, verifyErr = packagemanager.VerifyUpdateOutcomes(ctx, plans, outcomes, options)
 					log.Outcomes = outcomes
 					log.Status = "completed"
 					if applyErr != nil || verifyErr != nil {

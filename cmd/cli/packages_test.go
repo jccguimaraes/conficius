@@ -562,6 +562,185 @@ func TestValidateAcceptedPlansRequiresExactHashes(t *testing.T) {
 	}
 }
 
+func TestPackagesBumpCandidates(t *testing.T) {
+	for _, manager := range []string{"mise", "pnpm"} {
+		for _, command := range []string{"outdated", "update"} {
+			for _, bump := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/bump=%t", manager, command, bump), func(t *testing.T) {
+					dir := t.TempDir()
+					writeCLIExecutable(t, filepath.Join(dir, manager), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '2026.10.0'; exit 0; fi
+if [ "$1" != "outdated" ]; then exit 99; fi
+if [ "$FAKE_MANAGER" = "pnpm" ]; then
+  latest=22.0.0
+  for arg in "$@"; do if [ "$arg" = "--compatible" ]; then latest=20.1.0; fi; done
+  printf '{"node":{"current":"20.0.0","wanted":"20.0.0","latest":"%s","dependencyType":"dependencies"}}' "$latest"
+else
+  latest=20.1.0
+  for arg in "$@"; do if [ "$arg" = "--bump" ]; then latest=22.0.0; fi; done
+  printf '{"node":{"name":"node","current":"20.0.0","requested":"20","latest":"%s"}}' "$latest"
+fi
+`)
+					t.Setenv("PATH", dir)
+					t.Setenv("FAKE_MANAGER", manager)
+					configPath := filepath.Join(dir, "conficius.toml")
+					writeCLIFile(t, configPath, "version = 2\n")
+					t.Setenv(config.ProfileEnvironment, "")
+					args := []string{appName, "--config", configPath, "packages", command, "--pm", manager, "--json"}
+					if manager == "pnpm" {
+						project := t.TempDir()
+						writeCLIFile(t, filepath.Join(project, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+						args = append(args, "--project", project)
+					} else {
+						args = append(args, "--global")
+					}
+					if bump {
+						args = append(args, "--bump")
+					}
+					var output bytes.Buffer
+					if err := New(&output, "test").Command.Run(t.Context(), args); err != nil {
+						t.Fatal(err)
+					}
+					var envelope struct {
+						Data struct {
+							Packages []packagemanager.Package    `json:"packages"`
+							Updates  []packagemanager.UpdatePlan `json:"updates"`
+						} `json:"data"`
+					}
+					if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
+						t.Fatal(err)
+					}
+					packages := envelope.Data.Packages
+					if command == "update" {
+						if len(envelope.Data.Updates) != 1 {
+							t.Fatalf("plans = %#v", envelope.Data.Updates)
+						}
+						plan := envelope.Data.Updates[0]
+						if plan.Bump != bump {
+							t.Fatalf("plan bump = %t; want %t", plan.Bump, bump)
+						}
+						flag := "--bump"
+						if manager == "pnpm" {
+							flag = "--latest"
+						}
+						if strings.Contains(strings.Join(plan.Args, " "), flag) != bump {
+							t.Fatalf("plan args = %q; bump = %t", plan.Args, bump)
+						}
+						packages = plan.Packages
+					}
+					want := "20.1.0"
+					if bump {
+						want = "22.0.0"
+					}
+					if len(packages) != 1 || packages[0].Latest != want {
+						t.Fatalf("packages = %#v; want target %s", packages, want)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestPackagesUpdateBumpUsesSameOptionsThroughApply(t *testing.T) {
+	for _, bump := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bump=%t", bump), func(t *testing.T) {
+			dir := t.TempDir()
+			log := filepath.Join(dir, "args")
+			writeCLIExecutable(t, filepath.Join(dir, "mise"), `#!/bin/sh
+if [ "$1" = "--version" ]; then printf '2026.10.0'; exit 0; fi
+printf '%s\n' "$*" >> "$ARGS_LOG"
+case "$1" in
+outdated)
+  if [ -f "$MUTATION_MARKER" ]; then printf '{}'; exit 0; fi
+  latest=20.1.0
+  for arg in "$@"; do if [ "$arg" = "--bump" ]; then latest=22.0.0; fi; done
+  printf '{"node":{"name":"node","current":"20.0.0","requested":"20","latest":"%s"}}' "$latest"
+  ;;
+upgrade)
+  target=20.1.0
+  for arg in "$@"; do if [ "$arg" = "--bump" ]; then target=22.0.0; fi; done
+  printf '%s' "$target" > "$MUTATION_MARKER"
+  ;;
+ls)
+  read -r version < "$MUTATION_MARKER"
+  printf '{"node":[{"version":"%s","installed":true}]}' "$version"
+  ;;
+*) exit 99 ;;
+esac
+`)
+			t.Setenv("PATH", dir)
+			t.Setenv("ARGS_LOG", log)
+			t.Setenv("MUTATION_MARKER", filepath.Join(dir, "mutated"))
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			configPath := filepath.Join(dir, "conficius.toml")
+			writeCLIFile(t, configPath, "version = 2\n")
+			t.Setenv(config.ProfileEnvironment, "")
+			args := []string{appName, "--config", configPath, "packages", "update", "--pm", "mise", "--global"}
+			if bump {
+				args = append(args, "--bump")
+			}
+			var output bytes.Buffer
+			if err := New(&output, "test").Command.Run(t.Context(), append(append([]string{}, args...), "--json")); err != nil {
+				t.Fatal(err)
+			}
+			var envelope struct {
+				Data updateOutput `json:"data"`
+			}
+			if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if len(envelope.Data.Updates) != 1 || envelope.Data.Updates[0].StateHash == "" {
+				t.Fatalf("plans = %#v", envelope.Data.Updates)
+			}
+			if err := os.WriteFile(log, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			output.Reset()
+			args = append(args, "--apply", "--yes", "--accept-plan", envelope.Data.Updates[0].StateHash)
+			if err := New(&output, "test").Command.Run(t.Context(), args); err != nil {
+				t.Fatalf("apply: %v\n%s", err, output.String())
+			}
+			contents, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queries, mutations, verifications := 0, 0, 0
+			for _, line := range strings.Split(strings.TrimSpace(string(contents)), "\n") {
+				if (strings.HasPrefix(line, "outdated ") || strings.HasPrefix(line, "upgrade ")) && strings.Contains(line, "--bump") != bump {
+					t.Fatalf("args = %q; bump = %t", contents, bump)
+				}
+				if strings.HasPrefix(line, "outdated ") {
+					queries++
+				} else if strings.HasPrefix(line, "upgrade ") {
+					mutations++
+				} else if strings.HasPrefix(line, "ls ") {
+					verifications++
+					if !strings.Contains(line, "--global") {
+						t.Fatalf("installed verification missing --global: %q", line)
+					}
+				}
+			}
+			if queries != 2 || mutations != 1 || verifications != 1 {
+				t.Fatalf("queries = %d, mutations = %d, verifications = %d; args = %q", queries, mutations, verifications, contents)
+			}
+		})
+	}
+}
+
+func TestPackagesUpdateBumpRejectsUnsupportedManager(t *testing.T) {
+	dir := t.TempDir()
+	writeCLIExecutable(t, filepath.Join(dir, "npm"), "#!/bin/sh\nprintf '{\"node\":{\"current\":\"20.0.0\",\"wanted\":\"20.1.0\",\"latest\":\"22.0.0\"}}'\n")
+	t.Setenv("PATH", dir)
+	var output bytes.Buffer
+	configPath := filepath.Join(dir, "conficius.toml")
+	writeCLIFile(t, configPath, "version = 2\n")
+	t.Setenv(config.ProfileEnvironment, "")
+	err := New(&output, "test").Command.Run(t.Context(), []string{appName, "--config", configPath, "packages", "update", "--pm", "npm", "--global", "--bump", "--json"})
+	if err == nil || !strings.Contains(err.Error(), "bump") || !strings.Contains(err.Error(), "npm") {
+		t.Fatalf("error = %v; output = %s", err, output.String())
+	}
+}
+
 func TestPackagesUpdateYesRequiresApply(t *testing.T) {
 	var output bytes.Buffer
 	cli := New(&output, "test")

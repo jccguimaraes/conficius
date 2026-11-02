@@ -14,18 +14,25 @@ import (
 )
 
 func toggleSelected(data *model, row *outdatedRow) {
-	if row == nil {
+	if row == nil || data.updating {
 		return
 	}
-	pkg := &row.Package
-	key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
+	key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
 	if data.selected[key] {
 		delete(data.selected, key)
-		row.Mark = "[ ]"
+		delete(data.bumps, key)
 	} else {
+		if !modeAvailable(data, key, false) {
+			data.status = "Update unavailable; press b to mark Bump if available"
+			return
+		}
+		if data.selected == nil {
+			data.selected = make(map[string]bool)
+		}
 		data.selected[key] = true
-		row.Mark = "[x]"
+		delete(data.bumps, key)
 	}
+	syncPackageRow(data, row)
 }
 
 func outdatedRows(packages []packagemanager.Package, selected map[string]bool, failed map[string]string) []outdatedRow {
@@ -42,17 +49,30 @@ func outdatedRows(packages []packagemanager.Package, selected map[string]bool, f
 }
 
 func toggleAll(data *model) {
-	if len(data.packages) > 0 && len(data.selected) == len(data.packages) {
+	eligible, selected := 0, 0
+	for _, pkg := range data.packages {
+		key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
+		if modeAvailable(data, key, false) {
+			eligible++
+			if data.selected[key] {
+				selected++
+			}
+		}
+	}
+	if len(data.selected) > 0 && selected == eligible {
 		clear(data.selected)
+		clear(data.bumps)
 		for i := range data.rows {
-			data.rows[i].Mark = "[ ]"
+			syncPackageRow(data, &data.rows[i])
 		}
 		return
 	}
 	for i := range data.rows {
-		pkg := &data.rows[i].Package
-		data.selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = true
-		data.rows[i].Mark = "[x]"
+		row := &data.rows[i]
+		key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+		if !data.selected[key] && modeAvailable(data, key, false) {
+			toggleSelected(data, row)
+		}
 	}
 }
 
@@ -66,10 +86,61 @@ func containsPackage(packages []packagemanager.Package, key string) bool {
 }
 
 type commandRow struct {
+	Mode     string
 	Manager  string
 	Scope    string
 	Packages string
 	Command  string
+}
+
+func toggleBump(data *model, row *outdatedRow) {
+	if data.updating || row == nil {
+		return
+	}
+	key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+	if !data.selected[key] {
+		if !setPackageMode(data, key, true) {
+			data.status = strings.Replace(data.status, "previous mode retained", "package not marked", 1)
+			return
+		}
+		if data.selected == nil {
+			data.selected = make(map[string]bool)
+		}
+		data.selected[key] = true
+	} else {
+		setPackageMode(data, key, !data.bumps[key])
+	}
+	syncPackageRow(data, row)
+}
+
+func toggleAllBumps(data *model) {
+	if data.updating {
+		return
+	}
+	if len(data.selected) == 0 {
+		data.status = "No packages marked"
+		return
+	}
+	bump := false
+	for key := range data.selected {
+		if !data.bumps[key] {
+			bump = true
+			break
+		}
+	}
+	unavailable := 0
+	for key := range data.selected {
+		if !setPackageMode(data, key, bump) {
+			unavailable++
+		}
+	}
+	for i := range data.rows {
+		syncPackageRow(data, &data.rows[i])
+	}
+	data.status = fmt.Sprintf("Marked mode: %s; %d unavailable retained previous mode", modeName(bump), unavailable)
+	if bump && unavailable > 0 && data.bumpErr != nil {
+		data.status += "; Bump availability unknown: " + data.bumpErr.Error()
+	}
 }
 
 func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
@@ -79,6 +150,8 @@ func registerResults(data *model, app *glyph.App) *glyph.ListC[outdatedRow] {
 		Handle("<Esc>", func() { data.active = nil; app.Go("scopes") }).
 		Handle("p", func() { app.Go("profiles") }).
 		Handle("r", func() { refresh(data, app) }).
+		Handle("b", func() { toggleBump(data, packageList.Selected()); app.RequestRender() }).
+		Handle("B", func() { toggleAllBumps(data); app.RequestRender() }).
 		Handle("x", func() { cancelSecurity(data, app) }).
 		Handle("v", func() { app.Go("vulnerabilities") }).
 		Handle("<Enter>", func() {
@@ -108,23 +181,15 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 		app.RequestRender()
 		return
 	}
-	allowed := make(map[string]bool)
-	for _, pkg := range data.packages {
-		key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
-		if all || data.selected[key] {
-			allowed[key] = true
+	plans, skipped, err := selectedPlans(data, all)
+	if err == nil && len(plans) == 0 {
+		data.status = "No packages marked with an available action"
+		if skipped > 0 {
+			data.status += fmt.Sprintf("; %d unmarked packages have no Update available", skipped)
 		}
-	}
-	if len(allowed) == 0 {
-		data.status = "No packages marked"
 		app.RequestRender()
 		return
 	}
-	query := data.query
-	query.Packages = packagemanager.Filter(query.Packages, func(pkg packagemanager.Package) bool {
-		return allowed[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]
-	})
-	plans, err := packagemanager.PlanUpdates(query, nil, nil)
 	if err == nil {
 		err = validateUpgradePlans(data, plans)
 	}
@@ -140,16 +205,22 @@ func prepareUpgrade(data *model, app *glyph.App, all bool) {
 		return
 	}
 	showUpgradePreview(data, app, plans)
+	if skipped > 0 {
+		data.status += fmt.Sprintf("; %d unmarked packages have no Update available and were not included", skipped)
+	}
 }
 
 func showUpgradePreview(data *model, app *glyph.App, plans []packagemanager.UpdatePlan) {
 	data.plans, data.preview = plans, formatPlans(plans)
 	data.commands = commandRows(plans)
-	packageCount := 0
+	packageCount, bumpCount := 0, 0
 	for _, plan := range plans {
 		packageCount += len(plan.Packages)
+		if plan.Bump {
+			bumpCount += len(plan.Packages)
+		}
 	}
-	data.planSummary = fmt.Sprintf("%d packages in %d commands", packageCount, len(plans))
+	data.planSummary = fmt.Sprintf("%d packages in %d commands: %d Update, %d Bump", packageCount, len(plans), packageCount-bumpCount, bumpCount)
 	data.status = "Review commands before applying upgrades"
 	app.Go("confirm")
 }
@@ -161,7 +232,7 @@ func commandRows(plans []packagemanager.UpdatePlan) []commandRow {
 		if plan.Directory != "" {
 			scope += "  " + plan.Directory
 		}
-		rows[i] = commandRow{Manager: plan.Manager, Scope: scope, Packages: strconv.Itoa(len(plan.Packages)) + " package(s)", Command: formatPlan(plan)}
+		rows[i] = commandRow{Mode: modeName(plan.Bump), Manager: plan.Manager, Scope: scope, Packages: strconv.Itoa(len(plan.Packages)) + " package(s)", Command: formatPlan(plan)}
 	}
 	return rows
 }
@@ -254,17 +325,32 @@ func runInteractiveUpgrades(data *model) error {
 		return fmt.Errorf("open controlling terminal: %w", err)
 	}
 	defer func() { _ = tty.Close() }()
+	applyUpgradePlans(data, tty)
+	return execFreshTUI(tty, data)
+}
+
+func applyUpgradePlans(data *model, tty *os.File) {
 	plans := append([]packagemanager.UpdatePlan(nil), data.plans...)
+	options := packagemanager.QueryOptionsFromProfile(data.profile.Profile)
+	ctx := context.Background()
 	clear(data.attempted)
 	for _, plan := range plans {
 		for _, pkg := range plan.Packages {
-			data.attempted[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = pkg.Current
+			key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
+			data.attempted[key] = pkg.Current
+			if data.bumps == nil {
+				data.bumps = make(map[string]bool)
+			}
+			data.bumps[key] = plan.Bump
 		}
 	}
 	failed := make(map[string]string)
 	var failures int
 	for _, plan := range plans {
-		err := packagemanager.ApplyUpdates(context.Background(), []packagemanager.UpdatePlan{plan}, tty, tty, tty)
+		batch := []packagemanager.UpdatePlan{plan}
+		outcomes, applyErr := packagemanager.ApplyUpdatesWithOutcomes(ctx, batch, false, tty, tty, tty)
+		_, verifyErr := packagemanager.VerifyUpdateOutcomes(ctx, batch, outcomes, options)
+		err := errors.Join(applyErr, verifyErr)
 		if err == nil {
 			continue
 		}
@@ -288,7 +374,6 @@ func runInteractiveUpgrades(data *model) error {
 		clear(data.selected)
 		data.status = "Upgrades applied"
 	}
-	return execFreshTUI(tty, data)
 }
 
 func resetUpgradePlans(data *model) {
@@ -337,4 +422,119 @@ func registerUpgradeConfirmations(data *model, app *glyph.App) {
 		Handle("q", func() { resetUpgradePlans(data); app.Stop() }).
 		Handle("y", func() { applyUpgrades(data, app) }).
 		Handle("n", cancel).Handle("<Esc>", cancel)
+}
+
+func modeName(bump bool) string {
+	if bump {
+		return "Bump"
+	}
+	return "Update"
+}
+
+func modeAvailable(data *model, key string, bump bool) bool {
+	query := data.query
+	if bump {
+		query = data.bumpQuery
+	}
+	return containsPackage(packagemanager.Records(query.Packages), key)
+}
+
+func setPackageMode(data *model, key string, bump bool) bool {
+	if !modeAvailable(data, key, bump) {
+		data.status = modeName(bump) + " unavailable; previous mode retained"
+		if bump && data.bumpErr != nil {
+			data.status = "Bump availability unknown; previous mode retained: " + data.bumpErr.Error()
+		}
+		return false
+	}
+	if data.bumps == nil {
+		data.bumps = make(map[string]bool)
+	}
+	data.bumps[key] = bump
+	resetUpgradePlans(data)
+	data.status = "Marked mode: " + modeName(bump)
+	return true
+}
+
+func unionTargets(normal, bump packagemanager.QueryResult) []packagemanager.Package {
+	packages := packagemanager.Records(normal.Packages)
+	for _, pkg := range packagemanager.Records(bump.Packages) {
+		if !containsPackage(packages, packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)) {
+			packages = append(packages, pkg)
+		}
+	}
+	return packages
+}
+
+func syncPackageRow(data *model, row *outdatedRow) {
+	key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+	bump := data.selected[key] && data.bumps[key]
+	row.Mark, row.MarkColor = "[ ]", glyph.Color{}
+	row.Availability = ""
+	if !modeAvailable(data, key, false) {
+		row.Availability = "Bump only"
+		if data.outdatedErr != nil {
+			row.Availability = "Update unknown"
+		}
+	}
+	if data.selected[key] {
+		row.Mark, row.MarkColor = "[U]", glyph.Cyan
+		if bump {
+			row.Mark, row.MarkColor = "[B]", glyph.Yellow
+		}
+	}
+	query := data.query
+	if bump || row.Availability == "Bump only" {
+		query = data.bumpQuery
+	}
+	for _, pkg := range packagemanager.Records(query.Packages) {
+		if packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name) == key {
+			row.Package = pkg
+			break
+		}
+	}
+}
+
+func rebuildOutdatedRows(data *model) {
+	data.rows = outdatedRows(data.packages, data.selected, data.failed)
+	for i := range data.rows {
+		syncPackageRow(data, &data.rows[i])
+	}
+}
+
+func selectedPlans(data *model, all bool) ([]packagemanager.UpdatePlan, int, error) {
+	allowed := [2]map[string]bool{make(map[string]bool), make(map[string]bool)}
+	skipped := 0
+	for _, pkg := range data.packages {
+		key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
+		if !data.selected[key] && !all {
+			continue
+		}
+		bump := data.selected[key] && data.bumps[key]
+		if !modeAvailable(data, key, bump) {
+			if !data.selected[key] {
+				skipped++
+				continue
+			}
+			return nil, skipped, fmt.Errorf("%s unavailable for %s; mode retained; refresh to check availability", modeName(bump), pkg.Name)
+		}
+		group := 0
+		if bump {
+			group = 1
+		}
+		allowed[group][key] = true
+	}
+	var plans []packagemanager.UpdatePlan
+	for group, query := range []packagemanager.QueryResult{data.query, data.bumpQuery} {
+		query.Bump = group == 1
+		query.Packages = packagemanager.Filter(query.Packages, func(pkg packagemanager.Package) bool {
+			return allowed[group][packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)]
+		})
+		part, err := packagemanager.PlanUpdates(query, nil, nil)
+		if err != nil {
+			return nil, skipped, err
+		}
+		plans = append(plans, part...)
+	}
+	return plans, skipped, nil
 }

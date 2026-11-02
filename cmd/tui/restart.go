@@ -15,6 +15,7 @@ const restartStateEnv = "CONFICIUS_TUI_RESTART_STATE"
 type restartState struct {
 	Profile          string            `json:"profile,omitempty"`
 	Screen           string            `json:"screen"`
+	Bumps            map[string]bool   `json:"bumps,omitempty"`
 	ScopeKind        string            `json:"scope_kind,omitempty"`
 	ScopePath        string            `json:"scope_path,omitempty"`
 	Failed           map[string]string `json:"failed,omitempty"`
@@ -60,6 +61,7 @@ func restoreRestartState(data *model, state restartState) string {
 	for key, version := range state.Attempted {
 		data.attempted[key] = version
 	}
+	data.bumps = state.Bumps
 	data.cacheRefreshDone, data.cacheRefreshErr = state.CacheRefreshDone, state.CacheRefreshErr
 	data.cacheReturnView = state.Screen
 	if state.Screen == "results" {
@@ -103,7 +105,7 @@ func execFreshTUI(tty *os.File, data *model) error {
 }
 
 func tuiRestartState(data *model) restartState {
-	state := restartState{Profile: data.profile.Name, Screen: "results", Failed: data.failed, Attempted: data.attempted}
+	state := restartState{Profile: data.profile.Name, Screen: "results", Bumps: data.bumps, Failed: data.failed, Attempted: data.attempted}
 	if data.active != nil {
 		state.ScopeKind, state.ScopePath = data.active.Kind, data.active.Path
 	}

@@ -478,6 +478,16 @@ func TestCancelSecurityWithoutActiveScanPreservesPackageWork(t *testing.T) {
 }
 
 func TestFullRefreshSecurityCancelCannotResurrect(t *testing.T) {
+	for _, bump := range []bool{false, true} {
+		for _, phase := range []string{"scanning", "before-publication-canceled", "before-publication-generation"} {
+			t.Run(fmt.Sprintf("bump=%t/%s", bump, phase), func(t *testing.T) {
+				testFullRefreshSecurityCancelCannotResurrect(t, bump, phase)
+			})
+		}
+	}
+}
+
+func testFullRefreshSecurityCancelCannotResurrect(t *testing.T, bump bool, phase string) {
 	t.Setenv(config.ProfileEnvironment, "")
 	root := t.TempDir()
 	// Native commands are local fixtures; no inventory or network dependency.
@@ -504,10 +514,42 @@ esac
 		t.Fatalf("startup: %v, %v", err, data.packageConfigErr)
 	}
 	data.active = &data.scopes[1]
+	_ = bump
 	client := blockingSecurityClient{make(chan securityRequest, 4)}
 	data.osvClient = client
 	app := glyph.NewApp()
+	if phase != "scanning" {
+		data.packageFocus = func(update func()) {
+			if data.localChecked && !data.outdatedChecked {
+				data.securityScanning = true
+				if phase == "before-publication-generation" {
+					stop := data.securityCancel
+					t.Cleanup(stop)
+					data.securityCancel = func() {}
+				}
+				cancelSecurity(data, app)
+			}
+			update()
+		}
+	}
 	refresh(data, app)
+	t.Cleanup(data.cancel)
+	if phase != "scanning" {
+		waitSecurityApply(t, app, func() bool { return data.outdatedChecked })
+		if data.query.Bump || len(data.query.Packages) != 1 || len(data.packages) != 1 || len(data.rows) != 1 {
+			t.Fatalf("outdated publication lost: query=%+v packages=%+v rows=%+v", data.query, data.packages, data.rows)
+		}
+		if data.loading || data.networkPending || data.securityScanning || data.securityChecked || !errors.Is(data.securityErr, context.Canceled) || data.status != "Vulnerability scan canceled; results incomplete" {
+			t.Fatalf("outdated publication changed canceled security: %+v", data)
+		}
+		select {
+		case <-client.requests:
+			t.Fatal("stale security work started")
+		case <-time.After(30 * time.Millisecond):
+		}
+		return
+	}
+	waitSecurityApply(t, app, func() bool { return data.securityScanning })
 	var request securityRequest
 	select {
 	case request = <-client.requests:
@@ -515,6 +557,9 @@ esac
 		t.Fatal("full refresh did not start security request")
 	}
 	waitSecurityApply(t, app, func() bool { return data.securityScanning })
+	if data.query.Bump {
+		t.Fatalf("query bump = %t, want %t", data.query.Bump, bump)
+	}
 	if !data.localChecked || !data.outdatedChecked || len(data.packages) != 1 {
 		t.Fatal("package results missing before cancellation")
 	}

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -120,6 +121,7 @@ type ManagerOptions struct {
 }
 
 type QueryOptions struct {
+	Bump              bool
 	RunAs             map[string]string
 	RunAsMethod       map[string]string
 	Managers          map[string]ManagerOptions
@@ -164,6 +166,7 @@ func QueryOptionsFromProfile(profile config.Profile) QueryOptions {
 }
 
 type QueryResult struct {
+	Bump     bool
 	Managers []ManagerStatus
 	Packages Packages
 }
@@ -200,6 +203,7 @@ type RecoveryCommand struct {
 }
 
 type UpdatePlan struct {
+	Bump        bool              `json:"bump"`
 	RunAs       string            `json:"run_as,omitempty"`
 	RunAsMethod string            `json:"run_as_method,omitempty"`
 	Manager     string            `json:"manager"`
@@ -297,25 +301,42 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 	return QueryOutdatedScopesWithOptions(ctx, pms, scopes, QueryOptions{})
 }
 
+func QueryBumpCandidates(ctx context.Context, scopes []Scope, options QueryOptions) (QueryResult, error) {
+	options.Bump = true
+	managers := []string{PM_MISE, PM_PNPM}
+	return queryOutdatedScopesWithOptions(ctx, managers, scopes, options, managers)
+}
+
 func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
-	if hasRunAs(pms, options) {
+	return queryOutdatedScopesWithOptions(ctx, pms, scopes, options, nil)
+}
+
+func queryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []Scope, options QueryOptions, manifestManagers []string) (QueryResult, error) {
+	if manifestManagers == nil && hasRunAs(pms, options) {
 		return queryRunAsOutdated(ctx, pms, scopes, options)
 	}
 	var err error
 	scopes, err = normalizeScopes(scopes)
 	if err != nil {
-		return QueryResult{}, err
+		return QueryResult{Bump: options.Bump}, err
 	}
-	options, err = requireManifestManagers(options, scopes)
+	options, err = requireSelectedManifestManagers(options, scopes, manifestManagers)
 	if err != nil {
-		return QueryResult{}, err
+		return QueryResult{Bump: options.Bump}, err
 	}
+	if hasRunAs(pms, options) {
+		return queryRunAsOutdated(ctx, pms, scopes, options, manifestManagers...)
+	}
+	return queryOutdatedValidated(ctx, pms, scopes, options)
+}
+
+func queryOutdatedValidated(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
 	statuses, err := inspectWithOptions(pms, options)
 	if err != nil {
-		return QueryResult{}, err
+		return QueryResult{Bump: options.Bump}, err
 	}
 
-	result := QueryResult{Managers: statuses, Packages: make(Packages)}
+	result := QueryResult{Bump: options.Bump, Managers: statuses, Packages: make(Packages)}
 	var operations []readOperation[Packages]
 	for i := range result.Managers {
 		status := &result.Managers[i]
@@ -324,7 +345,7 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 		}
 		adapter, adapterErr := adapterFor(status.Name)
 		if adapterErr != nil {
-			return QueryResult{}, adapterErr
+			return QueryResult{Bump: options.Bump}, adapterErr
 		}
 		for _, executable := range status.Executables {
 			if status.Name == PM_NPM && options.Managers[PM_NPM].ExpectedGlobalPrefix != "" {
@@ -341,7 +362,11 @@ func QueryOutdatedScopesWithOptions(ctx context.Context, pms []string, scopes []
 				manager, executable, scope := status.Name, executable, scope
 				operations = append(operations, readOperation[Packages]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) (Packages, error) {
 					packages := make(Packages)
-					err := listOutdatedScope(ctx, manager, executable, scope, options.Managers[manager], packages)
+					managerOptions := options.Managers[manager]
+					if manager == PM_MISE || manager == PM_PNPM {
+						managerOptions.IncludeBumpCandidates = options.Bump
+					}
+					err := listOutdatedScope(ctx, manager, executable, scope, managerOptions, packages)
 					return packages, err
 				}})
 			}
@@ -472,9 +497,15 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 }
 
 func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions, error) {
+	return requireSelectedManifestManagers(options, scopes, nil)
+}
+
+func requireSelectedManifestManagers(options QueryOptions, scopes []Scope, selected []string) (QueryOptions, error) {
 	required := make(map[string]bool, len(options.Required))
 	for manager, enabled := range options.Required {
-		required[manager] = enabled
+		if selected == nil || (slices.Contains(selected, manager) && !options.Disabled[manager]) {
+			required[manager] = enabled
+		}
 	}
 	options.Required = required
 	manifests := []struct {
@@ -513,6 +544,9 @@ func requireManifestManagers(options QueryOptions, scopes []Scope) (QueryOptions
 				}
 			}
 			if info.IsDir() {
+				continue
+			}
+			if selected != nil && (!slices.Contains(selected, manifest.manager) || options.Disabled[manifest.manager]) {
 				continue
 			}
 			if options.Disabled[manifest.manager] {
@@ -817,6 +851,9 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if _, ok := excluded[key]; ok {
 			continue
 		}
+		if result.Bump && record.Manager != PM_MISE && record.Manager != PM_PNPM {
+			return nil, fmt.Errorf("%s does not support bump mode", record.Manager)
+		}
 		selected = append(selected, record)
 	}
 
@@ -833,7 +870,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		}
 		plan := plansByKey[key]
 		if plan == nil {
-			plan = &UpdatePlan{RunAs: record.RunAs, RunAsMethod: record.RunAsMethod, Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
+			plan = &UpdatePlan{Bump: result.Bump, RunAs: record.RunAs, RunAsMethod: record.RunAsMethod, Manager: record.Manager, Executable: record.Executable, Scope: record.Scope, Directory: record.Path, Confidence: PlanConfidenceEstimated}
 			plansByKey[key] = plan
 			keys = append(keys, key)
 		}
@@ -852,6 +889,14 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		plan := plansByKey[key]
 		sort.Slice(plan.Packages, func(i, j int) bool { return plan.Packages[i].Name < plan.Packages[j].Name })
 		plan.Args = updateArgs(plan.Manager, plan.Packages)
+		if plan.Bump {
+			switch plan.Manager {
+			case PM_MISE:
+				plan.Args = append([]string{MiseCommandUpgrade, MiseFlagYes, MiseFlagBump}, plan.Args[2:]...)
+			case PM_PNPM:
+				plan.Args = append([]string{"update", "--latest"}, plan.Args[1:]...)
+			}
+		}
 		adapter, err := adapterFor(plan.Manager)
 		if err != nil {
 			return nil, err
@@ -879,7 +924,7 @@ func updatePlanHash(plan UpdatePlan) string {
 		_, _ = hash.Write([]byte(value))
 		_, _ = hash.Write([]byte{0})
 	}
-	for _, value := range []string{plan.RunAs, plan.RunAsMethod, plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
+	for _, value := range []string{strconv.FormatBool(plan.Bump), plan.RunAs, plan.RunAsMethod, plan.Manager, plan.Executable, plan.Directory, plan.Scope, string(plan.Confidence),
 		strconv.FormatBool(plan.Impact.MayChangeManifests), strconv.FormatBool(plan.Impact.RequiresAdmin), strconv.FormatBool(plan.Impact.MayRestartServices), strconv.FormatBool(plan.Impact.MayReboot), strconv.FormatBool(plan.Impact.Interactive)} {
 		writeHashValue(value)
 	}
@@ -1058,6 +1103,9 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
 	for _, plan := range plans {
+		if plan.Bump && plan.Manager != PM_MISE && plan.Manager != PM_PNPM {
+			return nil, fmt.Errorf("%s does not support bump mode", plan.Manager)
+		}
 		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
 			return nil, fmt.Errorf("%s project update plan is stale; refresh preview before applying", plan.Manager)
 		}
@@ -1236,6 +1284,28 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 		remaining := make(Packages)
 		if plan.Manager == PM_CARGO {
 			err = cargoVerifyUpdate(plan)
+		} else if plan.Manager == PM_MISE || plan.Manager == PM_PNPM {
+			var adapter managerAdapter
+			adapter, err = adapterFor(plan.Manager)
+			if err == nil {
+				var installed []InstalledPackage
+				installed, err = adapter.listInstalled(ctx, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory})
+				if err == nil {
+					for _, pkg := range plan.Packages {
+						found := false
+						for _, current := range installed {
+							if current.Name == pkg.Name && (current.Version == pkg.Latest || plan.Manager == PM_MISE && equivalentMiseVersions(current.Version, pkg.Latest)) {
+								found = true
+								break
+							}
+						}
+						if !found {
+							err = fmt.Errorf("%s:%s did not reach approved version %s", pkg.Manager, pkg.Name, pkg.Latest)
+							break
+						}
+					}
+				}
+			}
 		} else if err == nil {
 			err = listOutdatedScope(ctx, plan.Manager, plan.Executable, Scope{Kind: plan.Scope, Path: plan.Directory}, options.Managers[plan.Manager], remaining)
 		}

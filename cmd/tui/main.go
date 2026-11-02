@@ -31,6 +31,8 @@ type outdatedRow struct {
 	Error           string
 	Security        string
 	SecurityColor   glyph.Color
+	MarkColor       glyph.Color
+	Availability    string
 	AdvisoryDetails string
 }
 
@@ -72,6 +74,9 @@ type model struct {
 	packages           []packagemanager.Package
 	rows               []outdatedRow
 	query              packagemanager.QueryResult
+	bumps              map[string]bool
+	bumpQuery          packagemanager.QueryResult
+	bumpErr            error
 	selected           map[string]bool
 	failed             map[string]string
 	attempted          map[string]string
@@ -149,7 +154,10 @@ func run() error {
 		for i, scope := range scopes {
 			managerScopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
-		if err := packagemanager.PrepareRunAsQueries(context.Background(), managerScopes, packagemanager.QueryOptionsFromProfile(data.profile.Profile)); err != nil {
+		options := packagemanager.QueryOptionsFromProfile(data.profile.Profile)
+		bumpOptions := options
+		bumpOptions.Bump = true
+		if err := packagemanager.PrepareRunAsQueries(context.Background(), managerScopes, options, bumpOptions); err != nil {
 			data.status = err.Error()
 		}
 	}
@@ -376,6 +384,11 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	}
 	data.generation++
 	clear(data.selected)
+	for key := range data.bumps {
+		if data.failed[key] == "" && data.attempted[key] == "" {
+			delete(data.bumps, key)
+		}
+	}
 	resetUpgradePlans(data)
 	data.packages, data.rows = nil, nil
 	data.allEvidence = nil
@@ -383,7 +396,8 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	data.findings, data.detail = nil, vulnerabilityRow{}
 	data.packageDetailText = ""
 	data.securitySummary, data.securityCount = security.Summary{}, 0
-	data.query = packagemanager.QueryResult{}
+	data.query, data.bumpQuery = packagemanager.QueryResult{}, packagemanager.QueryResult{Bump: true}
+	data.bumpErr = nil
 	data.installedCount = 0
 	data.localChecked, data.outdatedChecked, data.securityChecked = false, false, false
 	data.localErr, data.outdatedErr, data.securityErr = nil, nil, nil
@@ -422,6 +436,7 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 	updateHome(data)
 	scopeSelection := selectedScopes(data)
 	profile := data.profile.Profile
+	options := packagemanager.QueryOptionsFromProfile(profile)
 	mappings := append([]config.VulnerabilityMapping(nil), data.mappings...)
 	euvdMaps := append([]config.EUVDMapping(nil), data.euvdMaps...)
 	scanOptions := security.Options{IncludeIndirect: data.includeIndirect, IncludeGraphOnly: data.includeGraphOnly, OSVMappings: mappings, EUVDMappings: euvdMaps, OSVClient: data.osvClient, EUVDClient: data.euvdClient}
@@ -440,7 +455,6 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		for i, scope := range scopeSelection {
 			scopes[i] = packagemanager.Scope{Kind: scope.Kind, Path: scope.Path}
 		}
-		options := packagemanager.QueryOptionsFromProfile(profile)
 		type outdatedResult struct {
 			result packagemanager.QueryResult
 			err    error
@@ -450,7 +464,12 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			err    error
 		}
 		outdatedCh, inventoryCh := make(chan outdatedResult, 1), make(chan inventoryResult, 1)
+		bumpCh := make(chan outdatedResult, 1)
 		if full {
+			go func() {
+				result, err := packagemanager.QueryBumpCandidates(ctx, scopes, options)
+				bumpCh <- outdatedResult{result, err}
+			}()
 			go func() {
 				result, err := packagemanager.QueryOutdatedScopesWithOptions(ctx, nil, scopes, options)
 				outdatedCh <- outdatedResult{result, err}
@@ -499,38 +518,61 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 		}
 		outdatedData := <-outdatedCh
 		result, outdatedErr := outdatedData.result, outdatedData.err
+		bumpData := <-bumpCh
 		if includesGlobal(scopeSelection) {
 			managerUpdates, managerUpdateErr := packagemanager.ManagerUpdates(ctx, inventory.Managers, managerPackages)
 			packagemanager.MergePackages(result.Packages, managerUpdates)
 			outdatedErr = errors.Join(outdatedErr, managerUpdateErr)
 		}
 		securityTargets := packagemanager.Records(result.Packages)
-		packages := append([]packagemanager.Package(nil), securityTargets...)
+		packages := unionTargets(result, bumpData.result)
 		scanOptions.Outdated = securityTargets
 		scanPackages := security.SelectInventory(inventory.Packages, scanOptions)
 		if ctx.Err() != nil {
 			return
 		}
 		err := errors.Join(outdatedErr, inventoryErr)
+		scanReady := make(chan bool, 1)
 		apply(func() {
 			if ctx.Err() != nil || !isCurrentGeneration(data.generation, generation) {
+				scanReady <- false
 				return
 			}
-			data.loading = true
 			data.networkPending, data.outdatedChecked, data.outdatedErr = false, true, outdatedErr
-			if !isCurrentGeneration(data.securityGeneration, securityGeneration) || securityCtx.Err() != nil {
-				return
-			}
-			data.securityScanning = true
-			data.query = result
+			data.query, data.bumpQuery, data.bumpErr = result, bumpData.result, bumpData.err
 			data.packages = packages
 			for key := range data.selected {
 				if !containsPackage(packages, key) {
 					delete(data.selected, key)
 				}
 			}
-			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, packages)
-			data.rows = outdatedRows(packages, data.selected, data.failed)
+			remaining := make([]packagemanager.Package, 0, len(packages))
+			for _, pkg := range packages {
+				key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
+				if modeAvailable(data, key, data.bumps[key]) {
+					remaining = append(remaining, pkg)
+				}
+			}
+			upgraded, unchanged, failed := reconcileUpgradeOutcomes(data, remaining)
+			for key := range data.failed {
+				if containsPackage(packages, key) {
+					data.selected[key] = true
+				}
+			}
+			for key := range data.bumps {
+				if !data.selected[key] {
+					delete(data.bumps, key)
+				}
+			}
+			rebuildOutdatedRows(data)
+			if !isCurrentGeneration(data.securityGeneration, securityGeneration) || securityCtx.Err() != nil {
+				syncOutdatedSecurity(data)
+				data.loading = data.localLoading || data.securityScanning
+				updateHome(data)
+				scanReady <- false
+				return
+			}
+			data.loading, data.securityScanning = true, true
 			syncOutdatedSecurity(data)
 			data.status = appendCollisionStatus(appendManagerStatus(refreshStatus(len(packages), upgraded, unchanged, failed), result.Managers), inventory.Commands)
 			if err != nil {
@@ -538,7 +580,17 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 			}
 			data.status = fmt.Sprintf("Busy: checking security; %d selected / %d installed; %d outdated", len(scanPackages), len(inventory.Packages), len(packages))
 			updateHome(data)
+			scanReady <- true
 		})
+		select {
+		case ready := <-scanReady:
+			if !ready {
+				cancel()
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
 		report, scanErr := security.Scan(securityCtx, scanPackages, scanOptions)
 		if securityCtx.Err() != nil {
 			cancel()
@@ -564,6 +616,9 @@ func refreshPackages(data *model, app *glyph.App, full bool) {
 				data.status += fmt.Sprintf("; %d failed updates", len(data.failed))
 			}
 			data.status = appendCollisionStatus(appendManagerStatus(data.status, result.Managers), inventory.Commands)
+			if data.bumpErr != nil {
+				data.status += "; Bump availability unknown: " + data.bumpErr.Error()
+			}
 			updateHome(data)
 		})
 	}()

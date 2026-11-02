@@ -139,6 +139,7 @@ func packageTableRow(kind string, values func() []packageColumn, heading bool) g
 func packageContext(data *model) any {
 	return func() string {
 		text := "Profile: " + data.profile.Name
+		text += " · [U] Update / [B] Bump"
 		if data.active != nil {
 			text += " · Scope: " + data.active.Kind + ":" + data.active.Name
 			if data.active.Path != "" {
@@ -204,8 +205,8 @@ func scopeView(data *model, app *glyph.App) (glyph.Component, *glyph.ListC[confi
 }
 
 func outdatedColumns(row *outdatedRow) []packageColumn {
-	markColor := glyph.If(&row.Failed).Then(glyph.Red).Else(glyph.Color{})
-	errorText := glyph.If(&row.Failed).Then(glyph.If(&row.Error).Then(glyph.Text("Update failed; Enter details").FG(glyph.Red))).Else(glyph.Text(&row.Error).FG(glyph.Red))
+	markColor := glyph.If(&row.Failed).Then(glyph.Red).Else(&row.MarkColor)
+	errorText := glyph.If(&row.Failed).Then(glyph.If(&row.Error).Then(glyph.Text("Update failed; Enter details").FG(glyph.Red))).Else(glyph.If(&row.Error).Then(glyph.Text(&row.Error).FG(glyph.Red)).Else(glyph.Text(&row.Availability).FG(glyph.Yellow)))
 	return []packageColumn{{"", &row.Mark, 3, markColor}, {"Manager", &row.Package.Manager, 8, glyph.Color{}}, {"Scope", &row.Package.Scope, 10, glyph.Color{}}, {"Tool", &row.Package.Name, 18, glyph.Color{}}, {"Requested", &row.Package.Requested, 12, glyph.Color{}}, {"Current", glyph.If(&row.Package.Current).Then(glyph.Text(&row.Package.Current)).Else(glyph.IfOrd(&row.Package.Manager).Eq(packagemanager.PM_MISE).Then(glyph.Text("[MISSING]").FG(glyph.Yellow))), 12, glyph.Color{}}, {"Latest", &row.Package.Latest, 12, glyph.Color{}}, {"Security", &row.Security, 18, &row.SecurityColor}, {"Error", errorText, 24, glyph.Red}}
 }
 
@@ -214,7 +215,7 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 		return packageTableRow("outdated", func() []packageColumn { return outdatedColumns(row) }, false)
 	})
 	content := packageTable("outdated", func() []packageColumn { return outdatedColumns(&outdatedRow{}) }, &data.loading, list)
-	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, cacheRefreshFooter("↑/↓ move  Enter details  Space mark  p profiles", runtime.GOOS), &data.securityScanning), list
+	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, cacheRefreshFooter("b Bump  B marked modes  Space mark  u/U preview  ↑/↓ move  Enter details  p profiles", runtime.GOOS), &data.securityScanning), list
 }
 
 func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
@@ -226,7 +227,7 @@ func updateErrorView(data *model) (glyph.Component, *glyph.ListC[string]) {
 
 func confirmView(data *model) glyph.Component {
 	list := glyph.List(&data.commands).Render(func(row *commandRow) glyph.Component {
-		return glyph.VBox(glyph.Textf(&row.Manager, "  ", &row.Scope, "  ", &row.Packages), glyph.TextBlock(&row.Command).CharWrap())
+		return glyph.VBox(glyph.Textf(&row.Mode, "  ", &row.Manager, "  ", &row.Scope, "  ", &row.Packages), glyph.TextBlock(&row.Command).CharWrap())
 	}).Marker("").BindNav("<down>", "<up>").BindNav("j", "k").BindHalfPageNav("<C-d>", "<C-u>")
 	return screenFrame("Packages / Confirm upgrades", packageContext(data), &data.status, glyph.VBox.Grow(1)(glyph.Text(&data.planSummary).Bold(), glyph.HRule(), loadingContent(&data.updating, list)), "↑/↓/j/k scroll  Ctrl-d/u page  y apply  n/Esc cancel")
 }
