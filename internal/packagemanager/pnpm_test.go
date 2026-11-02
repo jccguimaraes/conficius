@@ -3,6 +3,7 @@ package packagemanager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -103,7 +104,7 @@ if [ "$1" = "--version" ]; then printf '12.6.0'; elif [ "$1" = "outdated" ]; the
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), project+"|list --depth 0 --json") || !strings.Contains(string(args), project+"|outdated --format json") {
+			if len(installed.Packages) != 1 || len(Records(outdated.Packages)) != 1 || !strings.Contains(string(args), project+"|list --depth 0 --json") || !strings.Contains(string(args), project+"|outdated --format json --compatible") {
 				t.Fatalf("installed = %#v, outdated = %#v, args = %q", installed.Packages, Records(outdated.Packages), args)
 			}
 		})
@@ -185,19 +186,63 @@ func TestParsePNPMInstalledRejectsChangedOutput(t *testing.T) {
 }
 
 func TestParsePNPMOutdatedReadsVersions(t *testing.T) {
-	output := []byte(`{"is-negative":{"current":"1.0.0","latest":"2.1.0","wanted":"1.0.0","isDeprecated":false,"dependencyType":"dependencies"},"is-positive":{"current":"1.0.0","latest":"3.1.0","wanted":"2.0.0","isDeprecated":false,"dependencyType":"devDependencies"}}`)
+	output := []byte(`{"is-negative":{"current":"1.0.0","latest":"1.0.0","wanted":"2.1.0","isDeprecated":false,"dependencyType":"dependencies"},"is-positive":{"current":"1.0.0","latest":"1.1.0","wanted":"1.0.0","isDeprecated":false,"dependencyType":"devDependencies"}}`)
 	packages, err := parsePNPMOutdated(output, "/usr/local/bin/pnpm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	records := Records(packages)
-	if len(records) != 2 || records[0].Manager != PM_PNPM || records[0].Name != "is-negative" || records[0].Current != "1.0.0" || records[0].Requested != "1.0.0" || records[0].Latest != "2.1.0" || records[0].Executable != "/usr/local/bin/pnpm" {
+	if len(records) != 1 || records[0].Manager != PM_PNPM || records[0].Name != "is-positive" || records[0].Current != "1.0.0" || records[0].Requested != "1.0.0" || records[0].Latest != "1.1.0" || records[0].Executable != "/usr/local/bin/pnpm" {
 		t.Fatalf("records = %#v", records)
 	}
 }
 
 func TestParsePNPMOutdatedRejectsChangedOutput(t *testing.T) {
-	if _, err := parsePNPMOutdated([]byte(`[]`), "pnpm"); err == nil {
-		t.Fatal("parse succeeded")
+	for _, output := range []string{`[]`, `{"tool":{"current":"1","wanted":"2","dependencyType":"dependencies"}}`} {
+		if _, err := parsePNPMOutdated([]byte(output), "pnpm"); err == nil {
+			t.Fatalf("parse succeeded for %s", output)
+		}
+	}
+}
+
+func TestPNPMOutdatedModes(t *testing.T) {
+	for _, bump := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bump=%t", bump), func(t *testing.T) {
+			dir := t.TempDir()
+			writeExecutable(t, filepath.Join(dir, PM_PNPM), `#!/bin/sh
+if [ "$*" = "outdated --format json --compatible" ]; then
+  printf '{"pinned":{"current":"1.0.0","wanted":"1.0.0","latest":"1.0.0","dependencyType":"dependencies"},"floating":{"current":"1.0.0","wanted":"1.0.0","latest":"1.1.0","dependencyType":"dependencies"}}'
+elif [ "$*" = "outdated --format json" ]; then
+  printf '{"pinned":{"current":"1.0.0","wanted":"1.0.0","latest":"3.0.0","dependencyType":"dependencies"},"floating":{"current":"1.0.0","wanted":"1.0.0","latest":"3.0.0","dependencyType":"dependencies"}}'
+else
+  exit 99
+fi
+exit 1
+`)
+			packages := make(Packages)
+			err := (PNPM{}).listOutdatedScope(t.Context(), filepath.Join(dir, PM_PNPM), Scope{Kind: "project", Path: dir}, ManagerOptions{IncludeBumpCandidates: bump}, packages)
+			if err != nil {
+				t.Fatal(err)
+			}
+			records := Records(packages)
+			if bump {
+				if len(records) != 2 || records[0].Latest != "3.0.0" || records[1].Latest != "3.0.0" {
+					t.Fatal(records)
+				}
+			} else if len(records) != 1 || records[0].Name != "floating" || records[0].Latest != "1.1.0" || records[0].Requested != "1.0.0" {
+				t.Fatal(records)
+			}
+		})
+	}
+}
+
+func TestParsePNPMOutdatedWithoutWanted(t *testing.T) {
+	packages, err := parsePNPMOutdated([]byte(`{"tool":{"current":"1","latest":"2","dependencyType":"dependencies"}}`), "pnpm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := Records(packages)
+	if len(records) != 1 || records[0].Latest != "2" || records[0].Requested != "" {
+		t.Fatal(records)
 	}
 }

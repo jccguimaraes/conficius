@@ -54,7 +54,9 @@ func (Mise) testedVersions() VersionRange {
 	return VersionRange{MinimumMajor: 2024, MaximumMajor: 2026}
 }
 
-func (Mise) updateImpact(Scope) MutationImpact { return MutationImpact{} }
+func (Mise) updateImpact(scope Scope) MutationImpact {
+	return MutationImpact{MayChangeManifests: scope.Kind == "project" || scope.Kind == "workspace"}
+}
 
 func (Mise) projectFiles() []string { return []string{"mise.toml", ".mise.toml", "mise.lock"} }
 
@@ -85,7 +87,7 @@ func (p Mise) listOutdatedScope(ctx context.Context, executable string, scope Sc
 }
 
 func (Mise) updateArgs(packages []Package) []string {
-	args := []string{MiseCommandUpgrade, MiseFlagBump, MiseFlagYes}
+	args := []string{MiseCommandUpgrade, MiseFlagYes}
 	for _, pkg := range packages {
 		args = append(args, pkg.Name)
 	}
@@ -145,7 +147,6 @@ func (p Mise) listOutdated(ctx context.Context, scope Scope, executable string, 
 	args := []string{MiseCommandOutdated, MiseFlagJSON}
 	if scope.Path != "" {
 		args = append(args, MiseFlagLocal)
-		options.IncludeBumpCandidates = true
 	} else if scope.Kind != "" {
 		args = append(args, MiseFlagGlobal)
 	}

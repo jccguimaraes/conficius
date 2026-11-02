@@ -34,8 +34,12 @@ func (PNPM) listInstalled(ctx context.Context, executable string, scope Scope) (
 	}
 	return parsePNPMInstalled(output)
 }
-func (PNPM) listOutdatedScope(ctx context.Context, executable string, scope Scope, _ ManagerOptions, packages Packages) error {
-	cmd := commandContext(ctx, executable, "outdated", "--format", "json")
+func (PNPM) listOutdatedScope(ctx context.Context, executable string, scope Scope, options ManagerOptions, packages Packages) error {
+	args := []string{"outdated", "--format", "json"}
+	if !options.IncludeBumpCandidates {
+		args = append(args, "--compatible")
+	}
+	cmd := commandContext(ctx, executable, args...)
 	cmd.Dir = scope.Path
 	cmd.Env = managerEnvironment(scope.Path)
 	output, err := managerCommandOutput(cmd)
@@ -113,6 +117,9 @@ func parsePNPMOutdated(output []byte, executable string) (Packages, error) {
 	for name, pkg := range decoded {
 		if name == "" || pkg.Current == "" || pkg.Latest == "" || pkg.DependencyType == "" {
 			return nil, parserError(fmt.Errorf("decode pnpm outdated package %q: missing fields", name))
+		}
+		if pkg.Current == pkg.Latest {
+			continue
 		}
 		packages[name] = append(packages[name], pnpmPackage{name: name, current: pkg.Current, requested: pkg.Wanted, latest: pkg.Latest, executable: executable})
 	}

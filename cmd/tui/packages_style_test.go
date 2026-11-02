@@ -12,6 +12,18 @@ import (
 	"github.com/kungfusheep/riffkey"
 )
 
+func TestPackageBumpContext(t *testing.T) {
+	data := &model{}
+	context := packageContext(data).(func() string)
+	if !strings.Contains(context(), "[U] Update / [B] Bump") {
+		t.Fatal(context())
+	}
+	assertRenderedContains(t, confirmView(data), "[U] Update / [B] Bump")
+	if !strings.Contains(screenHelp["results"], "B toggle all marked") {
+		t.Fatal("missing bump help")
+	}
+}
+
 func TestPackageViewsShowActiveProjectPath(t *testing.T) {
 	previous := screenSize
 	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
@@ -69,7 +81,12 @@ func TestPackageViewsResponsive(t *testing.T) {
 						wantValues = append(wantValues, "4.17.20", "4.17.21")
 					}
 				}
-				for _, want := range append(wantValues, "Enter", "? help") {
+				if name == "outdated" {
+					wantValues = append(wantValues, "b Bump")
+				} else {
+					wantValues = append(wantValues, "Enter")
+				}
+				for _, want := range append(wantValues, "? help") {
 					if !strings.Contains(output, want) {
 						t.Fatalf("missing %q:\n%s", want, output)
 					}

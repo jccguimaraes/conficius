@@ -72,7 +72,10 @@ func hasRunAs(pms []string, options QueryOptions) bool {
 // HasRunAs reports whether enabled managers require a foreground terminal handoff.
 func HasRunAs(options QueryOptions) bool { return hasRunAs(nil, options) }
 
-func managerWorkerOptions(options QueryOptions, manager string) QueryOptions {
+func managerWorkerOptions(options QueryOptions, manager string, operation ...string) QueryOptions {
+	if len(operation) > 0 && operation[0] == "inventory" {
+		options.Bump = false
+	}
 	options.RunAs = nil
 	options.RunAsMethod = nil
 	options.Executables = nil // Resolve only inside target login environment.
@@ -90,8 +93,8 @@ func workerRecords(records []Package, user string, method ...string) Packages {
 	}
 	return packages
 }
-func queryRunAsOutdated(ctx context.Context, pms []string, scopes []Scope, options QueryOptions) (QueryResult, error) {
-	result := QueryResult{Packages: make(Packages)}
+func queryRunAsOutdated(ctx context.Context, pms []string, scopes []Scope, options QueryOptions, manifestManagers ...string) (QueryResult, error) {
+	result := QueryResult{Bump: options.Bump, Packages: make(Packages)}
 	if err := Supported(pms); err != nil {
 		return result, err
 	}
@@ -105,7 +108,9 @@ func queryRunAsOutdated(ctx context.Context, pms []string, scopes []Scope, optio
 		if target := options.RunAs[pm]; target != "" && !options.Disabled[pm] {
 			var response workerResponse
 			response, err = callManagerWorker(ctx, workerRequest{Operation: "outdated", Manager: pm, User: target, Method: options.RunAsMethod[pm], Scopes: scopes, Options: managerWorkerOptions(options, pm)})
-			part = QueryResult{Managers: response.Managers, Packages: workerRecords(response.Records, target, options.RunAsMethod[pm])}
+			part = QueryResult{Bump: options.Bump, Managers: response.Managers, Packages: workerRecords(response.Records, target, options.RunAsMethod[pm])}
+		} else if len(manifestManagers) > 0 {
+			part, err = queryOutdatedValidated(ctx, []string{pm}, scopes, singleManagerOptions(options, pm))
 		} else {
 			part, err = QueryOutdatedScopesWithOptions(ctx, []string{pm}, scopes, singleManagerOptions(options, pm))
 		}
@@ -151,7 +156,7 @@ func queryRunAsInstalled(ctx context.Context, pms []string, scopes []Scope, opti
 		var err error
 		if target := options.RunAs[pm]; target != "" && !options.Disabled[pm] {
 			var response workerResponse
-			response, err = callManagerWorker(ctx, workerRequest{Operation: "inventory", Manager: pm, User: target, Method: options.RunAsMethod[pm], Scopes: scopes, Options: managerWorkerOptions(options, pm)})
+			response, err = callManagerWorker(ctx, workerRequest{Operation: "inventory", Manager: pm, User: target, Method: options.RunAsMethod[pm], Scopes: scopes, Options: managerWorkerOptions(options, pm, "inventory")})
 			part = response.Inventory
 		} else {
 			part, err = QueryInstalledScopesWithOptions(ctx, []string{pm}, scopes, singleManagerOptions(options, pm))
@@ -201,28 +206,35 @@ var workerCache = struct {
 }{values: make(map[string]workerResponse)}
 
 // PrepareRunAsQueries runs confirmed foreground queries before starting the TUI.
-func PrepareRunAsQueries(ctx context.Context, scopes []Scope, options QueryOptions) error {
+func PrepareRunAsQueries(ctx context.Context, scopes []Scope, options QueryOptions, additional ...QueryOptions) error {
 	workerCache.Lock()
 	workerCache.only = false
 	workerCache.preparing = true
 	clear(workerCache.values)
 	workerCache.Unlock()
 	var errs []error
-	for _, pm := range RegisteredPackageManagers {
-		if options.RunAs[pm] == "" || options.Disabled[pm] {
-			continue
-		}
-		for _, operation := range []string{"inventory", "outdated"} {
-			request := workerRequest{Operation: operation, Manager: pm, User: options.RunAs[pm], Method: options.RunAsMethod[pm], Scopes: scopes, Options: managerWorkerOptions(options, pm)}
-			response, err := callManagerWorker(ctx, request)
-			if err != nil {
-				response.Error = err.Error()
-				raw, _ := json.Marshal(request)
-				workerCache.Lock()
-				workerCache.values[string(raw)] = response
-				workerCache.Unlock()
+	seen := make(map[string]bool)
+	for _, options := range append([]QueryOptions{options}, additional...) {
+		for _, pm := range RegisteredPackageManagers {
+			if options.RunAs[pm] == "" || options.Disabled[pm] {
+				continue
 			}
-			errs = append(errs, err)
+			for _, operation := range []string{"inventory", "outdated"} {
+				request := workerRequest{Operation: operation, Manager: pm, User: options.RunAs[pm], Method: options.RunAsMethod[pm], Scopes: scopes, Options: managerWorkerOptions(options, pm, operation)}
+				raw, _ := json.Marshal(request)
+				if seen[string(raw)] {
+					continue
+				}
+				seen[string(raw)] = true
+				response, err := callManagerWorker(ctx, request)
+				if err != nil {
+					response.Error = err.Error()
+					workerCache.Lock()
+					workerCache.values[string(raw)] = response
+					workerCache.Unlock()
+				}
+				errs = append(errs, err)
+			}
 		}
 	}
 	workerCache.Lock()
@@ -524,7 +536,7 @@ func applyWorkerPlan(ctx context.Context, expected UpdatePlan) ([]UpdateOutcome,
 		}
 	}
 	// Re-query and rebuild command locally. Never execute supplied Args/Executable.
-	result, err := QueryOutdatedScopes(ctx, []string{expected.Manager}, []Scope{{Kind: "global"}})
+	result, err := QueryOutdatedScopesWithOptions(ctx, []string{expected.Manager}, []Scope{{Kind: "global"}}, QueryOptions{Bump: expected.Bump})
 	if err != nil {
 		return nil, err
 	}

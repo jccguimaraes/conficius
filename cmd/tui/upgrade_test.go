@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,11 +52,20 @@ func TestPackageConfigErrorBlocksUpgradeEntryPoints(t *testing.T) {
 	}
 }
 
+func TestToggleBumpKeepsCachedState(t *testing.T) {
+	data := &model{selected: map[string]bool{}, bumps: map[string]bool{}, loading: true}
+	row := &outdatedRow{Package: packagemanager.Package{Manager: "mise", Name: "node"}}
+	toggleBump(data, row)
+	if len(data.bumps) != 0 || len(data.selected) != 0 || !strings.Contains(data.status, "Bump unavailable; package not marked") {
+		t.Fatal(data.status)
+	}
+}
+
 func TestToggleSelectedMarksCurrentPackage(t *testing.T) {
-	data := &model{selected: map[string]bool{}}
-	row := &outdatedRow{Package: packagemanager.Package{Manager: "mise", Name: "node", Scope: "global"}, Mark: "[ ]"}
+	data := modeTestModel()
+	row := &data.rows[0]
 	toggleSelected(data, row)
-	if !data.selected[packageKey("global", "", "mise", "node")] || row.Mark != "[x]" {
+	if !data.selected[packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)] || row.Mark != "[U]" {
 		t.Fatal("package not selected")
 	}
 	toggleSelected(data, row)
@@ -74,7 +84,8 @@ func TestFormatPlansShowsExactCommandAndDirectory(t *testing.T) {
 func TestUpgradeKeyDispatch(t *testing.T) {
 	bin, project := t.TempDir(), t.TempDir()
 	for name, body := range map[string]string{
-		"mise": `case "$1" in
+		"mise": `case " $* " in *" --bump "*) exit 98 ;; esac
+case "$1" in
 --version) echo '2026.1.0' ;;
 outdated) echo '{"node":{"current":"1","latest":"2","requested":"1"}}' ;;
 *) exit 99 ;;
@@ -155,8 +166,11 @@ esac`,
 						t.Fatal("key not dispatched")
 					}
 					if scenario.name == "supported" || scenario.name == "go-project-allowed" {
-						if app.CurrentView() != "confirm" || len(data.plans) != 1 || data.planSummary != "1 packages in 1 commands" {
+						if app.CurrentView() != "confirm" || len(data.plans) != 1 || data.planSummary != "1 packages in 1 commands: 1 Update, 0 Bump" {
 							t.Fatalf("view=%s plans=%v status=%q", app.CurrentView(), data.plans, data.status)
+						}
+						if scenario.name == "supported" && strings.Contains(data.preview, "--bump") {
+							t.Fatal(data.preview)
 						}
 						if scenario.name == "go-project-allowed" && (!strings.Contains(data.preview, "get example.com/dependency@v1.1.0") || !strings.Contains(data.preview, "go.mod, go.sum and transitive dependencies")) {
 							t.Fatal(data.preview)
@@ -357,5 +371,232 @@ func TestDirtyOverrideDoesNotLeak(t *testing.T) {
 				t.Fatal("new batch reused approval")
 			}
 		})
+	}
+}
+
+func TestApplyUpgradePlansVerifiesInstalledVersions(t *testing.T) {
+	for _, manager := range []string{packagemanager.PM_MISE, packagemanager.PM_PNPM} {
+		for _, result := range []string{"updated", "no-op", "apply-error", "verify-error"} {
+			t.Run(manager+"/"+result, func(t *testing.T) {
+				dir := t.TempDir()
+				executable := filepath.Join(dir, manager)
+				t.Setenv("UPGRADE_RESULT", result)
+				script := `#!/bin/sh
+case "$1" in
+upgrade|update)
+ [ "$2" != tool ] || [ "$UPGRADE_RESULT" != apply-error ] || exit 7
+ ;;
+ls|list)
+ [ "$UPGRADE_RESULT" != verify-error ] || exit 8
+ version=1.0.0
+ [ "$UPGRADE_RESULT" != updated ] || version=1.1.0
+ case "$0" in
+ *mise) printf '{"tool":[{"version":"%s","installed":true}],"next":[{"version":"1.1.0","installed":true}]}' "$version" ;;
+ *) printf '[{"dependencies":{"tool":{"version":"%s"},"next":{"version":"1.1.0"}}}]' "$version" ;;
+ esac
+ ;;
+*) exit 99 ;;
+esac
+`
+				if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				tty, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = tty.Close() })
+				data := &model{selected: map[string]bool{}, attempted: map[string]string{}, failed: map[string]string{"stale": "old failure"}}
+				for _, name := range []string{"tool", "next"} {
+					pkg := packagemanager.Package{Manager: manager, Name: name, Current: "1.0.0", Latest: "1.1.0", Scope: "project", Path: dir}
+					data.selected[packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)] = true
+					data.plans = append(data.plans, packagemanager.UpdatePlan{Manager: manager, Executable: executable, Args: []string{"upgrade", name}, Scope: pkg.Scope, Directory: dir, StateHash: name, Packages: []packagemanager.Package{pkg}})
+				}
+				applyUpgradePlans(data, tty)
+				wantFailures := 0
+				if result != "updated" {
+					wantFailures = 1
+				}
+				if result == "verify-error" {
+					wantFailures = 2
+				}
+				if len(data.failed) != wantFailures || len(data.selected) != wantFailures || len(data.attempted) != 2 {
+					t.Fatalf("failed=%v selected=%v attempted=%v", data.failed, data.selected, data.attempted)
+				}
+				if result == "no-op" {
+					key := packageKey("project", dir, manager, "tool")
+					if !strings.Contains(data.failed[key], "did not reach approved version 1.1.0") {
+						t.Fatal(data.failed)
+					}
+				}
+				wantStatus := "Upgrades applied"
+				if wantFailures > 0 {
+					wantStatus = fmt.Sprintf("%d command(s) failed", wantFailures)
+				}
+				if data.status != wantStatus {
+					t.Fatal(data.status)
+				}
+			})
+		}
+	}
+}
+
+func modeTestModel() *model {
+	query := func(latest string, names ...string) packagemanager.QueryResult {
+		packages := make(packagemanager.Packages)
+		for _, name := range names {
+			packages[name] = []packagemanager.Tool{packagemanager.NewMiseTool(packagemanager.MiseOutdatedTool{Name: name, Current: "1", Latest: latest, Requested: "1"}, "/bin/mise")}
+		}
+		return packagemanager.QueryResult{Packages: packages}
+	}
+	data := &model{query: query("2", "node", "go"), bumpQuery: query("3", "node", "go", "ruby"), selected: map[string]bool{}, bumps: map[string]bool{}}
+	data.bumpQuery.Bump = true
+	data.packages = unionTargets(data.query, data.bumpQuery)
+	rebuildOutdatedRows(data)
+	return data
+}
+
+func TestMixedPackageModes(t *testing.T) {
+	data := modeTestModel()
+	for i := range data.rows {
+		toggleSelected(data, &data.rows[i])
+	}
+	if len(data.selected) != 2 {
+		t.Fatal("bump-only package marked Update")
+	}
+	var node *outdatedRow
+	for i := range data.rows {
+		if data.rows[i].Package.Name == "node" {
+			node = &data.rows[i]
+		}
+	}
+	generation := data.generation
+	toggleBump(data, node)
+	if node.Mark != "[B]" || node.Package.Latest != "3" || data.generation != generation {
+		t.Fatalf("row=%+v generation=%d", node, data.generation)
+	}
+	plans, _, err := selectedPlans(data, false)
+	if err != nil || len(plans) != 2 || plans[0].Bump || !plans[1].Bump {
+		t.Fatalf("plans=%+v err=%v", plans, err)
+	}
+	for _, plan := range plans {
+		if len(plan.Packages) != 1 {
+			t.Fatal("modes grouped")
+		}
+	}
+	if commandRows(plans)[1].Mode != "Bump" {
+		t.Fatal("missing command mode")
+	}
+	_, skipped, err := selectedPlans(data, true)
+	if err != nil || skipped != 1 {
+		t.Fatalf("skipped=%d err=%v", skipped, err)
+	}
+	toggleAllBumps(data)
+	for key := range data.selected {
+		if !data.bumps[key] {
+			t.Fatal("bulk did not bump")
+		}
+	}
+	toggleAllBumps(data)
+	for key := range data.selected {
+		if data.bumps[key] {
+			t.Fatal("bulk did not update")
+		}
+	}
+	toggleBump(data, node)
+	data.bumpQuery.Packages = nil
+	toggleAllBumps(data)
+	if !data.bumps[packageKey(node.Package.Scope, node.Package.Path, node.Package.Manager, node.Package.Name)] || !strings.Contains(data.status, "unavailable") {
+		t.Fatal(data.status)
+	}
+}
+
+func TestBumpOnlySelectionUsesCachedCandidates(t *testing.T) {
+	data := modeTestModel()
+	var row *outdatedRow
+	for i := range data.rows {
+		if data.rows[i].Package.Name == "ruby" {
+			row = &data.rows[i]
+		}
+	}
+	if row == nil || row.Availability != "Bump only" {
+		t.Fatalf("bump-only row missing: %+v", row)
+	}
+	key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+	toggleSelected(data, row)
+	if data.selected[key] || !strings.Contains(data.status, "press b") {
+		t.Fatal(data.status)
+	}
+	data.selected, data.bumps = nil, nil
+	generation := data.generation
+	toggleBump(data, row)
+	if !data.selected[key] || !data.bumps[key] || row.Mark != "[B]" || data.status != "Marked mode: Bump" || data.generation != generation {
+		t.Fatalf("row=%+v selected=%v bumps=%v status=%q", row, data.selected, data.bumps, data.status)
+	}
+	plans, skipped, err := selectedPlans(data, false)
+	if err != nil || skipped != 0 || len(plans) != 1 || !plans[0].Bump || plans[0].Packages[0].Name != "ruby" {
+		t.Fatalf("plans=%+v skipped=%d err=%v", plans, skipped, err)
+	}
+	toggleBump(data, row)
+	if !data.selected[key] || !data.bumps[key] || row.Mark != "[B]" || !strings.Contains(data.status, "Update unavailable; previous mode retained") {
+		t.Fatal(data.status)
+	}
+	toggleSelected(data, row)
+	if len(data.selected) != 0 || len(data.bumps) != 0 || row.Mark != "[ ]" {
+		t.Fatalf("row=%+v selected=%v bumps=%v", row, data.selected, data.bumps)
+	}
+}
+
+func TestBumpKeysDoNotQueryManagers(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(bin, "queried")
+	for _, manager := range packagemanager.RegisteredPackageManagers {
+		if err := os.WriteFile(filepath.Join(bin, manager), []byte("#!/bin/sh\n: > "+shellQuote(marker)+"\nexit 99\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+	data := modeTestModel()
+	app := glyph.NewApp()
+	registerResults(data, app)
+	app.Go("results")
+	for _, key := range []rune{'b', 'B', 'B', 'b'} {
+		if !app.Input().Dispatch(riffkey.Key{Rune: key}) {
+			t.Fatalf("key %c not dispatched", key)
+		}
+	}
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("b/B queried manager: %v", err)
+	}
+	if len(data.selected) != 1 || data.generation != 0 {
+		t.Fatalf("selected=%v generation=%d", data.selected, data.generation)
+	}
+}
+
+func TestToggleAllIgnoresBumpOnlyRows(t *testing.T) {
+	data := modeTestModel()
+	toggleAll(data)
+	if len(data.selected) != 2 {
+		t.Fatalf("selected=%v", data.selected)
+	}
+	toggleAll(data)
+	if len(data.selected) != 0 || len(data.bumps) != 0 {
+		t.Fatalf("selected=%v bumps=%v", data.selected, data.bumps)
+	}
+}
+
+func TestModeFooter(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	for _, width := range []int{40, 80} {
+		updateScreenSize(width, 24)
+		data := modeTestModel()
+		data.securityScanning = true
+		view, _ := resultView(data)
+		buffer := glyph.NewBuffer(width, 24)
+		glyph.Build(view).Execute(buffer, int16(width), 24)
+		if !strings.Contains(buffer.GetLine(22), "b Bump") {
+			t.Fatal(buffer.GetLine(22))
+		}
 	}
 }

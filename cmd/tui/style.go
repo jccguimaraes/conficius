@@ -292,7 +292,7 @@ var screenHelp = map[string]string{
 	"profiles":                    "↑/↓ or j/k move\nEnter choose profile\nr refresh\nEsc Home\nq / Ctrl-C quit",
 	"home":                        "↑/↓ or j/k move\nEnter open area\np profiles\nr full refresh\nq / Ctrl-C quit",
 	"scopes":                      "↑/↓ or j/k move\nEnter open scope\np profiles\nc update cache (confirmation)\nr full refresh\nEsc Home\nq / Ctrl-C quit",
-	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark package\na toggle all\nu upgrade marked\nU upgrade all\np profiles\nv vulnerabilities\nx cancel scan\nc update cache (confirmation)\nr refresh\nEsc scopes\nq / Ctrl-C quit",
+	"results":                     "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter package details\nSpace mark Update / unmark\na toggle all Update-eligible packages\nb mark Bump / toggle marked Update/Bump (cached only)\nB toggle all marked Update/Bump (if available)\nu preview marked modes\nU preview all (unmarked Update if available)\np profiles\nv vulnerabilities\nx cancel scan\nc update cache (confirmation)\nr refresh\nEsc scopes\nq / Ctrl-C quit",
 	"vulnerabilities":             "↑/↓ or j/k move\nCtrl-d / Ctrl-u page\nEnter evidence details (read-only)\ni toggle indirect scan\ng toggle separate graph-only scan\nx cancel scan\no outdated\nr refresh\nEsc outdated\nq / Ctrl-C quit",
 	"vulnerability-detail":        "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nf then link label open CVE\nEsc vulnerabilities\nq / Ctrl-C quit",
 	"package-detail":              "↑/↓ or j/k scroll\nCtrl-d / Ctrl-u page\nEsc package list\nq / Ctrl-C quit",
