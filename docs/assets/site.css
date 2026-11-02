@@ -136,6 +136,8 @@
     .overview { border-top: 0; padding-block: 3.5rem; }
     .overview h2 { font-size: 2rem; }
     .overview > p { max-width: 34rem; }
+    .showcase { margin-block: 1.5rem; }
+    .showcase video { display: block; width: 100%; height: auto; margin-top: 1rem; }
     .source-line { color: var(--muted); }
     .reading-link { display: inline-block; color: var(--accent); font-size: .9rem; }
     .overview:nth-of-type(even) { position: relative; }
