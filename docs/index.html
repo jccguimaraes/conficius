@@ -77,11 +77,27 @@
           <p>Keep your dotfiles in one repository with <code>conficius.toml</code>. Link individual files or whole folders to where your tools expect them. Package settings live separately in a central <code>config.toml</code>.</p>
           <p class="small">Review changes before applying them. Existing files and folders stay protected. Generated history and caches belong in your dotfiles’ <code>.gitignore</code>.</p>
           <a class="reading-link" href="cli.html#dotfiles">Dotfile setup and options</a>
+          <details class="showcase">
+            <summary>Watch the narrated dotfiles walkthrough · 99 seconds</summary>
+            <video controls preload="none" playsinline poster="assets/showcase-dotfiles-poster.jpg" width="1600" height="900" aria-label="Dotfiles walkthrough with narration">
+              <source src="assets/showcase-dotfiles.mp4" type="video/mp4">
+              <track kind="captions" src="assets/showcase-dotfiles.en.vtt" srclang="en" label="English">
+              <a href="assets/showcase-dotfiles.mp4">Download the dotfiles walkthrough</a>.
+            </video>
+          </details>
         </section>
         <section id="packages" class="overview" aria-labelledby="packages-title">
           <div class="section-head"><span>02 / PACKAGES</span><h2 id="packages-title">Know what’s<br>on your machine.</h2><span class="chapter" lang="zh-Hant" aria-hidden="true">察</span></div>
           <p>See installed tools, find available updates, and choose what to upgrade. Profiles enable or disable managers and name project roots; native manifests and lockfiles remain the version authority.</p>
           <p class="small">Browse compact package rows in the TUI. Press <code>p</code> to choose a profile for the session, or <code>r</code> to reload package settings and projects. Missing dotfiles are a neutral notice, not a package failure.</p>
+          <details class="showcase">
+            <summary>Watch the narrated packages walkthrough · 104 seconds</summary>
+            <video controls preload="none" playsinline poster="assets/showcase-packages-poster.jpg" width="1600" height="900" aria-label="Package inspection walkthrough with narration">
+              <source src="assets/showcase-packages.mp4" type="video/mp4">
+              <track kind="captions" src="assets/showcase-packages.en.vtt" srclang="en" label="English">
+              <a href="assets/showcase-packages.mp4">Download the packages walkthrough</a>.
+            </video>
+          </details>
           <pre><code><span class="syntax-command">conficius</span> packages outdated <span class="syntax-flag">--profile</span> work
 <span class="syntax-command">conficius</span> packages update <span class="syntax-flag">--global</span> <span class="syntax-flag">--pm</span> npm
 <span class="syntax-command">conficius-tui</span> <span class="syntax-flag">--package-config</span> <span class="syntax-string">~/.config/conficius/config.toml</span></code></pre>

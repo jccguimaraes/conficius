@@ -1,0 +1,72 @@
+WEBVTT
+
+NOTE Paragraph timing uses generated clips; intra-paragraph timing is approximate.
+
+00:00:00.000 --> 00:00:04.600
+Let's look at packages in Conficius, starting with how they're set up.
+
+00:00:04.600 --> 00:00:08.121
+This is the top of the package config. Default points
+
+00:00:08.121 --> 00:00:11.641
+to storefront, and work points to the API. Both use
+
+00:00:11.641 --> 00:00:14.810
+npm; the other managers are turned off further down.
+
+00:00:15.480 --> 00:00:20.228
+Once we open Conficius, the home screen brings package updates and security
+
+00:00:20.228 --> 00:00:24.580
+checks together. Press p to see the profiles from that config.
+
+00:00:24.600 --> 00:00:29.141
+Default is active. Choose it, then open storefront from the scopes
+
+00:00:29.141 --> 00:00:33.270
+list. Each profile keeps its own projects and manager settings.
+
+00:00:36.200 --> 00:00:39.897
+Here are the dependencies, with requested, current, and latest
+
+00:00:39.897 --> 00:00:43.594
+versions side by side. The security results tell us
+
+00:00:43.594 --> 00:00:46.470
+there's more to check than updates alone.
+
+00:00:46.480 --> 00:00:50.435
+Open a package to see its versions and advisory evidence.
+
+00:00:50.435 --> 00:00:54.390
+We can scroll through the details without leaving the project.
+
+00:00:57.520 --> 00:01:02.105
+The vulnerabilities view puts the findings in one list. Open one
+
+00:01:02.105 --> 00:01:06.690
+for the affected package, severity, and where the information comes from.
+
+00:01:08.080 --> 00:01:12.532
+Further down, there's a description and references to read before deciding
+
+00:01:12.532 --> 00:01:16.580
+what to change. A newer version isn't the whole story.
+
+00:01:19.800 --> 00:01:23.451
+Now let's go back to profiles and choose work. This changes
+
+00:01:23.451 --> 00:01:26.770
+the project list, not just the label at the top.
+
+00:01:26.800 --> 00:01:29.860
+There's the API from our config. Open it, and
+
+00:01:29.860 --> 00:01:32.920
+the path and results now belong to that project.
+
+00:01:32.920 --> 00:01:37.657
+These are the API's dependencies and security findings. We've checked
+
+00:01:37.657 --> 00:01:41.920
+two profiles and their projects without upgrading any packages.
