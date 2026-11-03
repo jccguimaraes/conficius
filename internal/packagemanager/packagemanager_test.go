@@ -1123,6 +1123,111 @@ func TestBumpRejectsOnlySelectedUnsupportedManagers(t *testing.T) {
 	}
 }
 
+func TestDockerPlansApplyAndVerifyApprovedEdits(t *testing.T) {
+	for _, bump := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bump=%t", bump), func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := filepath.Join(dir, "Dockerfile")
+			if err := os.WriteFile(manifest, []byte("FROM node:22.1-alpine\n"), 0o640); err != nil {
+				t.Fatal(err)
+			}
+			inventory, err := QueryInstalledScopes(t.Context(), []string{PM_DOCKER}, []Scope{{Kind: "project", Path: dir}})
+			if err != nil || len(inventory.Packages) != 1 {
+				t.Fatalf("inventory = %+v, %v", inventory, err)
+			}
+			latest := "node:22.2-alpine"
+			if bump {
+				latest = "node:24.1-alpine"
+			}
+			pkg := inventory.Packages[0]
+			record := Package{Manager: PM_DOCKER, Name: pkg.Name, Current: pkg.Version, Latest: latest, Manifest: manifest, Scope: "project", Path: dir}
+			plans, err := PlanUpdates(QueryResult{Bump: bump, Packages: Packages{PM_DOCKER: []Tool{recordTool{record}}}}, nil, nil)
+			if err != nil || len(plans) != 1 || !plans[0].Impact.MayChangeManifests || plans[0].Bump != bump {
+				t.Fatalf("plans = %+v, %v", plans, err)
+			}
+			outcomes, err := ApplyUpdatesWithOutcomes(t.Context(), plans, false, nil, nil, nil)
+			if err != nil || len(outcomes) != 1 || outcomes[0].Status != "completed" || !reflect.DeepEqual(outcomes[0].ChangedFiles, []string{"Dockerfile"}) {
+				t.Fatalf("apply = %+v, %v", outcomes, err)
+			}
+			outcomes, err = VerifyUpdateOutcomes(t.Context(), plans, outcomes, QueryOptions{})
+			if err != nil || outcomes[0].Status != "completed" {
+				t.Fatalf("verify = %+v, %v", outcomes, err)
+			}
+			if err := os.WriteFile(manifest, []byte("FROM node:20-alpine\n"), 0o640); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ApplyUpdatesWithOutcomes(t.Context(), plans, false, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "stale") {
+				t.Fatalf("stale plan error = %v", err)
+			}
+			outcomes, err = VerifyUpdateOutcomes(t.Context(), plans, outcomes, QueryOptions{})
+			if err == nil || outcomes[0].Status != "verification-failed" {
+				t.Fatalf("unexpected image verification = %+v, %v", outcomes, err)
+			}
+		})
+	}
+}
+
+func TestDockerMixedModesEditSameFile(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "Dockerfile")
+	if err := os.WriteFile(manifest, []byte("FROM node:22.1-alpine AS build\nFROM nginx:1.2-alpine\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := QueryInstalledScopes(t.Context(), []string{PM_DOCKER}, []Scope{{Kind: "project", Path: dir}})
+	if err != nil || len(inventory.Packages) != 2 {
+		t.Fatalf("inventory = %+v, %v", inventory, err)
+	}
+	var plans []UpdatePlan
+	for _, pkg := range inventory.Packages {
+		bump := strings.HasPrefix(pkg.Version, "nginx:")
+		latest := "node:22.2-alpine"
+		if bump {
+			latest = "nginx:2.0-alpine"
+		}
+		record := Package{Manager: PM_DOCKER, Name: pkg.Name, Current: pkg.Version, Latest: latest, Manifest: manifest, Scope: "project", Path: dir}
+		group, err := PlanUpdates(QueryResult{Bump: bump, Packages: Packages{PM_DOCKER: []Tool{recordTool{record}}}}, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans = append(plans, group...)
+	}
+	outcomes, err := ApplyUpdatesWithOutcomes(t.Context(), plans, false, nil, nil, nil)
+	if err != nil || len(outcomes) != 2 {
+		t.Fatalf("apply = %+v, %v", outcomes, err)
+	}
+	outcomes, err = VerifyUpdateOutcomes(t.Context(), plans, outcomes, QueryOptions{})
+	if err != nil || outcomes[0].Status != "completed" || outcomes[1].Status != "completed" {
+		t.Fatalf("verify = %+v, %v", outcomes, err)
+	}
+}
+
+func TestDockerInspectionDoesNotRequireExecutable(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	statuses, err := Inspect([]string{PM_DOCKER})
+	if err != nil || len(statuses) != 1 || statuses[0].Status != StatusAvailable || len(statuses[0].Executables) != 0 || statuses[0].Evidence.Executable {
+		t.Fatalf("Docker inspection = %+v, %v", statuses, err)
+	}
+	packages, err := ManagerPackages(t.Context(), statuses)
+	if err != nil || len(packages) != 0 {
+		t.Fatalf("built-in adapter reported as installed executable: %+v, %v", packages, err)
+	}
+	if _, err := inspectWithOptions([]string{PM_DOCKER}, QueryOptions{Executables: map[string]string{PM_DOCKER: "/tmp/docker"}}); err == nil {
+		t.Fatal("built-in adapter accepted executable override")
+	}
+}
+
+func TestDockerInventoryUsesBuiltInAdapter(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM node:22-alpine\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := QueryInstalledScopes(t.Context(), []string{PM_DOCKER}, []Scope{{Kind: "project", Path: dir}})
+	if err != nil || len(result.Packages) != 1 || result.Packages[0].Manager != PM_DOCKER || result.Packages[0].Path != dir {
+		t.Fatalf("Docker inventory = %+v, %v", result, err)
+	}
+}
+
 func TestQueryBumpCandidatesMixedProject(t *testing.T) {
 	dir := t.TempDir()
 	for _, manifest := range []string{"package.json", "go.mod", "pnpm-lock.yaml", "mise.toml"} {
@@ -1162,7 +1267,7 @@ esac
 	scopes := []Scope{{Kind: "project", Path: dir}}
 	options := QueryOptions{Disabled: map[string]bool{PM_NPM: true, PM_GO: true}, Required: map[string]bool{PM_GO: true}}
 	result, err := QueryBumpCandidates(t.Context(), scopes, options)
-	if err != nil || !result.Bump || len(result.Managers) != 2 || len(Records(result.Packages)) != 2 {
+	if err != nil || !result.Bump || len(result.Managers) != 3 || len(Records(result.Packages)) != 2 {
 		t.Fatalf("mixed bump query = %+v, %v", result, err)
 	}
 	if options.Bump || len(options.Required) != 1 {

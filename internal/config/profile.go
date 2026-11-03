@@ -143,7 +143,7 @@ func ValidRunAsUser(name string) bool {
 }
 
 func supportedManager(manager string) bool {
-	return manager == "mise" || manager == "brew" || manager == "npm" || manager == "mas" || manager == "uv" || manager == "pipx" || manager == "poetry" || manager == "pnpm" || manager == "cargo" || manager == "yarn" || manager == "bun" || manager == "apt" || manager == "go"
+	return manager == "mise" || manager == "brew" || manager == "npm" || manager == "mas" || manager == "uv" || manager == "pipx" || manager == "poetry" || manager == "pnpm" || manager == "cargo" || manager == "yarn" || manager == "bun" || manager == "apt" || manager == "go" || manager == "docker"
 }
 
 func expandConfigPath(value, root string) (string, error) {

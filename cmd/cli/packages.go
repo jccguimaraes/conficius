@@ -69,7 +69,7 @@ func (cli *Cli) packages() *urfave.Command {
 	pmFlag := func() urfave.Flag {
 		return &urfave.StringSliceFlag{
 			Name:  "pm",
-			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry, pnpm, cargo, yarn, bun, go)",
+			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry, pnpm, cargo, yarn, bun, go, docker)",
 			Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
 				return packagemanager.Supported(pms)
 			},
@@ -173,7 +173,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
 				Flags: append([]urfave.Flag{pmFlag(), jsonFlag(),
-					&urfave.BoolFlag{Name: "bump", Usage: "Include latest versions beyond constraints (mise and pnpm)"},
+					&urfave.BoolFlag{Name: "bump", Usage: "Include latest versions beyond constraints (mise, pnpm and docker)"},
 					&urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"},
 					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates exist"},
 				}, scopeFlags()...),
@@ -290,7 +290,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Flags: append([]urfave.Flag{
 					pmFlag(),
 					jsonFlag(),
-					&urfave.BoolFlag{Name: "bump", Usage: "Update to latest versions beyond constraints (mise and pnpm)"},
+					&urfave.BoolFlag{Name: "bump", Usage: "Update to latest versions beyond constraints (mise, pnpm and docker)"},
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
 					&urfave.BoolFlag{Name: "yes", Usage: "Run non-interactively with accepted plan hashes"},
 					&urfave.BoolFlag{Name: "best-effort", Usage: "Continue with later plans after a failed plan"},
@@ -621,7 +621,7 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 			}
 		}
 		if plan.Impact.MayChangeManifests {
-			if _, err := fmt.Fprintf(writer, "Impact: may change go.mod, go.sum and transitive dependencies in %s; no automatic rollback\n", plan.Directory); err != nil {
+			if _, err := fmt.Fprintf(writer, "Impact: may change manifests, lockfiles and transitive dependencies in %s; no automatic rollback\n", plan.Directory); err != nil {
 				return err
 			}
 		}
@@ -633,6 +633,14 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 			if _, err := fmt.Fprintf(writer, "Recovery: %s\n", strings.Join(parts, " ")); err != nil {
 				return err
 			}
+		}
+		if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" {
+			for _, pkg := range plan.Packages {
+				if _, err := fmt.Fprintf(writer, "Built-in file editing: %s [%s]: %s => %s\n", pkg.Manifest, pkg.Name, pkg.Current, pkg.Latest); err != nil {
+					return err
+				}
+			}
+			continue
 		}
 		parts := append([]string{plan.Executable}, plan.Args...)
 		for i, part := range parts {

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisteredPackageManagersComeFromAdapters(t *testing.T) {
-	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX, PM_POETRY, PM_PNPM, PM_CARGO, PM_YARN, PM_BUN, PM_GO, PM_APT}
+	want := []string{PM_MISE, PM_BREW, PM_NPM, PM_MAS, PM_UV, PM_PIPX, PM_POETRY, PM_PNPM, PM_CARGO, PM_YARN, PM_BUN, PM_GO, PM_APT, PM_DOCKER}
 	if !reflect.DeepEqual(RegisteredPackageManagers, want) {
 		t.Fatalf("registered managers = %#v; want %#v", RegisteredPackageManagers, want)
 	}
@@ -72,6 +72,7 @@ func TestAdaptersDeclareCapabilities(t *testing.T) {
 		PM_BUN:    {CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate},
 		PM_GO:     {CapabilityGlobalInventory, CapabilityProjectInventory, CapabilityGlobalOutdated, CapabilityProjectOutdated, CapabilityGlobalUpdate, CapabilityProjectUpdate},
 		PM_APT:    {CapabilityGlobalInventory, CapabilityGlobalOutdated},
+		PM_DOCKER: {CapabilityProjectInventory, CapabilityProjectOutdated, CapabilityProjectUpdate},
 	}
 	for name, capabilities := range want {
 		adapter, err := adapterFor(name)
@@ -100,6 +101,13 @@ func TestAdaptersDeclareUpdateImpacts(t *testing.T) {
 	}
 	if !brew.updateImpact(Scope{Kind: "global"}).MayRestartServices {
 		t.Fatal("Homebrew impact does not report service restart risk")
+	}
+	docker, err := adapterFor(PM_DOCKER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !docker.updateImpact(Scope{Kind: "project"}).MayChangeManifests {
+		t.Fatal("Docker impact does not report manifest changes")
 	}
 	mas, err := adapterFor(PM_MAS)
 	if err != nil {

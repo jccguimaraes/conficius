@@ -214,7 +214,14 @@ func resultView(data *model) (glyph.Component, *glyph.ListC[outdatedRow]) {
 	list := styleList(glyph.List(&data.rows)).Render(func(row *outdatedRow) glyph.Component {
 		return packageTableRow("outdated", func() []packageColumn { return outdatedColumns(row) }, false)
 	})
-	content := packageTable("outdated", func() []packageColumn { return outdatedColumns(&outdatedRow{}) }, &data.loading, list)
+	content := glyph.VBox.Grow(1)(glyph.Text(func() string {
+		for _, status := range data.query.Managers {
+			if status.Name == packagemanager.PM_DOCKER && len(status.Operations) > 0 {
+				return "Docker: image references only. Unpinned tags cannot track changed content; use digest pins. Tag upgrades require supported numeric versions."
+			}
+		}
+		return ""
+	}).Dim(), packageTable("outdated", func() []packageColumn { return outdatedColumns(&outdatedRow{}) }, &data.loading, list))
 	return screenFrame("Packages / Outdated", packageContext(data), &data.status, content, cacheRefreshFooter("b Bump  B marked modes  Space mark  u/U preview  ↑/↓ move  Enter details  p profiles", runtime.GOOS), &data.securityScanning), list
 }
 
