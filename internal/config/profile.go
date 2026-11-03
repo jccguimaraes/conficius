@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 const ProfileEnvironment = "CONFICIUS_PROFILE"
@@ -106,7 +107,7 @@ func normalizeProfile(profile *Profile, root string) error {
 	seenPaths := map[string]string{}
 	for i := range profile.Projects {
 		project := &profile.Projects[i]
-		if !profileNamePattern.MatchString(project.Name) {
+		if strings.TrimSpace(project.Name) == "" || strings.ContainsFunc(project.Name, unicode.IsControl) {
 			return fmt.Errorf("invalid project name %q", project.Name)
 		}
 		if _, exists := seenProjects[project.Name]; exists {
