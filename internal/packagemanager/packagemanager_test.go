@@ -933,7 +933,7 @@ func TestValidateProjectMutationsKeepsSafetyGuards(t *testing.T) {
 		git                          string
 		want                         string
 	}{
-		{name: "manifest denied", unversioned: true, want: "does not allow manifest changes"},
+		{name: "manifest denied", unversioned: true, want: "allow_manifest_changes = true"},
 		{name: "unversioned denied", manifest: true, git: "exit 1", want: "not in a Git repository"},
 		{name: "unversioned allowed", manifest: true, unversioned: true, git: "exit 1"},
 		{name: "dirty denied", manifest: true, git: "printf 'changed'", want: "has uncommitted changes"},

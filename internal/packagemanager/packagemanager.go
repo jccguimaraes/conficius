@@ -1071,7 +1071,7 @@ func ValidateProjectMutations(plans []UpdatePlan, profile config.Profile, allowD
 			}
 		}
 		if !manifestChangesAllowed {
-			return fmt.Errorf("project %q does not allow manifest changes", plan.Directory)
+			return fmt.Errorf("project %q does not allow manifest changes; set allow_manifest_changes = true in its matching project entry in packages.toml for the active profile to permit manifest and lockfile updates", plan.Directory)
 		}
 		command := exec.Command("git", "-C", plan.Directory, "rev-parse", "--show-toplevel")
 		root, err := command.Output()

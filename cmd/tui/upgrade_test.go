@@ -573,15 +573,24 @@ func TestBumpKeysDoNotQueryManagers(t *testing.T) {
 	}
 }
 
-func TestToggleAllIgnoresBumpOnlyRows(t *testing.T) {
-	data := modeTestModel()
-	toggleAll(data)
-	if len(data.selected) != 2 {
-		t.Fatalf("selected=%v", data.selected)
-	}
-	toggleAll(data)
-	if len(data.selected) != 0 || len(data.bumps) != 0 {
-		t.Fatalf("selected=%v bumps=%v", data.selected, data.bumps)
+func TestToggleAllIncludesBumpOnlyRows(t *testing.T) {
+	for _, bumpOnly := range []bool{false, true} {
+		data := modeTestModel()
+		if bumpOnly {
+			data.query.Packages = nil
+		}
+		toggleAll(data)
+		for _, row := range data.rows {
+			key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
+			update, bump := modeAvailable(data, key, false), modeAvailable(data, key, true)
+			if data.selected[key] != (update || bump) || data.bumps[key] != (!update && bump) {
+				t.Fatalf("bumpOnly=%t package=%s selected=%v bumps=%v", bumpOnly, row.Package.Name, data.selected, data.bumps)
+			}
+		}
+		toggleAll(data)
+		if len(data.selected) != 0 || len(data.bumps) != 0 {
+			t.Fatalf("selected=%v bumps=%v", data.selected, data.bumps)
+		}
 	}
 }
 

@@ -325,6 +325,22 @@ func TestVersionOneRejectsNamedProfileSelection(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsProjectDisplayNames(t *testing.T) {
+	for _, name := range []string{"yld.com", "Web", "YLD website", "@yld/web", "网站"} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), FileName)
+			mustWrite(t, path, "version = 2\n[[profiles.default.projects]]\nname = '"+name+"'\npath = './web'\n")
+			project, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := project.Profiles["default"].Projects[0].Name; got != name {
+				t.Fatalf("project name = %q; want %q", got, name)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsInvalidProfiles(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	tests := map[string]string{
@@ -334,7 +350,10 @@ func TestLoadRejectsInvalidProfiles(t *testing.T) {
 		"duplicate project":    "version = 2\n[[profiles.default.projects]]\nname='web'\npath='./web'\n[[profiles.default.projects]]\nname='web'\npath='./other'\n",
 		"duplicate path":       "version = 2\n[[profiles.default.projects]]\nname='web'\npath='./web'\n[[profiles.default.projects]]\nname='other'\npath='./web/../web'\n",
 		"empty path":           "version = 2\n[[profiles.default.projects]]\nname='web'\npath=''\n",
-		"invalid project name": "version = 2\n[[profiles.default.projects]]\nname='Web'\npath='./web'\n",
+		"empty project name":   "version = 2\n[[profiles.default.projects]]\nname=''\npath='./web'\n",
+		"blank project name":   "version = 2\n[[profiles.default.projects]]\nname='   '\npath='./web'\n",
+		"control project name": "version = 2\n[[profiles.default.projects]]\nname=\"web\\u001b[31m\"\npath='./web'\n",
+		"newline project name": "version = 2\n[[profiles.default.projects]]\nname=\"web\\nsite\"\npath='./web'\n",
 	}
 	for name, contents := range tests {
 		t.Run(name, func(t *testing.T) {

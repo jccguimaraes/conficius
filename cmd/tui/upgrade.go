@@ -49,10 +49,13 @@ func outdatedRows(packages []packagemanager.Package, selected map[string]bool, f
 }
 
 func toggleAll(data *model) {
+	if data.updating {
+		return
+	}
 	eligible, selected := 0, 0
 	for _, pkg := range data.packages {
 		key := packageKey(pkg.Scope, pkg.Path, pkg.Manager, pkg.Name)
-		if modeAvailable(data, key, false) {
+		if modeAvailable(data, key, false) || modeAvailable(data, key, true) {
 			eligible++
 			if data.selected[key] {
 				selected++
@@ -70,8 +73,13 @@ func toggleAll(data *model) {
 	for i := range data.rows {
 		row := &data.rows[i]
 		key := packageKey(row.Package.Scope, row.Package.Path, row.Package.Manager, row.Package.Name)
-		if !data.selected[key] && modeAvailable(data, key, false) {
+		if data.selected[key] {
+			continue
+		}
+		if modeAvailable(data, key, false) {
 			toggleSelected(data, row)
+		} else if modeAvailable(data, key, true) {
+			toggleBump(data, row)
 		}
 	}
 }
