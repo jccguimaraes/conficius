@@ -71,7 +71,7 @@ func dockerReadFile(root, name string) (dockerFile, error) {
 	if err != nil {
 		return f, err
 	}
-	defer handle.Close()
+	defer func() { _ = handle.Close() }()
 	opened, err := handle.Stat()
 	if err != nil {
 		return f, err
@@ -180,7 +180,7 @@ func dockerParseBuild(data []byte) ([]dockerSource, error) {
 			}
 			token := words[i]
 			ref := string(logical[token[0]:token[1]])
-			if len(words) != i+1 && !(len(words) == i+3 && strings.EqualFold(string(logical[words[i+1][0]:words[i+1][1]]), "AS")) {
+			if len(words) != i+1 && (len(words) != i+3 || !strings.EqualFold(string(logical[words[i+1][0]:words[i+1][1]]), "AS")) {
 				return nil, fmt.Errorf("docker: malformed FROM")
 			}
 			if strings.ContainsAny(ref, "$`") {
@@ -471,9 +471,10 @@ func dockerPrepare(plan UpdatePlan, verify bool) ([]dockerPending, error) {
 		data := slices.Clone(f.data)
 		for _, edit := range selected {
 			token := edit.latest
-			if edit.source.quote == '\'' {
+			switch edit.source.quote {
+			case '\'':
 				token = "'" + token + "'"
-			} else if edit.source.quote == '"' {
+			case '"':
 				token = strconv.Quote(token)
 			}
 			data = append(data[:edit.source.start], append([]byte(token), data[edit.source.end:]...)...)

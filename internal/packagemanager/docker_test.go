@@ -111,15 +111,15 @@ func TestDockerRegistryVersionsAndDigests(t *testing.T) {
 		if r.URL.Path == "/v2/org/app/tags/list" {
 			tagCalls++
 			if r.URL.Query().Get("last") == "1.2" {
-				fmt.Fprint(w, `{"name":"org/app","tags":["1.4","2.1","2.2-rc1","1.5-alpine","2","3","1.9.9"]}`)
+				_, _ = fmt.Fprint(w, `{"name":"org/app","tags":["1.4","2.1","2.2-rc1","1.5-alpine","2","3","1.9.9"]}`)
 			} else {
 				w.Header().Set("Link", `</v2/org/app/tags/list?n=1000&last=1.2>; rel="next"`)
-				fmt.Fprint(w, `{"name":"org/app","tags":["1.2","1.3"]}`)
+				_, _ = fmt.Fprint(w, `{"name":"org/app","tags":["1.2","1.3"]}`)
 			}
 		} else if strings.HasPrefix(r.URL.Path, "/v2/org/app/manifests/") {
 			manifestCalls++
 			w.Header().Set("Docker-Content-Digest", digest)
-			fmt.Fprint(w, manifest)
+			_, _ = fmt.Fprint(w, manifest)
 		} else {
 			http.NotFound(w, r)
 		}
@@ -162,12 +162,12 @@ func TestDockerRegistryAuthenticationAndBoundaries(t *testing.T) {
 			if r.Header.Get("Authorization") != "" || r.URL.Query().Get("scope") != "repository:org/app:pull" {
 				t.Error("unsafe token request")
 			}
-			fmt.Fprint(w, `{"access_token":"public-token"}`)
+			_, _ = fmt.Fprint(w, `{"access_token":"public-token"}`)
 			return
 		}
 		if r.Header.Get("Authorization") == "Bearer public-token" {
 			authenticated = true
-			fmt.Fprint(w, `{"tags":["1.2"]}`)
+			_, _ = fmt.Fprint(w, `{"tags":["1.2"]}`)
 			return
 		}
 		w.Header().Set("WWW-Authenticate", `Bearer realm="`+server.URL+`/token",service="registry",scope="repository:evil:push"`)
@@ -188,20 +188,20 @@ func TestDockerRegistryAuthenticationAndBoundaries(t *testing.T) {
 					w.Header().Set("WWW-Authenticate", `Basic realm="private"`)
 					w.WriteHeader(401)
 				case "redirect":
-					http.Redirect(w, r, "https://evil.example/", 302)
+					http.Redirect(w, r, "https://evil.example/", http.StatusFound)
 				case "pagination":
 					w.Header().Set("Link", `<https://evil.example/v2/org/app/tags/list>; rel="next"`)
-					fmt.Fprint(w, `{"tags":[]}`)
+					_, _ = fmt.Fprint(w, `{"tags":[]}`)
 				case "loop":
 					w.Header().Set("Link", `</v2/org/app/tags/list?n=1000>; rel="next"`)
-					fmt.Fprint(w, `{"tags":[]}`)
+					_, _ = fmt.Fprint(w, `{"tags":[]}`)
 				case "digest":
 					w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("0", 64))
-					fmt.Fprint(w, `{"schemaVersion":2}`)
+					_, _ = fmt.Fprint(w, `{"schemaVersion":2}`)
 				case "private":
 					w.WriteHeader(403)
 				case "oversize":
-					fmt.Fprint(w, strings.Repeat("x", (4<<20)+1))
+					_, _ = fmt.Fprint(w, strings.Repeat("x", (4<<20)+1))
 				}
 			})
 			ref, _ := dockerParseReference(dockerTestHost(server) + "/org/app:1.1")
@@ -224,7 +224,7 @@ func TestDockerRegistryAuthenticationAndBoundaries(t *testing.T) {
 }
 
 func TestDockerNativeEndToEnd(t *testing.T) {
-	server := dockerTestRegistry(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"tags":["1.1","1.2","2.1"]}`) })
+	server := dockerTestRegistry(t, func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `{"tags":["1.1","1.2","2.1"]}`) })
 	root := t.TempDir()
 	prefix := dockerTestHost(server) + "/org/app:"
 	build := "FROM " + prefix + "1.1 AS builder\r\nFROM builder\r\n"

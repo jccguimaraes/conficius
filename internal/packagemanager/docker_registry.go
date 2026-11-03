@@ -186,7 +186,7 @@ func dockerHTTP(ctx context.Context, raw, token string) ([]byte, http.Header, in
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("docker: registry request failed")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("docker: registry response read failed")
