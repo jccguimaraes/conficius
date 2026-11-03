@@ -118,7 +118,7 @@ func uniqueScopes(scopes []Scope) ([]Scope, error) {
 }
 
 func hasProjectManifest(path string) bool {
-	for _, name := range []string{"package.json", "Cargo.toml", "go.mod", "mise.toml", ".mise.toml"} {
+	for _, name := range []string{"package.json", "Cargo.toml", "go.mod", "mise.toml", ".mise.toml", "Dockerfile", "Containerfile", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"} {
 		if isFile(filepath.Join(path, name)) {
 			return true
 		}

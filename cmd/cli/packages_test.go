@@ -319,8 +319,12 @@ func TestPackagesPMSJSONReportsUnavailableAndExitZero(t *testing.T) {
 		t.Fatalf("envelope = %#v", envelope)
 	}
 	for _, status := range envelope.Data {
-		if status.Status != "unavailable" {
-			t.Fatalf("%s status = %q", status.Name, status.Status)
+		want := "unavailable"
+		if status.Name == packagemanager.PM_DOCKER {
+			want = "available"
+		}
+		if status.Status != want {
+			t.Fatalf("%s status = %q; want %q", status.Name, status.Status, want)
 		}
 	}
 }
@@ -546,6 +550,23 @@ func TestPrintUpdatePlansShowsConfidence(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "Run as: builder (su login environment)") || !strings.Contains(output.String(), "Confidence: estimated Plan: abc123") || !strings.Contains(output.String(), "restart-services=true") || !strings.Contains(output.String(), `Recovery: "/bin/npm" "install" "typescript@5.0"`) {
 		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestPrintDockerUpdatePlansShowsFileEdits(t *testing.T) {
+	var output bytes.Buffer
+	plan := packagemanager.UpdatePlan{
+		Manager: packagemanager.PM_DOCKER, Scope: "project", Directory: "/repo", Bump: true,
+		Args:     []string{"not a runnable command"},
+		Packages: []packagemanager.Package{{Name: "Dockerfile:stage-0", Current: "nginx:1.26-alpine", Latest: "nginx:1.28-alpine", Manifest: "/repo/Dockerfile"}},
+		Impact:   packagemanager.MutationImpact{MayChangeManifests: true},
+	}
+	if err := printUpdatePlans(&output, []packagemanager.UpdatePlan{plan}, true); err != nil {
+		t.Fatal(err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "Built-in file editing: /repo/Dockerfile [Dockerfile:stage-0]: nginx:1.26-alpine => nginx:1.28-alpine") || strings.Contains(got, plan.Args[0]) || !strings.Contains(got, "manifests, lockfiles") {
+		t.Fatal(got)
 	}
 }
 
@@ -896,7 +917,7 @@ esac
 	if err := cli.Command.Run(t.Context(), args); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"get" "example.com/direct@v1.2.0"`, "go.mod, go.sum and transitive dependencies", "no automatic rollback"} {
+	for _, want := range []string{`"get" "example.com/direct@v1.2.0"`, "manifests, lockfiles and transitive dependencies", "no automatic rollback"} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("missing %q in %s", want, output.String())
 		}

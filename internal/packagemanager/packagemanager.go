@@ -108,6 +108,9 @@ func CheckManagerIntegrity(pms []string, options QueryOptions) ([]ManagerIntegri
 		if status.Status == StatusAvailable {
 			check.Status = "healthy"
 			check.Message = "executable and manager version available"
+			if status.Name == PM_DOCKER {
+				check.Message = "built-in image checks available; Docker executable and daemon not required"
+			}
 		}
 		checks[i] = check
 	}
@@ -254,6 +257,10 @@ func Inspect(pms []string) ([]ManagerStatus, error) {
 		if err != nil {
 			return nil, err
 		}
+		if pm == PM_DOCKER {
+			statuses = append(statuses, ManagerStatus{Name: pm, Status: StatusAvailable, AdapterVersion: adapterVersion, Capabilities: adapter.capabilities(), Warnings: []string{"Checks image references, not installed images. Unpinned mutable tags cannot reveal changed image content; use digest pins. Tag upgrades require supported numeric versions; arbitrary tags and digest-only references have no inferred newer version."}})
+			continue
+		}
 		executables, err := LookPathAll(pm)
 		if errors.Is(err, exec.ErrNotFound) {
 			statuses = append(statuses, ManagerStatus{
@@ -303,7 +310,7 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 
 func QueryBumpCandidates(ctx context.Context, scopes []Scope, options QueryOptions) (QueryResult, error) {
 	options.Bump = true
-	managers := []string{PM_MISE, PM_PNPM}
+	managers := []string{PM_MISE, PM_PNPM, PM_DOCKER}
 	return queryOutdatedScopesWithOptions(ctx, managers, scopes, options, managers)
 }
 
@@ -347,7 +354,7 @@ func queryOutdatedValidated(ctx context.Context, pms []string, scopes []Scope, o
 		if adapterErr != nil {
 			return QueryResult{Bump: options.Bump}, adapterErr
 		}
-		for _, executable := range status.Executables {
+		for _, executable := range operationExecutables(*status) {
 			if status.Name == PM_NPM && options.Managers[PM_NPM].ExpectedGlobalPrefix != "" {
 				status.Warnings = append(status.Warnings, npmPrefixWarnings(ctx, executable, options.Managers[PM_NPM].ExpectedGlobalPrefix)...)
 			}
@@ -363,7 +370,7 @@ func queryOutdatedValidated(ctx context.Context, pms []string, scopes []Scope, o
 				operations = append(operations, readOperation[Packages]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) (Packages, error) {
 					packages := make(Packages)
 					managerOptions := options.Managers[manager]
-					if manager == PM_MISE || manager == PM_PNPM {
+					if manager == PM_MISE || manager == PM_PNPM || manager == PM_DOCKER {
 						managerOptions.IncludeBumpCandidates = options.Bump
 					}
 					err := listOutdatedScope(ctx, manager, executable, scope, managerOptions, packages)
@@ -469,6 +476,13 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 	}
 	manifest := ""
 	switch adapter.name() {
+	case PM_DOCKER:
+		for _, name := range adapter.projectFiles() {
+			if _, err := os.Lstat(filepath.Join(scope.Path, name)); !errors.Is(err, os.ErrNotExist) {
+				return true
+			}
+		}
+		return false
 	case PM_NPM:
 		manifest = "package.json"
 	case PM_PNPM:
@@ -512,6 +526,12 @@ func requireSelectedManifestManagers(options QueryOptions, scopes []Scope, selec
 		name    string
 		manager string
 	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}, {"go.mod", PM_GO}}
+	for _, name := range (Docker{}).projectFiles() {
+		manifests = append(manifests, struct {
+			name    string
+			manager string
+		}{name, PM_DOCKER})
+	}
 	var conflicts []error
 	seen := make(map[string]struct{})
 	for _, scope := range scopes {
@@ -646,6 +666,9 @@ func inspectWithOptions(pms []string, options QueryOptions) ([]ManagerStatus, er
 			statuses[i].Status = StatusDisabled
 			statuses[i].Error = ""
 			continue
+		}
+		if statuses[i].Name == PM_DOCKER && options.Executables[PM_DOCKER] != "" {
+			return nil, errors.New("docker uses built-in image checks; executable overrides are unsupported")
 		}
 		if executable := options.Executables[statuses[i].Name]; executable != "" {
 			adapter, adapterErr := adapterFor(statuses[i].Name)
@@ -851,7 +874,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if _, ok := excluded[key]; ok {
 			continue
 		}
-		if result.Bump && record.Manager != PM_MISE && record.Manager != PM_PNPM {
+		if result.Bump && record.Manager != PM_MISE && record.Manager != PM_PNPM && record.Manager != PM_DOCKER {
 			return nil, fmt.Errorf("%s does not support bump mode", record.Manager)
 		}
 		selected = append(selected, record)
@@ -938,11 +961,11 @@ func updatePlanHash(plan UpdatePlan) string {
 		}
 	}
 	for _, pkg := range plan.Packages {
-		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path, pkg.Config} {
+		for _, value := range []string{pkg.Manager, pkg.Name, pkg.Current, pkg.Latest, pkg.Requested, pkg.Executable, pkg.Scope, pkg.Path, pkg.Manifest, pkg.Config} {
 			writeHashValue(value)
 		}
 	}
-	if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && (plan.Scope == "project" || plan.Scope == "workspace") {
+	if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER) && (plan.Scope == "project" || plan.Scope == "workspace") {
 		files := snapshotProjectFiles(plan)
 		adapter, _ := adapterFor(plan.Manager)
 		for _, name := range adapter.projectFiles() {
@@ -1103,10 +1126,10 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
 	for _, plan := range plans {
-		if plan.Bump && plan.Manager != PM_MISE && plan.Manager != PM_PNPM {
+		if plan.Bump && plan.Manager != PM_MISE && plan.Manager != PM_PNPM && plan.Manager != PM_DOCKER {
 			return nil, fmt.Errorf("%s does not support bump mode", plan.Manager)
 		}
-		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
+		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
 			return nil, fmt.Errorf("%s project update plan is stale; refresh preview before applying", plan.Manager)
 		}
 		if plan.Manager == PM_CARGO && plan.RunAs == "" {
@@ -1179,7 +1202,11 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 		}
 		if err == nil {
-			err = cmd.Run()
+			if plan.Manager == PM_DOCKER {
+				err = dockerApply(planContext, plan)
+			} else {
+				err = cmd.Run()
+			}
 		}
 		var classified error
 		if err != nil {
@@ -1282,7 +1309,9 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 			}
 		}
 		remaining := make(Packages)
-		if plan.Manager == PM_CARGO {
+		if plan.Manager == PM_DOCKER {
+			err = dockerVerify(plan)
+		} else if plan.Manager == PM_CARGO {
 			err = cargoVerifyUpdate(plan)
 		} else if plan.Manager == PM_MISE || plan.Manager == PM_PNPM {
 			var adapter managerAdapter

@@ -81,6 +81,23 @@ func TestFormatPlansShowsExactCommandAndDirectory(t *testing.T) {
 	}
 }
 
+func TestDockerPlanPreviewShowsFileEdits(t *testing.T) {
+	plan := packagemanager.UpdatePlan{
+		Manager: packagemanager.PM_DOCKER, Scope: "project", Directory: "/repo", Bump: true,
+		Args:     []string{"not a runnable command"},
+		Packages: []packagemanager.Package{{Name: "Dockerfile:stage-0", Current: "nginx:1.26-alpine", Latest: "nginx:1.28-alpine", Manifest: "/repo/Dockerfile"}},
+		Impact:   packagemanager.MutationImpact{MayChangeManifests: true},
+	}
+	got := formatPlan(plan)
+	if !strings.Contains(got, "Built-in file editing: /repo/Dockerfile [Dockerfile:stage-0]: nginx:1.26-alpine => nginx:1.28-alpine") || strings.Contains(got, "&&") || strings.Contains(got, plan.Args[0]) || !strings.Contains(got, "manifests, lockfiles") {
+		t.Fatal(got)
+	}
+	rows := commandRows([]packagemanager.UpdatePlan{plan})
+	if len(rows) != 1 || rows[0].Mode != "Bump" || rows[0].Command != got {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
 func TestUpgradeKeyDispatch(t *testing.T) {
 	bin, project := t.TempDir(), t.TempDir()
 	for name, body := range map[string]string{
@@ -166,13 +183,13 @@ esac`,
 						t.Fatal("key not dispatched")
 					}
 					if scenario.name == "supported" || scenario.name == "go-project-allowed" {
-						if app.CurrentView() != "confirm" || len(data.plans) != 1 || data.planSummary != "1 packages in 1 commands: 1 Update, 0 Bump" {
+						if app.CurrentView() != "confirm" || len(data.plans) != 1 || data.planSummary != "1 packages in 1 operations: 1 Update, 0 Bump" {
 							t.Fatalf("view=%s plans=%v status=%q", app.CurrentView(), data.plans, data.status)
 						}
 						if scenario.name == "supported" && strings.Contains(data.preview, "--bump") {
 							t.Fatal(data.preview)
 						}
-						if scenario.name == "go-project-allowed" && (!strings.Contains(data.preview, "get example.com/dependency@v1.1.0") || !strings.Contains(data.preview, "go.mod, go.sum and transitive dependencies")) {
+						if scenario.name == "go-project-allowed" && (!strings.Contains(data.preview, "get example.com/dependency@v1.1.0") || !strings.Contains(data.preview, "manifests, lockfiles and transitive dependencies")) {
 							t.Fatal(data.preview)
 						}
 						return
@@ -591,6 +608,24 @@ func TestToggleAllIncludesBumpOnlyRows(t *testing.T) {
 		if len(data.selected) != 0 || len(data.bumps) != 0 {
 			t.Fatalf("selected=%v bumps=%v", data.selected, data.bumps)
 		}
+	}
+}
+
+func TestDockerTrackingWarningVisible(t *testing.T) {
+	previous := screenSize
+	t.Cleanup(func() { updateScreenSize(previous.Width, previous.Height) })
+	updateScreenSize(160, 24)
+	data := modeTestModel()
+	data.query.Managers = []packagemanager.ManagerStatus{{Name: packagemanager.PM_DOCKER, Operations: []packagemanager.OperationStatus{{Operation: "outdated"}}}}
+	view, _ := resultView(data)
+	buffer := glyph.NewBuffer(160, 24)
+	glyph.Build(view).Execute(buffer, 160, 24)
+	var lines []string
+	for i := 0; i < 24; i++ {
+		lines = append(lines, buffer.GetLine(i))
+	}
+	if !strings.Contains(strings.Join(lines, "\n"), "Unpinned tags cannot track changed content") {
+		t.Fatalf("Docker tracking warning missing:\n%s", strings.Join(lines, "\n"))
 	}
 }
 

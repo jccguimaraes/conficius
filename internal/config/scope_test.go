@@ -37,6 +37,27 @@ func TestResolveScopesDetectsCurrentProjectAndWorkspaces(t *testing.T) {
 	}
 }
 
+func TestResolveScopesDetectsDockerOnlyProject(t *testing.T) {
+	for _, name := range []string{"Dockerfile", "Containerfile", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			withDirectory(t, root)
+			mustWrite(t, filepath.Join(root, name), "")
+			scopes, err := ResolveScopes(nil, ResolvedProfile{Profile: defaultProfile()}, false, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolvedRoot, err := filepath.EvalSymlinks(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(scopes) != 2 || scopes[0].Kind != "global" || scopes[1].Kind != "project" || scopes[1].Path != resolvedRoot || len(scopes[1].Workspaces) != 0 {
+				t.Fatalf("scopes = %#v", scopes)
+			}
+		})
+	}
+}
+
 func TestResolveScopesDetectsCurrentRustProject(t *testing.T) {
 	root := t.TempDir()
 	withDirectory(t, root)

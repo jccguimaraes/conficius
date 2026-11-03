@@ -228,8 +228,8 @@ func showUpgradePreview(data *model, app *glyph.App, plans []packagemanager.Upda
 			bumpCount += len(plan.Packages)
 		}
 	}
-	data.planSummary = fmt.Sprintf("%d packages in %d commands: %d Update, %d Bump", packageCount, len(plans), packageCount-bumpCount, bumpCount)
-	data.status = "Review commands before applying upgrades"
+	data.planSummary = fmt.Sprintf("%d packages in %d operations: %d Update, %d Bump", packageCount, len(plans), packageCount-bumpCount, bumpCount)
+	data.status = "Review operations before applying upgrades"
 	app.Go("confirm")
 }
 
@@ -259,6 +259,13 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 		command[i] = shellQuote(command[i])
 	}
 	line := strings.Join(command, " ")
+	if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" {
+		var edits []string
+		for _, pkg := range plan.Packages {
+			edits = append(edits, fmt.Sprintf("%s [%s]: %s => %s", pkg.Manifest, pkg.Name, pkg.Current, pkg.Latest))
+		}
+		line = "Built-in file editing: " + strings.Join(edits, "; ")
+	}
 	if plan.RunAs != "" {
 		method := plan.RunAsMethod
 		if method == "" {
@@ -266,11 +273,11 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 		}
 		line = "[run_as=" + plan.RunAs + " method=" + method + "] " + line
 	}
-	if plan.Directory != "" {
+	if plan.Directory != "" && plan.Executable != "" {
 		line = fmt.Sprintf("(cd %s && %s)", shellQuote(plan.Directory), line)
 	}
 	if plan.Impact.MayChangeManifests {
-		line += " # may change go.mod, go.sum and transitive dependencies; no automatic rollback"
+		line += " # may change manifests, lockfiles and transitive dependencies; no automatic rollback"
 	}
 	return line
 }

@@ -57,6 +57,14 @@ var adapters = []managerAdapter{
 	Bun{},
 	Go{},
 	Apt{},
+	Docker{},
+}
+
+func operationExecutables(status ManagerStatus) []string {
+	if status.Name == PM_DOCKER {
+		return []string{""}
+	}
+	return status.Executables
 }
 
 func hasCapability(adapter managerAdapter, capability Capability) bool {

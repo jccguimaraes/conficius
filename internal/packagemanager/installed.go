@@ -259,7 +259,7 @@ func QueryInstalledScopesWithOptions(ctx context.Context, pms []string, scopes [
 		if adapterErr != nil {
 			return InstalledResult{}, adapterErr
 		}
-		for _, executable := range status.Executables {
+		for _, executable := range operationExecutables(*status) {
 			for _, scope := range scopes {
 				if !hasProjectManagerManifest(adapter, scope) {
 					continue
