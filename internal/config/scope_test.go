@@ -58,6 +58,60 @@ func TestResolveScopesDetectsDockerOnlyProject(t *testing.T) {
 	}
 }
 
+func TestResolveScopesDetectsKubernetesProject(t *testing.T) {
+	for _, test := range []struct {
+		name, path, data string
+		wantProject      bool
+	}{
+		{name: "helm", path: "Chart.yaml", wantProject: true},
+		{name: "kustomize yaml", path: "kustomization.yaml", wantProject: true},
+		{name: "kustomize yml", path: "kustomization.yml", wantProject: true},
+		{name: "kustomize extensionless", path: "Kustomization", wantProject: true},
+		{name: "pod", path: "pod.yaml", data: "apiVersion: v1\nkind: Pod\n", wantProject: true},
+		{name: "deployment", path: "app.yml", data: "apiVersion: apps/v1\nkind: Deployment\n", wantProject: true},
+		{name: "statefulset", path: "app.yaml", data: "apiVersion: apps/v1\nkind: StatefulSet\n", wantProject: true},
+		{name: "daemonset", path: "app.yaml", data: "apiVersion: apps/v1\nkind: DaemonSet\n", wantProject: true},
+		{name: "replicaset", path: "app.yaml", data: "apiVersion: apps/v1\nkind: ReplicaSet\n", wantProject: true},
+		{name: "replicationcontroller", path: "app.yaml", data: "apiVersion: v1\nkind: ReplicationController\n", wantProject: true},
+		{name: "job", path: "app.yaml", data: "apiVersion: batch/v1\nkind: Job\n", wantProject: true},
+		{name: "cronjob", path: "app.yaml", data: "apiVersion: batch/v1\nkind: CronJob\n", wantProject: true},
+		{name: "list", path: "app.yaml", data: "apiVersion: v1\nkind: List\nitems: []\n", wantProject: true},
+		{name: "kustomize document", path: "custom.yaml", data: "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n", wantProject: true},
+		{name: "multiple documents", path: "app.yaml", data: "apiVersion: v1\nkind: Service\n---\napiVersion: v1\nkind: Pod\n", wantProject: true},
+		{name: "k8s", path: "k8s/app.yaml", data: "apiVersion: v1\nkind: Pod\n", wantProject: true},
+		{name: "kubernetes", path: "kubernetes/app.yaml", data: "apiVersion: v1\nkind: Pod\n", wantProject: true},
+		{name: "manifests", path: "manifests/app.yaml", data: "apiVersion: v1\nkind: Pod\n", wantProject: true},
+		{name: "deploy", path: "deploy/kustomization.yaml", wantProject: true},
+		{name: "arbitrary yaml", path: "settings.yaml", data: "name: app\n"},
+		{name: "CI yaml", path: ".gitlab-ci.yml", data: "image: alpine\nbuild:\n  script: echo hello\n"},
+		{name: "wrong API", path: "app.yaml", data: "apiVersion: example.com/v1\nkind: Deployment\n"},
+		{name: "missing API", path: "app.yaml", data: "kind: Pod\n"},
+		{name: "missing kind", path: "app.yaml", data: "apiVersion: v1\n"},
+		{name: "non workload", path: "app.yaml", data: "apiVersion: v1\nkind: ConfigMap\n"},
+		{name: "malformed", path: "app.yaml", data: "apiVersion: [\nkind: Pod\n"},
+		{name: "template", path: "templates/app.yaml", data: "apiVersion: v1\nkind: Pod\n"},
+		{name: "nested", path: "k8s/base/app.yaml", data: "apiVersion: v1\nkind: Pod\n"},
+		{name: "unrelated directory", path: "examples/app.yaml", data: "apiVersion: v1\nkind: Pod\n"},
+		{name: "oversized", path: "app.yaml", data: "apiVersion: v1\nkind: Pod\n#" + strings.Repeat("x", 1<<20)},
+		{name: "too many documents", path: "app.yaml", data: strings.Repeat("---\n{}\n", 32) + "---\napiVersion: v1\nkind: Pod\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			withDirectory(t, root)
+			path := filepath.Join(root, test.path)
+			mustMkdirAll(t, filepath.Dir(path))
+			mustWrite(t, path, test.data)
+			scopes, err := ResolveScopes(nil, ResolvedProfile{Profile: defaultProfile()}, false, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(scopes) == 2 && scopes[1].Kind == "project"; got != test.wantProject {
+				t.Fatalf("scopes = %#v, want project = %t", scopes, test.wantProject)
+			}
+		})
+	}
+}
+
 func TestResolveScopesDetectsCurrentRustProject(t *testing.T) {
 	root := t.TempDir()
 	withDirectory(t, root)

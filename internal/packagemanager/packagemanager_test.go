@@ -1257,7 +1257,7 @@ esac
 `)
 	}
 	for _, manager := range RegisteredPackageManagers {
-		if manager != PM_MISE && manager != PM_PNPM {
+		if manager != PM_MISE && manager != PM_PNPM && manager != PM_HELM {
 			writeExecutable(t, filepath.Join(dir, manager), "#!/bin/sh\nprintf unexpected >> \"$UNEXPECTED_MANAGER\"\nexit 1\n")
 		}
 	}
@@ -1267,7 +1267,7 @@ esac
 	scopes := []Scope{{Kind: "project", Path: dir}}
 	options := QueryOptions{Disabled: map[string]bool{PM_NPM: true, PM_GO: true}, Required: map[string]bool{PM_GO: true}}
 	result, err := QueryBumpCandidates(t.Context(), scopes, options)
-	if err != nil || !result.Bump || len(result.Managers) != 3 || len(Records(result.Packages)) != 2 {
+	if err != nil || !result.Bump || len(result.Managers) != 4 || len(Records(result.Packages)) != 2 {
 		t.Fatalf("mixed bump query = %+v, %v", result, err)
 	}
 	if options.Bump || len(options.Required) != 1 {
@@ -1304,5 +1304,117 @@ esac
 	}
 	if _, err := QueryBumpCandidates(t.Context(), scopes, options); err == nil || !strings.Contains(err.Error(), "inspect manager manifest") {
 		t.Fatalf("manifest safety validation skipped: %v", err)
+	}
+}
+
+func TestDynamicProjectFilesTrackAddedAndDeletedSources(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "deploy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	oldName := filepath.Join("deploy", "old.yaml")
+	newName := filepath.Join("deploy", "new.yaml")
+	oldPath := filepath.Join(dir, oldName)
+	if err := os.WriteFile(oldPath, []byte("image: node:22\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan := UpdatePlan{Manager: PM_DOCKER, Scope: "project", Directory: dir}
+	before := snapshotProjectFiles(plan)
+	hash := updatePlanHash(plan)
+	if err := os.Remove(oldPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, newName), []byte("image: node:24\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if updatePlanHash(plan) == hash {
+		t.Fatal("dynamic source changes missing from plan hash")
+	}
+	if got, want := changedProjectFiles(plan, before), []string{newName, oldName}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("changed files = %q; want %q", got, want)
+	}
+}
+
+func TestDynamicProjectDiscoveryErrorsAffectPlanHash(t *testing.T) {
+	dir := t.TempDir()
+	plan := UpdatePlan{Manager: PM_DOCKER, Scope: "project", Directory: dir}
+	hash := updatePlanHash(plan)
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectFileNames(plan); err == nil {
+		t.Fatal("missing project root did not report discovery error")
+	}
+	if updatePlanHash(plan) == hash {
+		t.Fatal("discovery error missing from plan hash")
+	}
+}
+
+func TestHelmInspectionRequiresExecutableAndChartManifest(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	statuses, err := Inspect([]string{PM_HELM})
+	if err != nil || len(statuses) != 1 || statuses[0].Status != StatusUnavailable || statuses[0].Evidence.Executable {
+		t.Fatalf("Helm inspection = %+v, %v", statuses, err)
+	}
+	scope := Scope{Kind: "project", Path: dir}
+	if hasProjectManagerManifest(Helm{}, scope) {
+		t.Fatal("Helm accepted missing Chart.yaml")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Chart.yaml"), []byte("apiVersion: v2\nname: test\nversion: 1.0.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options, err := requireManifestManagers(QueryOptions{}, []Scope{scope})
+	if err != nil || !options.Required[PM_HELM] || !hasProjectManagerManifest(Helm{}, scope) {
+		t.Fatalf("Helm manifest requirement = %+v, %v", options, err)
+	}
+}
+
+func TestHelmProjectPlansHashChartStateAndRejectStaleApply(t *testing.T) {
+	for _, name := range []string{"Chart.yaml", "Chart.lock", filepath.Join("charts", "tool-1.0.0.tgz")} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("before"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			plan := UpdatePlan{Bump: true, Manager: PM_HELM, Scope: "project", Directory: dir}
+			plan.StateHash = updatePlanHash(plan)
+			if err := os.WriteFile(path, []byte("after"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ApplyUpdatesWithOutcomes(t.Context(), []UpdatePlan{plan}, false, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "stale") {
+				t.Fatalf("stale Helm plan error = %v", err)
+			}
+		})
+	}
+}
+
+func TestNestedKubernetesSourcesRequireDockerButUnrelatedYAMLDoesNot(t *testing.T) {
+	for _, recognized := range []bool{false, true} {
+		t.Run(fmt.Sprint(recognized), func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.Mkdir(filepath.Join(dir, "deploy"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			content := "name: unrelated\n"
+			if recognized {
+				content = "apiVersion: v1\nkind: Pod\nmetadata:\n  name: app\nspec:\n  containers:\n    - name: app\n      image: nginx:1.2\n"
+			}
+			if err := os.WriteFile(filepath.Join(dir, "deploy", "app.yaml"), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			scope := Scope{Kind: "project", Path: dir}
+			if got := hasProjectManagerManifest(Docker{}, scope); got != recognized {
+				t.Fatalf("Docker source presence = %t; want %t", got, recognized)
+			}
+			_, err := requireManifestManagers(QueryOptions{Disabled: map[string]bool{PM_DOCKER: true}}, []Scope{scope})
+			if (err != nil) != recognized {
+				t.Fatalf("disabled Docker conflict = %v; recognized %t", err, recognized)
+			}
+		})
 	}
 }

@@ -570,6 +570,31 @@ func TestPrintDockerUpdatePlansShowsFileEdits(t *testing.T) {
 	}
 }
 
+func TestPrintHelmUpdatePlansShowsEditsAndNativeRefresh(t *testing.T) {
+	var output bytes.Buffer
+	plan := packagemanager.UpdatePlan{
+		Manager: packagemanager.PM_HELM, Scope: "project", Directory: "/repo", Bump: true,
+		Executable: "/usr/bin/helm", Args: []string{"dependency", "update", "--skip-refresh"},
+		Packages: []packagemanager.Package{{Name: "redis", Current: "20.1.0", Requested: "^20.0.0", Latest: "21.0.0", Manifest: "/repo/Chart.yaml"}},
+	}
+	if err := printUpdatePlans(&output, []packagemanager.UpdatePlan{plan}, true); err != nil {
+		t.Fatal(err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "/repo/Chart.yaml [redis]: declared range ^20.0.0; target 21.0.0") || !strings.Contains(got, `"/usr/bin/helm" "dependency" "update" "--skip-refresh"`) {
+		t.Fatal(got)
+	}
+	plan.Bump = false
+	plan.Packages[0].Latest = "20.2.0"
+	output.Reset()
+	if err := printUpdatePlans(&output, []packagemanager.UpdatePlan{plan}, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := output.String(); strings.Contains(got, "Built-in file editing") || !strings.Contains(got, `"/usr/bin/helm" "dependency" "update" "--skip-refresh"`) {
+		t.Fatal(got)
+	}
+}
+
 func TestValidateAcceptedPlansRequiresExactHashes(t *testing.T) {
 	plans := []packagemanager.UpdatePlan{{StateHash: "first"}, {StateHash: "second"}}
 	if err := validateAcceptedPlans(plans, []string{"first", "second"}); err != nil {

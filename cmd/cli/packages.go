@@ -69,7 +69,7 @@ func (cli *Cli) packages() *urfave.Command {
 	pmFlag := func() urfave.Flag {
 		return &urfave.StringSliceFlag{
 			Name:  "pm",
-			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry, pnpm, cargo, yarn, bun, go, docker)",
+			Usage: "Limit package managers (mise, brew, npm, mas, uv, pipx, poetry, pnpm, cargo, yarn, bun, go, docker, helm)",
 			Action: func(ctx context.Context, cmd *urfave.Command, pms []string) error {
 				return packagemanager.Supported(pms)
 			},
@@ -173,7 +173,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Description: "List installed tools with available updates.",
 				Usage:       "Show outdated tools.",
 				Flags: append([]urfave.Flag{pmFlag(), jsonFlag(),
-					&urfave.BoolFlag{Name: "bump", Usage: "Include latest versions beyond constraints (mise, pnpm and docker)"},
+					&urfave.BoolFlag{Name: "bump", Usage: "Include latest versions beyond constraints (mise, pnpm, docker and helm)"},
 					&urfave.BoolFlag{Name: "offline", Usage: "Inspect installed state without network freshness checks"},
 					&urfave.BoolFlag{Name: "check", Usage: "Return exit code 1 when updates exist"},
 				}, scopeFlags()...),
@@ -290,7 +290,7 @@ func (cli *Cli) packages() *urfave.Command {
 				Flags: append([]urfave.Flag{
 					pmFlag(),
 					jsonFlag(),
-					&urfave.BoolFlag{Name: "bump", Usage: "Update to latest versions beyond constraints (mise, pnpm and docker)"},
+					&urfave.BoolFlag{Name: "bump", Usage: "Update to latest versions beyond constraints (mise, pnpm, docker and helm)"},
 					&urfave.BoolFlag{Name: "apply", Usage: "Run update commands interactively"},
 					&urfave.BoolFlag{Name: "yes", Usage: "Run non-interactively with accepted plan hashes"},
 					&urfave.BoolFlag{Name: "best-effort", Usage: "Continue with later plans after a failed plan"},
@@ -634,13 +634,22 @@ func printUpdatePlans(writer io.Writer, plans []packagemanager.UpdatePlan, previ
 				return err
 			}
 		}
-		if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" {
+		if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" || plan.Manager == packagemanager.PM_HELM && plan.Bump {
 			for _, pkg := range plan.Packages {
-				if _, err := fmt.Fprintf(writer, "Built-in file editing: %s [%s]: %s => %s\n", pkg.Manifest, pkg.Name, pkg.Current, pkg.Latest); err != nil {
+				current := pkg.Current
+				if plan.Manager == packagemanager.PM_HELM {
+					if _, err := fmt.Fprintf(writer, "Chart dependency: %s [%s]: declared range %s; target %s; replace range only if target is outside it\n", pkg.Manifest, pkg.Name, pkg.Requested, pkg.Latest); err != nil {
+						return err
+					}
+					continue
+				}
+				if _, err := fmt.Fprintf(writer, "Built-in file editing: %s [%s]: %s => %s\n", pkg.Manifest, pkg.Name, current, pkg.Latest); err != nil {
 					return err
 				}
 			}
-			continue
+			if plan.Manager != packagemanager.PM_HELM {
+				continue
+			}
 		}
 		parts := append([]string{plan.Executable}, plan.Args...)
 		for i, part := range parts {

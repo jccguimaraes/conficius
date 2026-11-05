@@ -98,6 +98,23 @@ func TestDockerPlanPreviewShowsFileEdits(t *testing.T) {
 	}
 }
 
+func TestHelmPlanPreviewShowsEditsAndNativeRefresh(t *testing.T) {
+	plan := packagemanager.UpdatePlan{
+		Manager: packagemanager.PM_HELM, Scope: "project", Directory: "/repo", Bump: true,
+		Executable: "/usr/bin/helm", Args: []string{"dependency", "update", "--skip-refresh"},
+		Packages: []packagemanager.Package{{Name: "redis", Current: "20.1.0", Requested: "^20.0.0", Latest: "21.0.0", Manifest: "/repo/Chart.yaml"}},
+	}
+	got := formatPlan(plan)
+	if !strings.Contains(got, "/repo/Chart.yaml [redis]: declared range ^20.0.0; target 21.0.0") || !strings.Contains(got, "then /usr/bin/helm dependency update --skip-refresh") {
+		t.Fatal(got)
+	}
+	plan.Bump = false
+	plan.Packages[0].Latest = "20.2.0"
+	if got := formatPlan(plan); strings.Contains(got, "Built-in file editing") || !strings.Contains(got, "/usr/bin/helm dependency update --skip-refresh") {
+		t.Fatal(got)
+	}
+}
+
 func TestUpgradeKeyDispatch(t *testing.T) {
 	bin, project := t.TempDir(), t.TempDir()
 	for name, body := range map[string]string{
