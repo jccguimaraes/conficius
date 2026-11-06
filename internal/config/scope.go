@@ -1,12 +1,16 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"go.yaml.in/yaml/v4"
 )
 
 type Scope struct {
@@ -118,9 +122,65 @@ func uniqueScopes(scopes []Scope) ([]Scope, error) {
 }
 
 func hasProjectManifest(path string) bool {
-	for _, name := range []string{"package.json", "Cargo.toml", "go.mod", "mise.toml", ".mise.toml", "Dockerfile", "Containerfile", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"} {
+	for _, name := range []string{"package.json", "Cargo.toml", "go.mod", "mise.toml", ".mise.toml", "Dockerfile", "Containerfile", "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml", "Chart.yaml"} {
 		if isFile(filepath.Join(path, name)) {
 			return true
+		}
+	}
+	for _, dir := range []string{".", "k8s", "kubernetes", "manifests", "deploy"} {
+		root := filepath.Join(path, dir)
+		for _, name := range []string{"kustomization.yaml", "kustomization.yml", "Kustomization"} {
+			if isFile(filepath.Join(root, name)) {
+				return true
+			}
+		}
+		entries, _ := os.ReadDir(root)
+		for _, entry := range entries {
+			if entry.Type().IsRegular() && (filepath.Ext(entry.Name()) == ".yaml" || filepath.Ext(entry.Name()) == ".yml") && hasKubernetesDocument(filepath.Join(root, entry.Name())) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasKubernetesDocument(path string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = file.Close() }()
+	const maxBytes = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	if err != nil || len(data) > maxBytes {
+		return false
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	for range 32 {
+		var document struct {
+			APIVersion string `yaml:"apiVersion"`
+			Kind       string `yaml:"kind"`
+		}
+		if decoder.Decode(&document) != nil {
+			return false
+		}
+		switch document.Kind {
+		case "Pod", "ReplicationController", "List":
+			if document.APIVersion == "v1" {
+				return true
+			}
+		case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet":
+			if document.APIVersion == "apps/v1" {
+				return true
+			}
+		case "Job", "CronJob":
+			if document.APIVersion == "batch/v1" {
+				return true
+			}
+		case "Kustomization":
+			if document.APIVersion == "kustomize.config.k8s.io/v1beta1" || document.APIVersion == "kustomize.config.k8s.io/v1alpha1" {
+				return true
+			}
 		}
 	}
 	return false

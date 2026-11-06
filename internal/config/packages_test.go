@@ -533,6 +533,23 @@ func TestPackageRunAsMethodConfiguration(t *testing.T) {
 	}
 }
 
+func TestLoadPackagesAcceptsHelmProfile(t *testing.T) {
+	packageTestHome(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writePackageTest(t, path, "version = 2\n[profiles.work.managers.helm]\nenabled = true\n")
+	project, err := LoadPackages(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := project.ResolveProfile("work", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enabled := profile.Profile.Managers["helm"].Enabled; enabled == nil || !*enabled {
+		t.Fatalf("helm manager = %#v", profile.Profile.Managers["helm"])
+	}
+}
+
 func TestPackageRunAsConfiguration(t *testing.T) {
 	packageTestHome(t)
 	path := filepath.Join(t.TempDir(), "config.toml")

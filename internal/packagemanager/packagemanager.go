@@ -310,7 +310,7 @@ func QueryOutdatedScopes(ctx context.Context, pms []string, scopes []Scope) (Que
 
 func QueryBumpCandidates(ctx context.Context, scopes []Scope, options QueryOptions) (QueryResult, error) {
 	options.Bump = true
-	managers := []string{PM_MISE, PM_PNPM, PM_DOCKER}
+	managers := []string{PM_MISE, PM_PNPM, PM_DOCKER, PM_HELM}
 	return queryOutdatedScopesWithOptions(ctx, managers, scopes, options, managers)
 }
 
@@ -370,7 +370,7 @@ func queryOutdatedValidated(ctx context.Context, pms []string, scopes []Scope, o
 				operations = append(operations, readOperation[Packages]{managerIndex: i, manager: manager, executable: executable, scope: scope, run: func(ctx context.Context) (Packages, error) {
 					packages := make(Packages)
 					managerOptions := options.Managers[manager]
-					if manager == PM_MISE || manager == PM_PNPM || manager == PM_DOCKER {
+					if manager == PM_MISE || manager == PM_PNPM || manager == PM_DOCKER || manager == PM_HELM {
 						managerOptions.IncludeBumpCandidates = options.Bump
 					}
 					err := listOutdatedScope(ctx, manager, executable, scope, managerOptions, packages)
@@ -482,7 +482,18 @@ func hasProjectManagerManifest(adapter managerAdapter, scope Scope) bool {
 				return true
 			}
 		}
+		files, err := dockerDiscover(scope)
+		if err != nil {
+			return true // Keep discovery errors visible through the adapter operation.
+		}
+		for _, file := range files {
+			if len(file.sources) > 0 {
+				return true
+			}
+		}
 		return false
+	case PM_HELM:
+		manifest = "Chart.yaml"
 	case PM_NPM:
 		manifest = "package.json"
 	case PM_PNPM:
@@ -525,7 +536,7 @@ func requireSelectedManifestManagers(options QueryOptions, scopes []Scope, selec
 	manifests := []struct {
 		name    string
 		manager string
-	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}, {"go.mod", PM_GO}}
+	}{{".mise.toml", PM_MISE}, {"Brewfile", PM_BREW}, {"mise.toml", PM_MISE}, {"package.json", PM_NPM}, {"go.mod", PM_GO}, {"Chart.yaml", PM_HELM}}
 	for _, name := range (Docker{}).projectFiles() {
 		manifests = append(manifests, struct {
 			name    string
@@ -574,6 +585,25 @@ func requireSelectedManifestManagers(options QueryOptions, scopes []Scope, selec
 				continue
 			}
 			options.Required[manifest.manager] = true
+		}
+		if selected != nil && (!slices.Contains(selected, PM_DOCKER) || options.Disabled[PM_DOCKER]) {
+			continue
+		}
+		files, discoverErr := dockerDiscover(Scope{Kind: "project", Path: root})
+		if discoverErr != nil {
+			conflicts = append(conflicts, fmt.Errorf("inspect docker sources %s: %w", root, discoverErr))
+			continue
+		}
+		for _, file := range files {
+			if len(file.sources) == 0 || slices.Contains((Docker{}).projectFiles(), file.relative) {
+				continue
+			}
+			if options.Disabled[PM_DOCKER] {
+				conflicts = append(conflicts, fmt.Errorf("manager %s is disabled but required by %s", PM_DOCKER, filepath.Join(root, file.relative)))
+			} else {
+				options.Required[PM_DOCKER] = true
+			}
+			break
 		}
 	}
 	return options, errors.Join(conflicts...)
@@ -708,6 +738,9 @@ func managerVersion(manager string, output []byte) string {
 func managerVersionArgs(manager string) []string {
 	if manager == PM_GO {
 		return []string{"version"}
+	}
+	if manager == PM_HELM {
+		return []string{"version", "--short"}
 	}
 	return []string{"--version"}
 }
@@ -874,7 +907,7 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		if _, ok := excluded[key]; ok {
 			continue
 		}
-		if result.Bump && record.Manager != PM_MISE && record.Manager != PM_PNPM && record.Manager != PM_DOCKER {
+		if result.Bump && record.Manager != PM_MISE && record.Manager != PM_PNPM && record.Manager != PM_DOCKER && record.Manager != PM_HELM {
 			return nil, fmt.Errorf("%s does not support bump mode", record.Manager)
 		}
 		selected = append(selected, record)
@@ -965,13 +998,17 @@ func updatePlanHash(plan UpdatePlan) string {
 			writeHashValue(value)
 		}
 	}
-	if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER) && (plan.Scope == "project" || plan.Scope == "workspace") {
-		files := snapshotProjectFiles(plan)
-		adapter, _ := adapterFor(plan.Manager)
-		for _, name := range adapter.projectFiles() {
-			contents, exists := files[name]
+	if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER || plan.Manager == PM_HELM) && (plan.Scope == "project" || plan.Scope == "workspace") {
+		names, err := projectFileNames(plan)
+		if err != nil {
+			writeHashValue(err.Error())
+		}
+		for _, name := range names {
+			contents, err := os.ReadFile(filepath.Join(plan.Directory, name))
 			writeHashValue(name)
-			writeHashValue(strconv.FormatBool(exists))
+			if err != nil {
+				writeHashValue(err.Error())
+			}
 			writeHashValue(string(contents))
 		}
 	}
@@ -1126,10 +1163,10 @@ func ApplyUpdates(ctx context.Context, plans []UpdatePlan, stdin io.Reader, stdo
 func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffort bool, stdin io.Reader, stdout, stderr io.Writer) ([]UpdateOutcome, error) {
 	outcomes := make([]UpdateOutcome, 0, len(plans))
 	for _, plan := range plans {
-		if plan.Bump && plan.Manager != PM_MISE && plan.Manager != PM_PNPM && plan.Manager != PM_DOCKER {
+		if plan.Bump && plan.Manager != PM_MISE && plan.Manager != PM_PNPM && plan.Manager != PM_DOCKER && plan.Manager != PM_HELM {
 			return nil, fmt.Errorf("%s does not support bump mode", plan.Manager)
 		}
-		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
+		if (plan.Manager == PM_GO || plan.Manager == PM_CARGO || plan.Manager == PM_DOCKER || plan.Manager == PM_HELM) && (plan.Scope == "project" || plan.Scope == "workspace") && plan.StateHash != updatePlanHash(plan) {
 			return nil, fmt.Errorf("%s project update plan is stale; refresh preview before applying", plan.Manager)
 		}
 		if plan.Manager == PM_CARGO && plan.RunAs == "" {
@@ -1202,9 +1239,12 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			}
 		}
 		if err == nil {
-			if plan.Manager == PM_DOCKER {
+			switch plan.Manager {
+			case PM_DOCKER:
 				err = dockerApply(planContext, plan)
-			} else {
+			case PM_HELM:
+				err = helmApply(planContext, plan)
+			default:
 				err = cmd.Run()
 			}
 		}
@@ -1224,7 +1264,7 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 			wrapped := fmt.Errorf("%s (%s): %w", plan.Manager, plan.Executable, classified)
 			updateErrors = append(updateErrors, wrapped)
 			failedManagers[plan.Manager] = wrapped
-			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", Error: redactSensitive(wrapped.Error())})
+			outcomes = append(outcomes, UpdateOutcome{StateHash: plan.StateHash, Status: "failed", ChangedFiles: changedProjectFiles(plan, beforeFiles), Error: redactSensitive(wrapped.Error())})
 			if ctx.Err() != nil || !bestEffort {
 				for _, skipped := range plans[i+1:] {
 					outcomes = append(outcomes, UpdateOutcome{StateHash: skipped.StateHash, Status: "skipped", Error: classified.Error()})
@@ -1238,16 +1278,31 @@ func ApplyUpdatesWithOutcomes(ctx context.Context, plans []UpdatePlan, bestEffor
 	return outcomes, errors.Join(updateErrors...)
 }
 
+func projectFileNames(plan UpdatePlan) ([]string, error) {
+	adapter, err := adapterFor(plan.Manager)
+	if err != nil {
+		return nil, err
+	}
+	names := append([]string(nil), adapter.projectFiles()...)
+	var dynamic []string
+	switch plan.Manager {
+	case PM_DOCKER:
+		dynamic, err = dockerProjectFiles(plan.Directory)
+	case PM_HELM:
+		dynamic, err = helmProjectFiles(plan.Directory)
+	}
+	names = append(names, dynamic...)
+	sort.Strings(names)
+	return slices.Compact(names), err
+}
+
 func snapshotProjectFiles(plan UpdatePlan) map[string][]byte {
 	if plan.Scope != "project" && plan.Scope != "workspace" {
 		return nil
 	}
-	adapter, err := adapterFor(plan.Manager)
-	if err != nil {
-		return nil
-	}
+	names, _ := projectFileNames(plan)
 	files := make(map[string][]byte)
-	for _, name := range adapter.projectFiles() {
+	for _, name := range names {
 		contents, err := os.ReadFile(filepath.Join(plan.Directory, name))
 		if err == nil {
 			files[name] = contents
@@ -1260,12 +1315,13 @@ func changedProjectFiles(plan UpdatePlan, before map[string][]byte) []string {
 	if before == nil {
 		return nil
 	}
-	adapter, err := adapterFor(plan.Manager)
-	if err != nil {
-		return nil
+	names, _ := projectFileNames(plan)
+	for name := range before {
+		names = append(names, name)
 	}
+	sort.Strings(names)
 	var changed []string
-	for _, name := range adapter.projectFiles() {
+	for _, name := range slices.Compact(names) {
 		contents, err := os.ReadFile(filepath.Join(plan.Directory, name))
 		previous, existed := before[name]
 		if err == nil && (!existed || !bytes.Equal(previous, contents)) {
@@ -1311,6 +1367,8 @@ func VerifyUpdateOutcomes(ctx context.Context, plans []UpdatePlan, outcomes []Up
 		remaining := make(Packages)
 		if plan.Manager == PM_DOCKER {
 			err = dockerVerify(plan)
+		} else if plan.Manager == PM_HELM {
+			err = helmVerify(plan)
 		} else if plan.Manager == PM_CARGO {
 			err = cargoVerifyUpdate(plan)
 		} else if plan.Manager == PM_MISE || plan.Manager == PM_PNPM {

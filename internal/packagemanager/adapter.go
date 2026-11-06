@@ -58,6 +58,7 @@ var adapters = []managerAdapter{
 	Go{},
 	Apt{},
 	Docker{},
+	Helm{},
 }
 
 func operationExecutables(status ManagerStatus) []string {

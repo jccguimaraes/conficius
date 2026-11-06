@@ -242,6 +242,8 @@ enabled = false
 enabled = true
 [profiles.work.managers.docker]
 enabled = true
+[profiles.work.managers.helm]
+enabled = true
 [[profiles.work.projects]]
 name = "web"
 path = "./web"
@@ -270,7 +272,10 @@ path = "./personal"
 	if managers["docker"].Enabled == nil || !*managers["docker"].Enabled {
 		t.Fatalf("docker manager = %#v", managers["docker"])
 	}
-	if len(managers) != 5 || managers["npm"].Enabled == nil || !*managers["npm"].Enabled || managers["brew"].Enabled == nil || *managers["brew"].Enabled || managers["mise"].Enabled != nil {
+	if managers["helm"].Enabled == nil || !*managers["helm"].Enabled {
+		t.Fatalf("helm manager = %#v", managers["helm"])
+	}
+	if len(managers) != 6 || managers["npm"].Enabled == nil || !*managers["npm"].Enabled || managers["brew"].Enabled == nil || *managers["brew"].Enabled || managers["mise"].Enabled != nil {
 		t.Fatalf("managers = %#v", managers)
 	}
 	if len(resolved.Profile.Projects) != 1 {

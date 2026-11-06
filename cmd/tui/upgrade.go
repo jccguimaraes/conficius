@@ -259,12 +259,21 @@ func formatPlan(plan packagemanager.UpdatePlan) string {
 		command[i] = shellQuote(command[i])
 	}
 	line := strings.Join(command, " ")
-	if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" {
+	if plan.Manager == packagemanager.PM_DOCKER && plan.Executable == "" || plan.Manager == packagemanager.PM_HELM && plan.Bump {
 		var edits []string
 		for _, pkg := range plan.Packages {
-			edits = append(edits, fmt.Sprintf("%s [%s]: %s => %s", pkg.Manifest, pkg.Name, pkg.Current, pkg.Latest))
+			current := pkg.Current
+			if plan.Manager == packagemanager.PM_HELM {
+				edits = append(edits, fmt.Sprintf("%s [%s]: declared range %s; target %s; replace range only if target is outside it", pkg.Manifest, pkg.Name, pkg.Requested, pkg.Latest))
+				continue
+			}
+			edits = append(edits, fmt.Sprintf("%s [%s]: %s => %s", pkg.Manifest, pkg.Name, current, pkg.Latest))
 		}
-		line = "Built-in file editing: " + strings.Join(edits, "; ")
+		if plan.Manager == packagemanager.PM_HELM {
+			line = "Built-in file editing: " + strings.Join(edits, "; ") + "; then " + line
+		} else {
+			line = "Built-in file editing: " + strings.Join(edits, "; ")
+		}
 	}
 	if plan.RunAs != "" {
 		method := plan.RunAsMethod
