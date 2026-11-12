@@ -15,8 +15,9 @@ require (
 	github.com/kungfusheep/glyph v0.8.0
 	github.com/kungfusheep/riffkey v0.0.0-20260826171334-5e317f83ca32
 	github.com/urfave/cli/v3 v3.14.0
+	go.yaml.in/yaml/v4 v4.0.0-rc.2
 	golang.org/x/mod v0.42.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 )
 
 require (
@@ -59,7 +60,6 @@ require (
 	github.com/yldio/cinzel v1.2.2 // indirect
 	github.com/zclconf/go-cty v1.19.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/pkgsite v0.6.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
