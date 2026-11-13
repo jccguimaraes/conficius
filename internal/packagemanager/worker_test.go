@@ -382,9 +382,9 @@ outdated)
  if [ -f "$UPDATED_MARKER" ]; then printf '{}'; else printf '{"node":{"name":"node","current":"20","latest":"22"}}'; fi;;
 upgrade)
  if [ "$BUMP_MODE" = true ]; then
-  [ "$*" = 'upgrade --yes --bump node' ] || exit 5
+  [ "$*" = 'upgrade --yes --bump --global node' ] || exit 5
  else
-  [ "$*" = 'upgrade --yes node' ] || exit 6
+  [ "$*" = 'upgrade --yes --global node' ] || exit 6
  fi
  printf updated > "$UPDATED_MARKER";;
 ls)

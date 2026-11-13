@@ -37,6 +37,13 @@ func TestMiseUpdatePlansKeepProjectMutationGuards(t *testing.T) {
 				if err != nil || len(plans) != 1 {
 					t.Fatalf("plans = %+v, error = %v", plans, err)
 				}
+				global := kind == "global"
+				if strings.Contains(" "+strings.Join(plans[0].Args, " ")+" ", " --global ") != global {
+					t.Errorf("wrong update scope: %v", plans[0].Args)
+				}
+				if got := plans[0].Args[len(plans[0].Args)-1]; got != "node" {
+					t.Errorf("update target = %q; want node", got)
+				}
 				want := MutationImpact{MayChangeManifests: kind != "global"}
 				if plans[0].Impact != want {
 					t.Fatalf("impact = %+v; want %+v", plans[0].Impact, want)
@@ -76,9 +83,18 @@ func TestMiseQueriesIsolateGlobalFromLaunchProject(t *testing.T) {
 printf '%s|%s\n' "$PWD" "$*" >> "$ARGS_LOG"
 version=24.0.0
 case " $* " in *" --global "*) version=20.0.0 ;; esac
+if [ "$1" = ls ] && [ "$version" = 20.0.0 ] && [ "$MISE_CEILING_PATHS" != "$PWD" ]; then
+  printf '{}'
+  exit 0
+fi
 case "$1" in
 ls) printf '{"node":[{"version":"%s","installed":true}]}' "$version" ;;
 outdated) printf '{"node":{"name":"node","current":"%s","requested":"%s","latest":"25.0.0"}}' "$version" "$version" ;;
+upgrade)
+  case " $* " in *" --global "*) ;; *) exit 2 ;; esac
+  for target do :; done
+  [ "$target" = node ] || exit 3
+  ;;
 *) exit 1 ;;
 esac
 `)
@@ -105,6 +121,15 @@ esac
 			records := Records(outdated.Packages)
 			if len(records) != 1 || records[0].Current != version || records[0].Scope != scope.Kind || records[0].Path != scope.Path {
 				t.Errorf("outdated = %+v; want node@%s in %+v", records, version, scope)
+			}
+			if scope.Kind == "global" {
+				plans, err := PlanUpdates(outdated, nil, nil)
+				if err != nil || len(plans) != 1 {
+					t.Fatalf("plans = %+v, error = %v", plans, err)
+				}
+				if _, err := runOutputDir(t.Context(), plans[0].Directory, plans[0].Executable, plans[0].Args...); err != nil {
+					t.Fatalf("global upgrade: %v", err)
+				}
 			}
 			args, err := os.ReadFile(log)
 			if err != nil {

@@ -602,7 +602,15 @@ func installedMise(ctx context.Context, executable string, scope Scope) ([]Insta
 	} else if scope.Kind != "" {
 		args = append(args, MiseFlagGlobal)
 	}
-	output, err := runOutputDir(ctx, scope.Path, executable, args...)
+	var environment []string
+	if scope.Path == "" && scope.Kind != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		environment = []string{"MISE_CEILING_PATHS=" + cwd}
+	}
+	output, err := runOutputDirEnv(ctx, scope.Path, environment, executable, args...)
 	if err != nil {
 		return nil, err
 	}

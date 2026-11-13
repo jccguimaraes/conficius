@@ -945,6 +945,9 @@ func PlanUpdates(result QueryResult, include, exclude []string) ([]UpdatePlan, e
 		plan := plansByKey[key]
 		sort.Slice(plan.Packages, func(i, j int) bool { return plan.Packages[i].Name < plan.Packages[j].Name })
 		plan.Args = updateArgs(plan.Manager, plan.Packages)
+		if plan.Manager == PM_MISE && plan.Scope == "global" {
+			plan.Args = append([]string{MiseCommandUpgrade, MiseFlagYes, MiseFlagGlobal}, plan.Args[2:]...)
+		}
 		if plan.Bump {
 			switch plan.Manager {
 			case PM_MISE:
@@ -1418,9 +1421,13 @@ func runOutput(ctx context.Context, executable string, args ...string) ([]byte, 
 }
 
 func runOutputDir(ctx context.Context, dir, executable string, args ...string) ([]byte, error) {
+	return runOutputDirEnv(ctx, dir, nil, executable, args...)
+}
+
+func runOutputDirEnv(ctx context.Context, dir string, environment []string, executable string, args ...string) ([]byte, error) {
 	cmd := commandContext(ctx, executable, args...)
 	cmd.Dir = dir
-	cmd.Env = managerEnvironment(dir)
+	cmd.Env = append(managerEnvironment(dir), environment...)
 	output, err := managerCommandOutput(cmd)
 	if err == nil {
 		return output, nil
